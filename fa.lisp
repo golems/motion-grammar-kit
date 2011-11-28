@@ -50,7 +50,11 @@ d: list of transitions '((state-0 token state-1)...)
 final: list of accept states
 start: start state
 output: output file, type determined by suffix (png,pdf,eps)"
-  (labels ((helper (s)
+  (labels ((token-label (name)
+             (if (eq :epsilon name)
+                 "&epsilon;" ; print epsilons in greek
+                 name))
+           (helper (s)
              (format s "~&digraph {~%")
              (when start
                (format s "~&  start[shape=none];")
@@ -58,7 +62,7 @@ output: output file, type determined by suffix (png,pdf,eps)"
              (format s "~{~&  ~A [ shape=doublecircle ];~}" final)
              (map 'nil (lambda (x)
                          (format s "~&  ~A -> ~A [label=\"~A\"];~%"
-                                 (first x) (third x) (second x)))
+                                 (first x) (third x) (token-label (second x))))
                   d)
              (format s "~&}~%"))
            (dot (ext)
@@ -82,4 +86,53 @@ output: output file, type determined by suffix (png,pdf,eps)"
       (t
        (with-output-to-string (s)
          (helper s))))))
+
+
+
+;;; Regex
+;;;  Parse Tree S-Expression
+;;;    - :concatenation  --- ab
+;;;    - :closure        --- a*
+;;;    - :union          --- a|b
+
+
+;; The McNaughton-Yamada-Thompson algorithm
+;; Aho 2nd Ed., P 159
+
+(defun regex->nfa (regex)
+  "Convert a regex parse-tree to an NFA
+RESULT: (list edges start final)"
+  (let ((start 0)
+        (counter 1)
+        (edges nil))
+    (labels ((visit (start tree &aux (end (incf counter)))
+               ;; recursively visit the tree
+               (cond
+                 ((atom tree)
+                  (push (list start tree end) edges)
+                  end)
+                 ((eq :concatenation (car tree))
+                  (reduce #'visit (cdr tree)
+                          :initial-value start))
+                 ((eq :union (car tree))
+                  (let ((end (incf counter)))
+                    (mapcar (lambda (tree)
+                              (push (list (visit start tree) :epsilon end)
+                                    edges))
+                          (cdr tree))
+                    end))
+                 ((eq :closure (car tree))
+                  (assert (= 2 (length tree)))
+                  (let* ((start2 (incf counter))
+                         (end (visit start2 (cadr tree))))
+                    (push (list start :epsilon start2) edges)
+                    (push (list end :epsilon start2) edges)
+                    end))
+                 (t (error "Unknown tree ~A" tree)))))
+      ;; visit the start
+      (let ((final (visit start regex)))
+        (list edges start (list final))))))
+
+
+
 
