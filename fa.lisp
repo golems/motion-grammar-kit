@@ -44,10 +44,18 @@
 ;;;    - F: accept state
 
 
-
-(defun dfa-dot (d &key file)
+(defun dfa-dot (d &key output final start)
+  "Graphviz output of dfa.
+d: list of transitions '((state-0 token state-1)...)
+final: list of accept states
+start: start state
+output: output file, type determined by suffix (png,pdf,eps)"
   (labels ((helper (s)
              (format s "~&digraph {~%")
+             (when start
+               (format s "~&  start[shape=none];")
+               (format s "~&  start -> ~A;" start))
+             (format s "~{~&  ~A [ shape=doublecircle ];~}" final)
              (map 'nil (lambda (x)
                          (format s "~&  ~A -> ~A [label=\"~A\"];~%"
                                  (first x) (third x) (second x)))
@@ -55,22 +63,22 @@
              (format s "~&}~%"))
            (dot (ext)
              (let ((p (sb-ext:run-program "dot" (list (concatenate 'string "-T" ext))
-                                          :wait nil :search t :input :stream :output file
+                                          :wait nil :search t :input :stream :output output
                                           :if-output-exists :supersede)))
                (helper (sb-ext:process-input p))
                (close (sb-ext:process-input p))
                (sb-ext:process-wait p))))
     (cond
-      ((and (stringp file) (ppcre:scan ".png$" file))
+      ((and (stringp output) (ppcre:scan "\.png$" output))
        (dot "png"))
-      ((and (stringp file) (ppcre:scan ".ps$" file))
+      ((and (stringp output) (ppcre:scan "\.ps$" output))
        (dot "ps"))
-      ((and (stringp file) (ppcre:scan ".eps$" file))
+      ((and (stringp output) (ppcre:scan "\.eps$" output))
        (dot "eps"))
-      ((and (stringp file) (ppcre:scan ".pdf$" file))
+      ((and (stringp output) (ppcre:scan "\.pdf$" output))
        (dot "pdf"))
-      ((streamp file)
-       (helper file))
+      ((streamp output)
+       (helper output))
       (t
        (with-output-to-string (s)
          (helper s))))))
