@@ -177,57 +177,79 @@ RESULT: (list edges start final)"
       (values nedges (gethash start state-hash)
               state-array token-array))))
 
+(defun nfa-et-closure (states z mover)
+"Epsilon-closure for list states transitioning by token z.
+STATES: list of states
+Z: token
+MOVER: fuction from (state token) => (list states)"
+  (let ((stack (copy-list states))
+        (closure nil))
+    (loop
+       while stack
+       for top = (pop stack)
+       do (progn
+            (dolist (u (funcall mover top z))
+              (unless (find u closure)
+                (push u closure)
+                (push u stack)))))
+    closure))
 
+;; See Aho, 2nd p. 152
 
 (defun nfa->dfa (edges start)
+  "Convert an NFA to a DFA"
   (multiple-value-bind (i-edges i-start i-states i-tokens) (fa-numerize edges start)
-    (let ((e-closure (make-array (length i-states) :initial-element nil))
-          (move (make-array (list (length i-states) (length i-tokens))
-                            :initial-element nil))
-          (et-closure (make-array (list (length i-states) (length i-tokens))
-                                 :initial-element nil)))
+    (let ((move (make-array (list (length i-states) (length i-tokens))
+                            :initial-element nil)))
       ;; index moves
       (loop for (q0 z q1) in i-edges
          do (push q1 (aref move q0 z)))
-      ;; e-close of state i
-      (labels ((e-close (i)
-                 (unless (aref e-closure i)
-                   (setf (aref e-closure i)
-                         (reduce (lambda (set i) (union set (e-close i)))
-                                 (aref move i 0)
-                                 :initial-value (list i))))
-                 (aref e-closure i)))
-        (dotimes (i (length i-states))
-          (e-close i)))
       ;; d-states
       (let ((d-states (make-array 0 :adjustable t :fill-pointer t))
             (d-hash (make-hash-table :test #'equal))
-            (d-edge))
-        (vector-push-extend (aref e-closure i-start) d-states)
+            (d-edge)
+            (mover (lambda (state token) (aref move state token))))
+        ;; start state
+        (vector-push-extend (union (list i-start)
+                                   (nfa-et-closure (list i-start) 0 mover))
+                            d-states)
         (setf (gethash (aref d-states 0) d-hash) 0)
-        (princ d-states)
+        ;; subset construction
         (loop for mark = 0 then (1+ mark)
            while (< mark (length d-states))
            for ds = (aref d-states mark)
            do (progn
-                (format t "~&d-states: ~A" ds)
+                ;;(format t "~&d-states: ~A" ds)
                 (loop
                    for i-z below (length i-tokens)
-                   for u = (reduce (lambda (set state)
-                                     (format t "~&  z: ~A i-state: ~A" i-z state)
-                                     (union set
-                                            (apply #'append
-                                                   (mapcar (lambda (i) (aref e-closure i))
-                                                           (aref move state i-z)))))
-                                   ds :initial-value nil)
-                   for up = (sort (copy-list U) #'<)
-                   when up
+                   for u = (sort (nfa-et-closure ds i-z mover) #'<)
+                   when u
                    do (progn
-                        (when (not (gethash up d-hash))
-                          (setf (gethash up d-hash) (length d-states))
-                          (vector-push-extend up d-states))
-                        (format t "~&   new d-state ~A ~A : ~A ~A"
-                                mark i-z (gethash up d-hash) up)
-                        (push (list mark (aref i-tokens i-z) (gethash up d-hash))
+                        (when (not (gethash u d-hash))
+                          (setf (gethash u d-hash) (length d-states))
+                          (vector-push-extend u d-states))
+                        ;;(format t "~&   new d-state ~A ~A : ~A ~A"
+                                ;;mark i-z (gethash u d-hash) u)
+                        (push (list mark (aref i-tokens i-z) (gethash u d-hash))
                               d-edge)))))
-      (values (reverse d-edge) d-states move e-closure )))))
+      (values (reverse d-edge) d-states move)))))
+
+
+;; (defun nfa-e-close (n e-lookup)
+;;   "Returns an array where each element is the epsilon-closure of the ith state.
+;; N: number of states when numbered starting with 0
+;; E-LOOKUP: function from state number to list epsilon moves"
+;;   (let ((e-closure (make-array n :initial-element nil)))
+;;     (labels ((lookup (i)
+;;                (funcall e-lookup i))
+;;              (e-close (i)
+;;                (unless (aref e-closure i)
+;;                  (setf (aref e-closure i)
+;;                        (reduce (lambda (set i) (union set (e-close i)))
+;;                                (lookup i)
+;;                                :initial-value (list i))))
+;;                (aref e-closure i)))
+;;       (dotimes (i n)
+;;         (e-close i)))
+;;     e-closure))
+
