@@ -134,5 +134,100 @@ RESULT: (list edges start final)"
         (list edges start (list final))))))
 
 
+(defun fa-index (edges)
+  "Returns a hash table whose
+- keys are the states
+- values are lists of (token state-1)"
+  (let ((h (make-hash-table :test #'equal)))
+    (dolist (e edges)
+      (push (cdr e) (gethash (car e) h)))
+    h))
 
 
+(defun fa-numerize (edges start)
+  "Returns an edge list with all states and transitions as fixnums.
+0 is epsilon"
+  (let ((state-hash (make-hash-table :test #'equal))
+        (token-hash (make-hash-table :test #'equal))
+        (state-counter 0)
+        (token-counter 0)
+        nedges)
+    (setf (gethash :epsilon token-hash) 0)
+    (setf (gethash start state-hash) 0)
+    ;; build hashes
+    (dolist (e edges)
+      (destructuring-bind (q0 z q1) e
+        (unless (gethash q0 state-hash)
+          (setf (gethash q0 state-hash) (incf state-counter)))
+        (unless (gethash q1 state-hash)
+          (setf (gethash q1 state-hash) (incf state-counter)))
+        (unless (gethash z token-hash)
+          (setf (gethash z token-hash) (incf token-counter)))
+        (push (list (gethash q0 state-hash)
+                    (gethash z token-hash)
+                    (gethash q1 state-hash))
+              nedges)))
+    ;; map hashes to build new edges and mapping arrays
+    (let ((state-array (make-array (1+ state-counter)))   ; i -> q
+          (token-array (make-array (1+ token-counter))))  ; i -> z
+      (maphash (lambda (n d) (setf (aref state-array d) n))
+               state-hash)
+      (maphash (lambda (n d) (setf (aref token-array d) n))
+               token-hash)
+      (values nedges (gethash start state-hash)
+              state-array token-array))))
+
+
+
+(defun nfa->dfa (edges start)
+  (multiple-value-bind (i-edges i-start i-states i-tokens) (fa-numerize edges start)
+    (let ((e-closure (make-array (length i-states) :initial-element nil))
+          (move (make-array (list (length i-states) (length i-tokens))
+                            :initial-element nil))
+          (et-closure (make-array (list (length i-states) (length i-tokens))
+                                 :initial-element nil)))
+      ;; index moves
+      (loop for (q0 z q1) in i-edges
+         do (push q1 (aref move q0 z)))
+      ;; e-close of state i
+      (labels ((e-close (i)
+                 (unless (aref e-closure i)
+                   (setf (aref e-closure i)
+                         (reduce (lambda (set i) (union set (e-close i)))
+                                 (aref move i 0)
+                                 :initial-value (list i))))
+                 (aref e-closure i)))
+        (dotimes (i (length i-states))
+          (e-close i)))
+      ;; d-states
+      (let ((d-states (make-array 0 :adjustable t :fill-pointer t))
+            (d-hash (make-hash-table :test #'equal))
+            (d-edge))
+        (vector-push-extend (aref e-closure i-start) d-states)
+        (setf (gethash (aref d-states 0) d-hash) 0)
+        (princ d-states)
+        (loop for mark = 0 then (1+ mark)
+           while (< mark (length d-states))
+           for ds = (aref d-states mark)
+           do (progn
+                (format t "~&d-states: ~A" ds)
+                (loop
+                   for i-z below (length i-tokens)
+                   for u = (reduce (lambda (set state)
+                                     (format t "~&  z: ~A i-state: ~A" i-z state)
+                                     (union set
+                                            (apply #'append
+                                                   (mapcar (lambda (i) (aref e-closure i))
+                                                           (aref move state i-z)))))
+                                   ds :initial-value nil)
+                   for up = (sort (copy-list U) #'<)
+                   when up
+                   do (progn
+                        (when (not (gethash up d-hash))
+                          (setf (gethash up d-hash) (length d-states))
+                          (vector-push-extend up d-states))
+                        (format t "~&   new d-state ~A ~A : ~A ~A"
+                                mark i-z (gethash up d-hash) up)
+                        (push (list mark (aref i-tokens i-z) (gethash up d-hash))
+                              d-edge)))))
+      (values (reverse d-edge) d-states move e-closure )))))
