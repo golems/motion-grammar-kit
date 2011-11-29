@@ -35,16 +35,34 @@
 ;;;;   EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-;;; DFA
-;;;  -(Q, E, d, q0, F),
-;;;    - Q: states
-;;;    - E: alphabet
-;;;    - d: Q*E :-> Q
-;;;    - q0: start state
-;;;    - F: accept state
+;;; FA
+;;;  -(states, tokens, edges, start, accept),
+;;;    - edges: (list state-0 token state-1)
+
+(defstruct (fa (:constructor %make-fa))
+  states
+  tokens
+  edges
+  start
+  accept
+  reject)
+
+(defun make-fa (edges start accept)
+  (let (states tokens)
+    (map nil (lambda (x)
+               (destructuring-bind (q0 z q1) x
+                 (pushnew q0 states :test #'equal)
+                 (pushnew q1 states :test #'equal)
+                 (pushnew z tokens :test #'equal)))
+         edges)
+    (%make-fa :states states
+              :tokens tokens
+              :edges edges
+              :start (alexandria:ensure-list start)
+              :accept (alexandria:ensure-list accept))))
 
 
-(defun dfa-dot (d &key output final start)
+(defun fa-dot (fa &optional output )
   "Graphviz output of dfa.
 d: list of transitions '((state-0 token state-1)...)
 final: list of accept states
@@ -56,14 +74,14 @@ output: output file, type determined by suffix (png,pdf,eps)"
                  name))
            (helper (s)
              (format s "~&digraph {~%")
-             (when start
+             (when (fa-start fa)
                (format s "~&  start[shape=none];")
-               (format s "~&  start -> ~A;" start))
-             (format s "~{~&  ~A [ shape=doublecircle ];~}" final)
+               (format s "~{~&  start -> ~A;~}" (alexandria:ensure-list (fa-start fa))))
+             (format s "~{~&  ~A [ shape=doublecircle ];~}" (fa-accept fa))
              (map 'nil (lambda (x)
                          (format s "~&  ~A -> ~A [label=\"~A\"];~%"
                                  (first x) (third x) (token-label (second x))))
-                  d)
+                  (fa-edges fa))
              (format s "~&}~%"))
            (dot (ext)
              (let ((p (sb-ext:run-program "dot" (list (concatenate 'string "-T" ext))
@@ -131,7 +149,8 @@ RESULT: (list edges start final)"
                  (t (error "Unknown tree ~A" tree)))))
       ;; visit the start
       (let ((final (visit start regex)))
-        (list edges start (list final))))))
+        (make-fa edges start final)))))
+
 
 
 (defun fa-index (edges)
@@ -144,18 +163,22 @@ RESULT: (list edges start final)"
     h))
 
 
-(defun fa-numerize (edges start)
+(defun fa-numerize (fa)
   "Returns an edge list with all states and transitions as fixnums.
 0 is epsilon"
   (let ((state-hash (make-hash-table :test #'equal))
         (token-hash (make-hash-table :test #'equal))
-        (state-counter 0)
+        (state-counter -1)
         (token-counter 0)
         nedges)
     (setf (gethash :epsilon token-hash) 0)
-    (setf (gethash start state-hash) 0)
+    ;; start states
+    (map nil (lambda (x)
+               (setf (gethash x state-hash)
+                     (incf state-counter)))
+         (fa-start fa))
     ;; build hashes
-    (dolist (e edges)
+    (dolist (e (fa-edges fa))
       (destructuring-bind (q0 z q1) e
         (unless (gethash q0 state-hash)
           (setf (gethash q0 state-hash) (incf state-counter)))
@@ -174,14 +197,18 @@ RESULT: (list edges start final)"
                state-hash)
       (maphash (lambda (n d) (setf (aref token-array d) n))
                token-hash)
-      (values nedges (gethash start state-hash)
+      (values (make-fa nedges
+                       (mapcar (lambda (x) (gethash x state-hash))
+                               (fa-start fa))
+                       (mapcar (lambda (x) (gethash x state-hash))
+                               (fa-accept fa)))
               state-array token-array))))
 
 (defun nfa-et-closure (states z mover)
-"Epsilon-closure for list states transitioning by token z.
+"Epsilon-closure for list STATES transitioning by token Z.
 STATES: list of states
 Z: token
-MOVER: fuction from (state token) => (list states)"
+MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
   (let ((stack (copy-list states))
         (closure nil))
     (loop
@@ -196,13 +223,13 @@ MOVER: fuction from (state token) => (list states)"
 
 ;; See Aho, 2nd p. 152
 
-(defun nfa->dfa (edges start)
+(defun nfa->dfa (nfa)
   "Convert an NFA to a DFA"
-  (multiple-value-bind (i-edges i-start i-states i-tokens) (fa-numerize edges start)
+  (multiple-value-bind (i-nfa i-states i-tokens) (fa-numerize nfa)
     (let ((move (make-array (list (length i-states) (length i-tokens))
                             :initial-element nil)))
       ;; index moves
-      (loop for (q0 z q1) in i-edges
+      (loop for (q0 z q1) in (fa-edges i-nfa)
          do (push q1 (aref move q0 z)))
       ;; d-states
       (let ((d-states (make-array 0 :adjustable t :fill-pointer t))
@@ -210,8 +237,8 @@ MOVER: fuction from (state token) => (list states)"
             (d-edge)
             (mover (lambda (state token) (aref move state token))))
         ;; start state
-        (vector-push-extend (union (list i-start)
-                                   (nfa-et-closure (list i-start) 0 mover))
+        (vector-push-extend (union (fa-start i-nfa)
+                                   (nfa-et-closure (fa-start i-nfa) 0 mover))
                             d-states)
         (setf (gethash (aref d-states 0) d-hash) 0)
         ;; subset construction
@@ -219,7 +246,6 @@ MOVER: fuction from (state token) => (list states)"
            while (< mark (length d-states))
            for ds = (aref d-states mark)
            do (progn
-                ;;(format t "~&d-states: ~A" ds)
                 (loop
                    for i-z below (length i-tokens)
                    for u = (sort (nfa-et-closure ds i-z mover) #'<)
@@ -228,11 +254,24 @@ MOVER: fuction from (state token) => (list states)"
                         (when (not (gethash u d-hash))
                           (setf (gethash u d-hash) (length d-states))
                           (vector-push-extend u d-states))
-                        ;;(format t "~&   new d-state ~A ~A : ~A ~A"
-                                ;;mark i-z (gethash u d-hash) u)
                         (push (list mark (aref i-tokens i-z) (gethash u d-hash))
                               d-edge)))))
-      (values (reverse d-edge) d-states move)))))
+        ;; result
+        (values
+         (make-fa d-edge
+                  (loop ; start
+                     for q across d-states
+                     for i from 0
+                     when (intersection q (fa-start i-nfa))
+                     collect i)
+                  (loop ; accept
+                     for q across d-states
+                     for i from 0
+                     when (intersection q (fa-accept i-nfa))
+                     collect i))
+         i-states
+         i-tokens
+         d-states move)))))
 
 
 ;; (defun nfa-e-close (n e-lookup)
