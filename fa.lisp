@@ -144,6 +144,7 @@ RESULT: (list edges start final)"
                   (let* ((start2 (incf counter))
                          (end (visit start2 (cadr tree))))
                     (push (list start :epsilon start2) edges)
+                    (push (list start :epsilon end) edges)
                     (push (list end :epsilon start2) edges)
                     end))
                  (t (error "Unknown tree ~A" tree)))))
@@ -204,25 +205,39 @@ RESULT: (list edges start final)"
                                (fa-accept fa)))
               state-array token-array))))
 
-(defun nfa-et-closure (states z mover)
-"Epsilon-closure for list STATES transitioning by token Z.
+
+;;; See Aho, 2nd p. 153-154. These closure computations are a
+;;; functional variation thereof.
+
+(defun nfa-e-closure (states mover
+                      &optional (closure nil))
+  "epsilon-closure of list STATES.
+STATES: list of states
+MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
+  (if states
+      (nfa-e-closure (cdr states)
+                     mover
+                     (if (find (car states) closure)
+                         ;; already checked this state
+                         closure
+                         ;; new state
+                         (nfa-e-closure (funcall mover (car states) 0)
+                                        mover
+                                        (cons (car states) closure))))
+      ;; end of list
+      closure))
+
+(defun nfa-move-e-closure (states z mover)
+  "epsilon-closure of list STATES transitioned by token Z.
 STATES: list of states
 Z: token
 MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
-  (let ((stack (copy-list states))
-        (closure nil))
-    (loop
-       while stack
-       for top = (pop stack)
-       do (progn
-            (dolist (u (funcall mover top z))
-              (unless (find u closure)
-                (push u closure)
-                (push u stack)))))
-    closure))
+  (reduce (lambda (closure state)
+            (nfa-e-closure (funcall mover state z) mover closure))
+          states
+          :initial-value nil))
 
 ;; See Aho, 2nd p. 152
-
 (defun nfa->dfa (nfa)
   "Convert an NFA to a DFA"
   (multiple-value-bind (i-nfa i-states i-tokens) (fa-numerize nfa)
@@ -237,9 +252,7 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
             (d-edge)
             (mover (lambda (state token) (aref move state token))))
         ;; start state
-        (vector-push-extend (union (fa-start i-nfa)
-                                   (nfa-et-closure (fa-start i-nfa) 0 mover))
-                            d-states)
+        (vector-push-extend (nfa-e-closure (fa-start i-nfa) mover) d-states)
         (setf (gethash (aref d-states 0) d-hash) 0)
         ;; subset construction
         (loop for mark = 0 then (1+ mark)
@@ -247,8 +260,8 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
            for ds = (aref d-states mark)
            do (progn
                 (loop
-                   for i-z below (length i-tokens)
-                   for u = (sort (nfa-et-closure ds i-z mover) #'<)
+                   for i-z from 1 below (length i-tokens)
+                   for u = (sort (nfa-move-e-closure ds i-z mover) #'<)
                    when u
                    do (progn
                         (when (not (gethash u d-hash))
@@ -269,9 +282,12 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                      for i from 0
                      when (intersection q (fa-accept i-nfa))
                      collect i))
+         (loop for d across d-states
+            collect (loop for i in d
+                       collect (aref i-states i)))
          i-states
          i-tokens
-         d-states move)))))
+         move)))))
 
 
 ;; (defun nfa-e-close (n e-lookup)
