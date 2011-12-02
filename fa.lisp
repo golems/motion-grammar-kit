@@ -124,6 +124,12 @@
        do (push q1 (aref move q0 z)))
     (lambda (i-state i-token) (aref move i-state i-token))))
 
+(defun fa-inv-mover (fa)
+  (let ((move (make-array (list (length (fa-states fa)) (length (fa-tokens fa)))
+                          :initial-element nil)))
+    (loop for (q0 z q1) in (fa-edges fa)
+       do (push q0 (aref move q1 z)))
+    (lambda (i-state i-token) (aref move i-state i-token))))
 
 (defun fa-dot (fa &optional output )
   "Graphviz output of dfa.
@@ -176,6 +182,12 @@ output: output file, type determined by suffix (png,pdf,eps)"
        (with-output-to-string (s)
          (helper s))))))
 
+(defun fa-reverse (fa)
+  (%make-fa :states (fa-states fa)
+            :tokens (fa-tokens fa)
+            :edges (mapcar #'reverse (fa-edges fa))
+            :start (fa-accept fa)
+            :accept (fa-start fa)))
 
 
 ;;; Regex
@@ -306,40 +318,67 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                   when (intersection q (fa-accept nfa))
                   collect i)))))
 
+;; Brzozowski's Algorithm
+(defun dfa-minimize-brzozowski (dfa)
+  (nfa->dfa (fa-reverse (nfa->dfa (fa-reverse dfa)))))
 
-;; (defun dfa-minimize (dfa)
-;;   "Give state-minimized equivalent dfa"
-;;   (let ((succs (make-array (length (fa-states dfa)) :initial-element nil))
-;;         (preds (make-array (length (fa-states dfa)) :initial-element nil)))
-;;     (loop for (q0 z q1) in (fa-edges dfa)
-;;        do (progn (push q1 (aref succs q0))
-;;                  (push q0 (aref preds q1))))
-;;     (labels ((partition (group &optional (remaining group))
-;;                (let ((x (car remaining)))
+;; Hopcroft's Algorithm
+(defun dfa-minimize-hopcroft (dfa)
+  (let ((p (list (fa-accept dfa)
+                 (set-difference (map 'list #'identity (fa-states dfa))
+                                 (fa-accept dfa))))
+        (q (list (fa-accept dfa)))
+        (imover (fa-inv-mover dfa))
+        (mover (fa-mover dfa)))
+    (loop while q
+       for a = (pop q)
+       do (loop for c below (length (fa-tokens dfa))
+             for x = (reduce (lambda (x i-q)
+                               (union x (funcall imover i-q c)))
+                             a :initial-value nil)
+             when x
+             do
+               (setq p (mapcan (lambda (y)
+                                 (if (and (intersection y x)
+                                          (cdr y))
+                                     (let ((i (intersection y x))
+                                           (j (set-difference y x)))
+                                       ;; i is smaller
+                                       (when (< (length j) (length i))
+                                         (psetq i j
+                                                j i))
+                                       (assert (and j i))
+                                       (when (find y q :test #'equal)
+                                           (remove y q :test #'equal)
+                                           (push j q))
+                                       (push i q)
+                                       (list i j))
+                                     (list y)))
+                               p))))
 
-;;                (cond
-;;                  (remaining
-;;                   (if (subsetp (aref succs (car remaining))
-;;                                group)
-;;                       (partition group (cdr remaining)
-;;                                  (cons (car remaining) group-1)
-;;                                  group-2)
-;;                       (partition group (cdr remaining)
-;;                                  group-1 (cons (car remaining)
-;;                                                group-2))))
-;;                  ((null group-2) (list group-1))
-;;                  ((null group-1) (list group-2))
-;;                  (t (assert group-1)
-;;                     (append (partition group-1)
-;;                             (partition group-2))))))
-;;       (append (partition (fa-accept dfa))
-;;               (partition (set-difference (fa-states dfa)
-;;                                          (fa-accept dfa)))))))
-
-
-      ;;(map 'vector (lambda (s)
-                     ;;(map 'list (lambda (i) (aref i-states i)) s))
-           ;;succs))))
+    (let ((edges))
+      (loop for ds in p
+         for i-q from 0
+         do (loop
+               for i-z from 0 below (length (fa-tokens dfa))
+               for q-next = (funcall mover (car ds) i-z)
+               when q-next
+               do (push (list i-q
+                              (aref (fa-tokens dfa) i-z)
+                              (position-if (lambda (q) (find (car q-next) q))
+                                           p))
+                        edges)))
+      (make-fa edges
+               (loop ; start
+                  for q in p
+                  for i from 0
+                  when (intersection q (fa-start dfa))
+                  collect i)
+               (loop ; accept
+                  for q in p
+                  for i from 0
+                  when (intersection q (fa-accept dfa))
+                  collect i)))))
 
 
 ;; (defun nfa-e-close (n e-lookup)
