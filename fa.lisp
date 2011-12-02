@@ -47,7 +47,12 @@
   accept
   reject)
 
-(defun make-fa (edges start accept)
+(defun fa-state-name (fa i)
+  (aref (fa-states fa) i))
+(defun fa-token-name (fa i)
+  (aref (fa-tokens fa) i))
+
+(defun make-fa-simple (edges start accept)
   (let (states tokens)
     (map nil (lambda (x)
                (destructuring-bind (q0 z q1) x
@@ -62,25 +67,91 @@
               :accept (alexandria:ensure-list accept))))
 
 
+(defun make-fa-renumber (edges start accept)
+  (let ((state-hash (make-hash-table :test #'equal))
+        (token-hash (make-hash-table :test #'equal))
+        (state-counter -1)
+        (token-counter 0)
+        nedges)
+    (setf (gethash :epsilon token-hash) 0)
+    ;; start/accept states
+    (map nil (lambda (x)
+               (setf (gethash x state-hash)
+                     (incf state-counter)))
+         (alexandria:ensure-list start))
+    (map nil (lambda (x)
+               (setf (gethash x state-hash)
+                     (incf state-counter)))
+         (alexandria:ensure-list accept))
+    ;; build hashes
+    (dolist (e edges)
+      (destructuring-bind (q0 z q1) e
+        (unless (gethash q0 state-hash)
+          (setf (gethash q0 state-hash) (incf state-counter)))
+        (unless (gethash q1 state-hash)
+          (setf (gethash q1 state-hash) (incf state-counter)))
+        (unless (gethash z token-hash)
+          (setf (gethash z token-hash) (incf token-counter)))
+        (push (list (gethash q0 state-hash)
+                    (gethash z token-hash)
+                    (gethash q1 state-hash))
+              nedges)))
+    ;; map hashes to build new edges and mapping arrays
+    (let ((state-array (make-array (1+ state-counter)))   ; i -> q
+          (token-array (make-array (1+ token-counter))))  ; i -> z
+      (maphash (lambda (n d) (setf (aref state-array d) n))
+               state-hash)
+      (maphash (lambda (n d) (setf (aref token-array d) n))
+               token-hash)
+      (%make-fa :states state-array
+                :tokens token-array
+                :edges nedges
+                :start (mapcar (lambda (x) (gethash x state-hash))
+                               (alexandria:ensure-list start))
+                :accept (mapcar (lambda (x) (gethash x state-hash))
+                               (alexandria:ensure-list accept))))))
+
+
+(defun make-fa (edges start accept &key (renumber-symbols t))
+  (if renumber-symbols
+      (make-fa-renumber edges start accept)
+      (make-fa-simple edges start accept)))
+
+(defun fa-mover (fa)
+  (let ((move (make-array (list (length (fa-states fa)) (length (fa-tokens fa)))
+                          :initial-element nil)))
+    (loop for (q0 z q1) in (fa-edges fa)
+       do (push q1 (aref move q0 z)))
+    (lambda (i-state i-token) (aref move i-state i-token))))
+
+
 (defun fa-dot (fa &optional output )
   "Graphviz output of dfa.
 d: list of transitions '((state-0 token state-1)...)
 final: list of accept states
 start: start state
 output: output file, type determined by suffix (png,pdf,eps)"
-  (labels ((token-label (name)
-             (if (eq :epsilon name)
-                 "&epsilon;" ; print epsilons in greek
-                 name))
+  (labels ((token-label (i)
+             (let ((name (fa-token-name fa i)))
+               (if (eq :epsilon name)
+                   "&epsilon;" ; print epsilons in greek
+                   name)))
+           (state-label (i)
+             (let ((name (fa-state-name fa i)))
+               name))
            (helper (s)
              (format s "~&digraph {~%")
              (when (fa-start fa)
                (format s "~&  start[shape=none];")
-               (format s "~{~&  start -> ~A;~}" (alexandria:ensure-list (fa-start fa))))
-             (format s "~{~&  ~A [ shape=doublecircle ];~}" (fa-accept fa))
+               (format s "~{~&  start -> ~A;~}"
+                       (map 'list #'state-label (alexandria:ensure-list (fa-start fa)))))
+             (format s "~{~&  ~A [ shape=doublecircle ];~}"
+                     (map 'list #'state-label (alexandria:ensure-list (fa-accept fa))))
              (map 'nil (lambda (x)
                          (format s "~&  ~A -> ~A [label=\"~A\"];~%"
-                                 (first x) (third x) (token-label (second x))))
+                                 (state-label (first x))
+                                 (state-label (third x) )
+                                 (token-label (second x))))
                   (fa-edges fa))
              (format s "~&}~%"))
            (dot (ext)
@@ -164,47 +235,6 @@ RESULT: (list edges start final)"
     h))
 
 
-(defun fa-numerize (fa)
-  "Returns an edge list with all states and transitions as fixnums.
-0 is epsilon"
-  (let ((state-hash (make-hash-table :test #'equal))
-        (token-hash (make-hash-table :test #'equal))
-        (state-counter -1)
-        (token-counter 0)
-        nedges)
-    (setf (gethash :epsilon token-hash) 0)
-    ;; start states
-    (map nil (lambda (x)
-               (setf (gethash x state-hash)
-                     (incf state-counter)))
-         (fa-start fa))
-    ;; build hashes
-    (dolist (e (fa-edges fa))
-      (destructuring-bind (q0 z q1) e
-        (unless (gethash q0 state-hash)
-          (setf (gethash q0 state-hash) (incf state-counter)))
-        (unless (gethash q1 state-hash)
-          (setf (gethash q1 state-hash) (incf state-counter)))
-        (unless (gethash z token-hash)
-          (setf (gethash z token-hash) (incf token-counter)))
-        (push (list (gethash q0 state-hash)
-                    (gethash z token-hash)
-                    (gethash q1 state-hash))
-              nedges)))
-    ;; map hashes to build new edges and mapping arrays
-    (let ((state-array (make-array (1+ state-counter)))   ; i -> q
-          (token-array (make-array (1+ token-counter))))  ; i -> z
-      (maphash (lambda (n d) (setf (aref state-array d) n))
-               state-hash)
-      (maphash (lambda (n d) (setf (aref token-array d) n))
-               token-hash)
-      (values (make-fa nedges
-                       (mapcar (lambda (x) (gethash x state-hash))
-                               (fa-start fa))
-                       (mapcar (lambda (x) (gethash x state-hash))
-                               (fa-accept fa)))
-              state-array token-array))))
-
 
 ;;; See Aho, 2nd p. 153-154. These closure computations are a
 ;;; functional variation thereof.
@@ -240,54 +270,76 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
 ;; See Aho, 2nd p. 152
 (defun nfa->dfa (nfa)
   "Convert an NFA to a DFA"
-  (multiple-value-bind (i-nfa i-states i-tokens) (fa-numerize nfa)
-    (let ((move (make-array (list (length i-states) (length i-tokens))
-                            :initial-element nil)))
-      ;; index moves
-      (loop for (q0 z q1) in (fa-edges i-nfa)
-         do (push q1 (aref move q0 z)))
-      ;; d-states
-      (let ((d-states (make-array 0 :adjustable t :fill-pointer t))
-            (d-hash (make-hash-table :test #'equal))
-            (d-edge)
-            (mover (lambda (state token) (aref move state token))))
-        ;; start state
-        (vector-push-extend (nfa-e-closure (fa-start i-nfa) mover) d-states)
-        (setf (gethash (aref d-states 0) d-hash) 0)
-        ;; subset construction
-        (loop for mark = 0 then (1+ mark)
-           while (< mark (length d-states))
-           for ds = (aref d-states mark)
-           do (progn
-                (loop
-                   for i-z from 1 below (length i-tokens)
-                   for u = (sort (nfa-move-e-closure ds i-z mover) #'<)
-                   when u
-                   do (progn
-                        (when (not (gethash u d-hash))
-                          (setf (gethash u d-hash) (length d-states))
-                          (vector-push-extend u d-states))
-                        (push (list mark (aref i-tokens i-z) (gethash u d-hash))
-                              d-edge)))))
-        ;; result
-        (values
-         (make-fa d-edge
-                  (loop ; start
-                     for q across d-states
-                     for i from 0
-                     when (intersection q (fa-start i-nfa))
-                     collect i)
-                  (loop ; accept
-                     for q across d-states
-                     for i from 0
-                     when (intersection q (fa-accept i-nfa))
-                     collect i))
-         (loop for d across d-states
-            collect (loop for i in d
-                       collect (aref i-states i)))
-         i-states
-         i-tokens
-         move)))))
+  (let ((mover (fa-mover nfa)))
+    ;; d-states
+    (let ((d-states (make-array 0 :adjustable t :fill-pointer t))
+          (d-hash (make-hash-table :test #'equal))
+          (d-edge))
+      ;; start state
+      (vector-push-extend (nfa-e-closure (fa-start nfa) mover) d-states)
+      (setf (gethash (aref d-states 0) d-hash) 0)
+      ;; subset construction
+      (loop for mark = 0 then (1+ mark)
+         while (< mark (length d-states))
+         for ds = (aref d-states mark)
+         do (progn
+              (loop
+                 for i-z from 1 below (length (fa-tokens nfa))
+                 for u = (sort (nfa-move-e-closure ds i-z mover) #'<)
+                 when u
+                 do (progn
+                      (when (not (gethash u d-hash))
+                        (setf (gethash u d-hash) (length d-states))
+                        (vector-push-extend u d-states))
+                      (push (list mark (fa-token-name nfa i-z) (gethash u d-hash))
+                            d-edge)))))
+      ;; result
+      (make-fa d-edge
+               (loop ; start
+                  for q across d-states
+                  for i from 0
+                  when (intersection q (fa-start nfa))
+                  collect i)
+               (loop ; accept
+                  for q across d-states
+                  for i from 0
+                  when (intersection q (fa-accept nfa))
+                  collect i)))))
+
+
+;; (defun dfa-minimize (dfa)
+;;   "Give state-minimized equivalent dfa"
+;;   (let ((succs (make-array (length (fa-states dfa)) :initial-element nil))
+;;         (preds (make-array (length (fa-states dfa)) :initial-element nil)))
+;;     (loop for (q0 z q1) in (fa-edges dfa)
+;;        do (progn (push q1 (aref succs q0))
+;;                  (push q0 (aref preds q1))))
+;;     (labels ((partition (group &optional (remaining group))
+;;                (let ((x (car remaining)))
+
+;;                (cond
+;;                  (remaining
+;;                   (if (subsetp (aref succs (car remaining))
+;;                                group)
+;;                       (partition group (cdr remaining)
+;;                                  (cons (car remaining) group-1)
+;;                                  group-2)
+;;                       (partition group (cdr remaining)
+;;                                  group-1 (cons (car remaining)
+;;                                                group-2))))
+;;                  ((null group-2) (list group-1))
+;;                  ((null group-1) (list group-2))
+;;                  (t (assert group-1)
+;;                     (append (partition group-1)
+;;                             (partition group-2))))))
+;;       (append (partition (fa-accept dfa))
+;;               (partition (set-difference (fa-states dfa)
+;;                                          (fa-accept dfa)))))))
+
+
+      ;;(map 'vector (lambda (s)
+                     ;;(map 'list (lambda (i) (aref i-states i)) s))
+           ;;succs))))
 
 
 ;; (defun nfa-e-close (n e-lookup)
@@ -308,3 +360,45 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
 ;;         (e-close i)))
 ;;     e-closure))
 
+
+
+;; (defun fa-numerize (fa)
+;;   "Returns an edge list with all states and transitions as fixnums.
+;; 0 is epsilon"
+;;   (let ((state-hash (make-hash-table :test #'equal))
+;;         (token-hash (make-hash-table :test #'equal))
+;;         (state-counter -1)
+;;         (token-counter 0)
+;;         nedges)
+;;     (setf (gethash :epsilon token-hash) 0)
+;;     ;; start states
+;;     (map nil (lambda (x)
+;;                (setf (gethash x state-hash)
+;;                      (incf state-counter)))
+;;          (fa-start fa))
+;;     ;; build hashes
+;;     (dolist (e (fa-edges fa))
+;;       (destructuring-bind (q0 z q1) e
+;;         (unless (gethash q0 state-hash)
+;;           (setf (gethash q0 state-hash) (incf state-counter)))
+;;         (unless (gethash q1 state-hash)
+;;           (setf (gethash q1 state-hash) (incf state-counter)))
+;;         (unless (gethash z token-hash)
+;;           (setf (gethash z token-hash) (incf token-counter)))
+;;         (push (list (gethash q0 state-hash)
+;;                     (gethash z token-hash)
+;;                     (gethash q1 state-hash))
+;;               nedges)))
+;;     ;; map hashes to build new edges and mapping arrays
+;;     (let ((state-array (make-array (1+ state-counter)))   ; i -> q
+;;           (token-array (make-array (1+ token-counter))))  ; i -> z
+;;       (maphash (lambda (n d) (setf (aref state-array d) n))
+;;                state-hash)
+;;       (maphash (lambda (n d) (setf (aref token-array d) n))
+;;                token-hash)
+;;       (values (make-fa nedges
+;;                        (mapcar (lambda (x) (gethash x state-hash))
+;;                                (fa-start fa))
+;;                        (mapcar (lambda (x) (gethash x state-hash))
+;;                                (fa-accept fa)))
+;;               state-array token-array))))
