@@ -52,6 +52,27 @@
 (defun fa-token-name (fa i)
   (aref (fa-tokens fa) i))
 
+(defun intersectionp (a b &optional (test #'eql))
+  (cond
+    ((or (null a) (null b))
+     nil)
+    ((funcall test (car a) (car b))
+     t)
+    (t (or (intersectionp a (cdr b) test)
+           (intersectionp (cdr a)  b test)))))
+
+
+(defun fa-subset-indices (subset sequence)
+  "return a list of indices of sequence elements that intersect with subset"
+  (let ((i -1))
+    (reduce (lambda (indices s)
+              (incf i)
+              (if (intersectionp subset s)
+                  (cons i indices)
+                  indices))
+         sequence :initial-value nil)))
+
+
 (defun make-fa-simple (edges start accept)
   (let (states tokens)
     (map nil (lambda (x)
@@ -307,16 +328,8 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                             d-edge)))))
       ;; result
       (make-fa d-edge
-               (loop ; start
-                  for q across d-states
-                  for i from 0
-                  when (intersection q (fa-start nfa))
-                  collect i)
-               (loop ; accept
-                  for q across d-states
-                  for i from 0
-                  when (intersection q (fa-accept nfa))
-                  collect i)))))
+               (fa-subset-indices (fa-start nfa) d-states)
+               (fa-subset-indices (fa-accept nfa) d-states)))))
 
 ;; Brzozowski's Algorithm
 (defun dfa-minimize-brzozowski (dfa)
@@ -326,59 +339,51 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
 (defun dfa-minimize-hopcroft (dfa)
   (let ((p (list (fa-accept dfa)
                  (set-difference (map 'list #'identity (fa-states dfa))
-                                 (fa-accept dfa))))
-        (q (list (fa-accept dfa)))
-        (imover (fa-inv-mover dfa))
-        (mover (fa-mover dfa)))
-    (loop while q
+                                 (fa-accept dfa)))))
+    ;; build minimal states
+    (loop
+       with imover = (fa-inv-mover dfa)
+       with q = (list (fa-accept dfa))
+       while q
        for a = (pop q)
        do (loop for c below (length (fa-tokens dfa))
              for x = (reduce (lambda (x i-q)
                                (union x (funcall imover i-q c)))
                              a :initial-value nil)
              when x
-             do
-               (setq p (mapcan (lambda (y)
-                                 (if (and (intersection y x)
-                                          (cdr y))
-                                     (let ((i (intersection y x))
-                                           (j (set-difference y x)))
-                                       ;; i is smaller
-                                       (when (< (length j) (length i))
-                                         (psetq i j
-                                                j i))
-                                       (assert (and j i))
-                                       (when (find y q :test #'equal)
-                                           (remove y q :test #'equal)
-                                           (push j q))
-                                       (push i q)
-                                       (list i j))
-                                     (list y)))
-                               p))))
-
+             do (loop for yy on p
+                   for y = (car yy)
+                   for i = (and (cdr y)
+                                (intersection y x))
+                   when i
+                   do (let ((j (set-difference y x)))
+                        (assert (and j i))
+                        ;; i is smaller
+                        (when (< (length j) (length i))
+                          (rotatef i j))
+                        (loop for zz on q
+                           when (equal y (car zz))
+                           do (rplaca zz j))
+                        (push i q)
+                        (rplaca yy i)
+                        (rplacd yy (cons j (cdr yy)))))))
+    ;; build edges
     (let ((edges))
-      (loop for ds in p
+      (loop with mover = (fa-mover dfa)
+         for ds in p
          for i-q from 0
          do (loop
                for i-z from 0 below (length (fa-tokens dfa))
                for q-next = (funcall mover (car ds) i-z)
                when q-next
                do (push (list i-q
-                              (aref (fa-tokens dfa) i-z)
+                              (fa-token-name dfa i-z)
                               (position-if (lambda (q) (find (car q-next) q))
                                            p))
                         edges)))
       (make-fa edges
-               (loop ; start
-                  for q in p
-                  for i from 0
-                  when (intersection q (fa-start dfa))
-                  collect i)
-               (loop ; accept
-                  for q in p
-                  for i from 0
-                  when (intersection q (fa-accept dfa))
-                  collect i)))))
+               (fa-subset-indices (fa-start dfa) p)
+               (fa-subset-indices (fa-accept dfa) p)))))
 
 
 ;; (defun nfa-e-close (n e-lookup)
