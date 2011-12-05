@@ -62,6 +62,25 @@
            (intersectionp (cdr a)  b test)))))
 
 
+(defun symbol-compare (a b)
+  (cond
+    ((and (numberp a) (numberp b))
+     (< a b))
+    ((numberp a) t)
+    ((numberp b) nil)
+    (t (string< (string a) (string b)))))
+
+(defun symbol-list-compare (a b)
+  (cond
+    ((and (atom a) (atom b)) (symbol-compare a b))
+    ((atom a) t)
+    ((atom b) nil)
+    ((null a) t)
+    ((null b) t)
+    (t (if (equal (car a) (car b))
+           (symbol-list-compare (cdr a) (cdr b))
+           (symbol-list-compare  (car a) (car b))))))
+
 (defun fa-subset-indices (subset sequence)
   "return a list of indices of sequence elements that intersect with subset"
   (let ((i -1))
@@ -137,6 +156,78 @@
   (if renumber-symbols
       (make-fa-renumber edges start accept)
       (make-fa-simple edges start accept)))
+
+(defun dfa-sort (fa &key preserve-states)
+  "Sort all elements of the FA into canonical (ascending) order.
+PRESERVE-STATES: If true, sort state names.
+                 Otherwise renumber the states in a canonical (DFS) order."
+  (let ((token-indices (make-array (length (fa-tokens fa)) :element-type 'fixnum))
+        (state-indices (make-array (length (fa-states fa)) :element-type 'fixnum))
+        (token-old (make-array (length (fa-tokens fa)) :element-type 'fixnum))
+        (state-old (make-array (length (fa-states fa)) :element-type 'fixnum)))
+    ;; sort tokens
+    (dotimes (i (length token-indices)) (setf (aref token-indices i) i))
+    (sort token-indices
+          (lambda (a b)
+            (cond ((zerop a) t)
+                  ((zerop b) nil)
+                  (t (symbol-list-compare  (aref (fa-tokens fa) a)
+                                           (aref (fa-tokens fa) b))))))
+    (dotimes (i (length token-indices))
+      (setf (aref token-old
+                  (aref token-indices i))
+            i))
+    ;; sort state
+    (if preserve-states
+        ;; use original states
+        (progn
+          (dotimes (i (length state-indices)) (setf (aref state-indices i) i))
+          (sort state-indices
+                (lambda (a b) (symbol-list-compare  (aref (fa-states fa) a)
+                                               (aref (fa-states fa) b))))
+          (dotimes (i (length state-indices))
+            (setf (aref state-old
+                        (aref state-indices i))
+                  i)))
+        ;; renumber states
+        (progn
+          (dotimes (i (length state-indices))
+            (setf (aref state-indices i) i
+                  (aref state-old i) -1))
+          (let ((counter -1)
+                (mover (fa-mover fa)))
+            (labels ((visit (i-q)
+                       (when (and i-q
+                                  (= (aref state-old i-q)
+                                     -1))
+                         (setf (aref state-old i-q) (incf counter))
+                         (dotimes (i-z (length (fa-tokens fa)))
+                           (visit (car (funcall mover i-q (aref token-old i-z))))))))
+              (visit (car (fa-start fa)))))))
+    ;; Build sorted FA
+    (%make-fa :states (if preserve-states
+                          (map 'vector (lambda (i) (aref (fa-states fa) i)) state-indices)
+                          state-indices)
+              :tokens (map 'vector (lambda (i) (aref (fa-tokens fa) i)) token-indices)
+              :start (sort (map 'list
+                                (lambda (i) (aref state-old i))
+                                (fa-start fa))
+                           #'<)
+              :accept (sort (map 'list
+                                 (lambda (i) (aref state-old i))
+                                 (fa-accept fa))
+                            #'<)
+              :edges (sort (map 'list (lambda (e)
+                                        (list (aref state-old (first e))
+                                              (aref token-old (second e))
+                                              (aref state-old (third e))))
+                                (fa-edges fa))
+                           #'symbol-list-compare))))
+
+
+(defun dfa-equal (a b)
+  "Check equivalence up to state names of DFAs"
+  (equalp (dfa-sort a) (dfa-sort b)))
 
 (defun fa-mover (fa)
   (let ((move (make-array (list (length (fa-states fa)) (length (fa-tokens fa)))
