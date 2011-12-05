@@ -438,6 +438,7 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
        while q
        for a = (pop q)
        do (loop for c below (length (fa-tokens dfa))
+             ;; x: predecessors of A for token c
              for x = (reduce (lambda (x i-q)
                                (union x (funcall imover i-q c)))
                              a :initial-value nil)
@@ -446,18 +447,16 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                    for y = (car yy)
                    for i = (and (cdr y)
                                 (intersection y x))
-                   when i
-                   do (let ((j (set-difference y x)))
-                        (assert (and j i))
-                        ;; i is smaller
-                        (when (< (length j) (length i))
-                          (rotatef i j))
-                        (loop for zz on q
-                           when (equal y (car zz))
-                           do (rplaca zz j))
-                        (push i q)
-                        (rplaca yy i)
-                        (rplacd yy (cons j (cdr yy)))))))
+                   for j = (and i (set-difference y x))
+                   when (and i j)
+                   do (when (< (length j) (length i))
+                        (rotatef i j))  ; i is smaller
+                     (loop for zz on q
+                        when (equal y (car zz))
+                        do (rplaca zz j))
+                     (push i q)
+                     (rplaca yy i)
+                     (rplacd yy (cons j (cdr yy))))))
     ;; build edges
     (let ((edges))
       (loop with mover = (fa-mover dfa)
