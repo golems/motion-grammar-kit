@@ -34,29 +34,7 @@
 ;;;;   OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
 ;;;;   EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-
-;;; FA
-;;;  -(states, tokens, edges, start, accept),
-;;;    - edges: (list state-0 token state-1)
-
-;;; Representation opptions
-;;; - transition matrix
-;;; - transition hash table
-;;; - edge list
-;;; - successor array
-
-(defstruct (fa (:constructor %make-fa))
-  states
-  tokens
-  edges
-  start
-  accept
-  reject)
-
-(defun fa-state-name (fa i)
-  (aref (fa-states fa) i))
-(defun fa-token-name (fa i)
-  (aref (fa-tokens fa) i))
+;;; Utils
 
 (defun intersectionp (a b &optional (test #'eql))
   (cond
@@ -86,6 +64,39 @@
     (t (if (equal (car a) (car b))
            (symbol-list-compare (cdr a) (cdr b))
            (symbol-list-compare  (car a) (car b))))))
+
+
+;;; FA
+;;;  -(states, tokens, edges, start, accept),
+;;;    - edges: (list state-0 token state-1)
+
+;;; Representation opptions
+;;; - transition matrix
+;;; - transition hash table
+;;; - edge list
+;;; - successor array
+
+(defstruct (fa (:constructor %make-fa))
+  states
+  tokens
+  edges
+  start
+  accept
+  reject)
+
+(defun fa-state-name (fa i)
+  (aref (fa-states fa) i))
+(defun fa-token-name (fa i)
+  (aref (fa-tokens fa) i))
+
+(defun fa-map-edge-lists (result-type function fa)
+  (map result-type function (fa-edges fa)))
+
+(defun fa-map-edges (result-type function fa)
+  (fa-map-edge-lists result-type
+                     (lambda (e) (funcall function (first e) (second e) (third e)))
+                     fa))
+
 
 (defun fa-subset-indices (subset sequence)
   "return a list of indices of sequence elements that intersect with subset"
@@ -226,8 +237,10 @@ PRESERVE-STATES: If true, sort state names.
                          (dotimes (i-z (length (fa-tokens fa)))
                            (visit (car (funcall mover i-q (aref token-old i-z))))))))
               (visit (car (fa-start fa)))))))
+    (dotimes (i (length (fa-states fa)))
+      (assert (>= (aref state-old i) 0)))
     ;; Build sorted FA
-    (fa-renumber fa :state-map state-old :token-map token-old)))
+    (fa-renumber fa :state-map state-old :token-map token-old :sort t)))
 
 
 (defun dfa-equal (a b)
@@ -239,16 +252,17 @@ PRESERVE-STATES: If true, sort state names.
 (defun fa-mover (fa)
   (let ((move (make-array (list (length (fa-states fa)) (length (fa-tokens fa)))
                           :initial-element nil)))
-    (loop for (q0 z q1) in (fa-edges fa)
-       do (push q1 (aref move q0 z)))
+    (fa-map-edges nil (lambda (q0 z q1)
+                        (push q1 (aref move q0 z)))
+                  fa)
     (lambda (i-state i-token) (aref move i-state i-token))))
 
 (defun fa-inv-mover (fa)
   (let ((move (make-array (list (length (fa-states fa)) (length (fa-tokens fa)))
                           :initial-element nil)))
-    (loop for (q0 z q1) in (fa-edges fa)
-       do (push q0 (aref move q1 z)))
-    ;;(format t "~&~A" move)
+    (fa-map-edges nil (lambda (q0 z q1)
+                        (push q0 (aref move q1 z)))
+                  fa)
     (lambda (i-state i-token) (aref move i-state i-token))))
 
 (defun fa-successor-array (fa)
@@ -293,11 +307,10 @@ output: output file, type determined by suffix (png,pdf,eps)"
              (format s "~{~&  ~A [ shape=doublecircle ];~}"
                      (map 'list #'identity
                           (alexandria:ensure-list (fa-accept fa))))
-             (map 'nil (lambda (x)
-                         (format s "~&  ~A -> ~A [label=\"~A\"];~%"
-                                 (first x) (third x)
-                                 (token-label (second x))))
-                  (fa-edges fa))
+             (fa-map-edges nil (lambda (q0 z q1)
+                                 (format s "~&  ~A -> ~A [label=\"~A\"];~%"
+                                         q0 q1 (token-label z)))
+                           fa)
              (format s "~&}~%"))
            (dot (ext)
              (let ((p (sb-ext:run-program "dot" (list (concatenate 'string "-T" ext))
@@ -360,10 +373,10 @@ output: output file, type determined by suffix (png,pdf,eps)"
     (fa-renumber fa :state-map state-map)))
 
 
-(defun fa-renumber (fa &key state-map token-map)
-  "Reorder states and tokens in the FA.
+(defun fa-renumber (fa &key state-map token-map sort)
+  "Reorder, merge, or remove states and tokens in the FA.
 STATE-MAP: (aref state-map old-index) => (or new-index nil)
-TOKEN-MAP: (aref token-map old-index) => (or new-index nil)"
+TOKEN-MAP: (aref token-map old-index) => new-index"
   (labels ((new-state (i)
              (if state-map
                  (aref state-map i)
@@ -371,47 +384,51 @@ TOKEN-MAP: (aref token-map old-index) => (or new-index nil)"
            (new-token (i)
              (if token-map
                  (aref token-map i)
-                 i)))
-    (%make-fa :states  (cond ((null state-map) (fa-states fa))
-                             (t (map 'vector #'identity
-                                     (loop
-                                        with i = 0
-                                        for x across state-map
-                                        when x
-                                        collect i
-                                        do (incf i)))))
-              :tokens (if (null token-map)
-                          (fa-tokens fa)
-                          (let ((tokens (make-array (loop
-                                                       for x across token-map
-                                                       count x)
-                                                    :initial-element nil)))
-                            (loop with i = 0
-                               for x across token-map
-                               when x
-                               do (setf (aref tokens (aref token-map i))
-                                        (aref (fa-tokens fa) i)))
-                            tokens))
-              :start (sort (mapcan
-                          (lambda (i) (when (new-state i)
-                                   (list (new-state i))))
-                          (fa-start fa))
-                         #'<)
-              :accept (sort (mapcan
-                             (lambda (i) (when (new-state i)
-                                      (list (new-state i))))
-                             (fa-accept fa))
-                            #'<)
-              :edges (sort (mapcan
-                            (lambda (e)
-                              (when (and (new-state (first e))
-                                         (new-token (second e))
-                                         (new-state (third e)))
-                                (list (list (new-state (first e))
-                                            (new-token (second e))
-                                            (new-state (third e))))))
-                                (fa-edges fa))
-                           #'symbol-list-compare))))
+                 i))
+           (state-translate (list)
+             (mapcan (lambda (i) (when (new-state i)
+                              (list (new-state i))))
+                     list)))
+    (let ((fa (%make-fa :states (cond ((null state-map) (fa-states fa))
+                                      (t (map 'vector #'identity
+                                              (loop
+                                                 with i = -1
+                                                 for x across (remove-duplicates state-map)
+                                                 when x collect (incf i)))))
+                        :tokens (if (null token-map)
+                                    (fa-tokens fa)
+                                    (let ((tokens (make-array (loop
+                                                                 for x across
+                                                                   (remove-duplicates token-map)
+                                                                 count x)
+                                                              :initial-element nil)))
+                                      (loop with i = 0
+                                         for x across token-map
+                                         when x
+                                         do (setf (aref tokens (aref token-map i))
+                                                  (aref (fa-tokens fa) i)))
+                                      tokens))
+                        :start (state-translate (fa-start fa))
+                        :accept (state-translate (fa-accept fa))
+                        :edges (let ((hash (make-hash-table :test #'equal)))
+                                 (fa-map-edges nil
+                                               (lambda (q0 z q1)
+                                                 (when (and (new-state q0)
+                                                            (new-token z)
+                                                            (new-state q1))
+                                                   (setf (gethash (list (new-state q0)
+                                                                        (new-token z)
+                                                                        (new-state q1))
+                                                                  hash)
+                                                         t)))
+                                               fa)
+                                 (loop for key being the hash-keys of hash
+                                    collect key)))))
+      (when sort
+        (setf (fa-edges fa) (sort (fa-edges fa) #'symbol-list-compare)
+              (fa-start fa) (sort (fa-start fa) #'<)
+              (fa-accept fa) (sort (fa-start fa) #'<)))
+      fa)))
 
 
 ;;; Regex
@@ -531,10 +548,6 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                       (push (list mark (fa-token-name nfa i-z) (gethash u d-hash))
                             d-edge)))))
       ;; result
-      ;;(print nfa)
-      ;;(print d-states)
-      ;;(print (fa-subset-indices (fa-start nfa) d-states))
-      ;;(print (fa-subset-indices (fa-accept nfa) d-states))
       (loop for ds across d-states
          do (assert (= 1 (loop for dt across d-states
                             counting (equal ds dt)))))
@@ -583,27 +596,21 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                      (push i q)
                      (rplaca yy i)
                      (rplacd yy (cons j (cdr yy))))))
-    ;; build edges
-    (let ((edges))
-      (loop with mover = (fa-mover dfa)
-         for ds in p
-         for i-q from 0
-         do (loop
-               for i-z from 0 below (length (fa-tokens dfa))
-               for q-next = (funcall mover (car ds) i-z)
-               when q-next
-               do (push (list i-q
-                              (fa-token-name dfa i-z)
-                              (position-if (lambda (q) (find (car q-next) q))
-                                           p))
-                        edges)))
-
-      (let ((fa (make-fa edges
-                         (fa-subset-indices (fa-start dfa) p)
-                         (fa-subset-indices (fa-accept dfa) p))))
-        (assert (dfap fa))
-        fa))))
-
+    (assert (= (length (fa-states dfa))
+               (loop for part in p summing (length part))))
+    (assert (equal (sort (copy-list (reduce #'union p)) #'<)
+                   (loop for i below (length (fa-states dfa)) collect i)))
+    (let ((state-map (make-array (length (fa-states dfa)) :initial-element -1)))
+      (loop
+         for part in p
+         for i-new from 0
+         do (loop for i-old in part
+               do (progn (assert (= -1 (aref state-map i-old)))
+                         (setf (aref state-map i-old) i-new))))
+      (dotimes (i (length state-map))
+        (assert (or (null (aref state-map i))
+                    (>= (aref state-map i) 0))))
+      (fa-renumber dfa :state-map state-map))))
 
 ;; (defun nfa-e-close (n e-lookup)
 ;;   "Returns an array where each element is the epsilon-closure of the ith state.
