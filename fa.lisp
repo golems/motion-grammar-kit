@@ -551,10 +551,12 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
 ;; Hopcroft's Algorithm
 (defun dfa-minimize-hopcroft (dfa)
   (let* ((dfa (fa-prune dfa)) ; pruning first should make things faster
-         (p (list (fa-accept dfa)
-                  (set-difference (loop for i below (length (fa-states dfa))
-                                     collect i)
-                                  (fa-accept dfa)))))
+         (p (cons (fa-accept dfa)
+                  (let ((x (set-difference (loop for i below
+                                                (length (fa-states dfa))
+                                              collect i)
+                                           (fa-accept dfa))))
+                    (when x (list x))))))
     ;; build minimal states
     (loop
        with imover = (fa-inv-mover dfa)
