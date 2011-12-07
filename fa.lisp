@@ -557,9 +557,38 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
         (assert (dfap fa))
         fa))))
 
+(defun fa-merge (fa i)
+  (let ((is-accept (find i (fa-accept fa)))
+        (succs (fa-successor-array fa))
+        (state-map (make-array (length (fa-states fa)))))
+    (dotimes (j (length succs))
+      (setf (aref succs j)
+            (sort (aref succs j) #'symbol-list-compare)))
+    (loop
+       for j below (length succs)
+       with k = -1
+       do
+         (setf (aref state-map j)
+               (if (or (= i j)
+                       (and (loop
+                               for (i0 iz i1) in (aref succs i)
+                               for (j0 jz j1) in (aref succs j)
+                               always (and (= iz jz) (= i1 j1)))
+                            (if is-accept
+                                (find j (fa-accept fa))
+                                (not (find j (fa-accept fa))))))
+                   (progn  (incf k) i)
+                   (- j k))))
+    (fa-renumber fa :state-map state-map)))
+
+
+(defun dfa-merge-start (dfa)
+  (assert (dfap dfa))
+  (fa-merge dfa (car (fa-start dfa))))
+
 ;; Brzozowski's Algorithm
 (defun dfa-minimize-brzozowski (dfa)
-  (nfa->dfa (fa-reverse (nfa->dfa (fa-reverse dfa)))))
+  (dfa-merge-start (nfa->dfa (fa-reverse (nfa->dfa (fa-reverse dfa))))))
 
 ;; Hopcroft's Algorithm
 (defun dfa-minimize-hopcroft (dfa)
