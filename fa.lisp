@@ -612,6 +612,25 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                     (>= (aref state-map i) 0))))
       (fa-renumber dfa :state-map state-map))))
 
+
+(defun dfa->string-matcher (dfa)
+  (let ((mover (fa-mover dfa))
+        (start (car (fa-start dfa)))
+        (accept (fa-accept dfa)))
+    (lambda (string)
+      (labels ((visit (state i)
+                 (cond
+                   ((null state) nil)
+                   ((>= i (length string))
+                    (find state accept))
+                   (t (let ((i-z (position (aref string i)
+                                           (fa-tokens dfa))))
+                        (when i-z
+                          (visit (car (funcall mover state
+                                               i-z))
+                                 (1+ i))))))))
+        (visit start 0)))))
+
 ;; (defun nfa-e-close (n e-lookup)
 ;;   "Returns an array where each element is the epsilon-closure of the ith state.
 ;; N: number of states when numbered starting with 0
