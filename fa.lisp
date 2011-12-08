@@ -37,14 +37,12 @@
 ;;; Utils
 
 (defun intersectionp (a b &optional (test #'eql))
-  (cond
-    ((or (null a) (null b))
-     nil)
-    ((funcall test (car a) (car b))
-     t)
-    (t (or (intersectionp a (cdr b) test)
-           (intersectionp (cdr a)  b test)))))
-
+  (map nil (lambda (a)
+             (map nil (lambda (b)
+                        (when (funcall test a b)
+                          (return-from intersectionp t)))
+                  b))
+       a))
 
 (defun symbol-compare (a b)
   (cond
@@ -65,6 +63,30 @@
            (symbol-list-compare (cdr a) (cdr b))
            (symbol-list-compare  (car a) (car b))))))
 
+(defun curry (function arg0)
+  (lambda (arg1) (funcall function arg0 arg1)))
+
+(defun curry-right (function arg1)
+  (lambda (arg0) (funcall function arg0 arg1)))
+
+(defun curry-list (function &rest initial-args)
+  (lambda (&rest final-args) (apply function (append initial-args final-args))))
+
+(defun chain (value &rest functions)
+  (if functions
+      (apply #'chain
+             (funcall (car functions) value)
+             (cdr functions))
+      value))
+
+(defun multiple-value-reduce (function sequence &key initial-value-list)
+  (let ((result initial-value-list))
+    (map nil
+         (lambda (&rest rest)
+           (setq result (multiple-value-list
+                         (apply function (append result rest)))))
+         sequence)
+    (apply #'values result)))
 
 ;;; FA
 ;;;  -(states, tokens, edges, start, accept),
@@ -93,20 +115,19 @@
   (map result-type function (fa-edges fa)))
 
 (defun fa-map-edges (result-type function fa)
-  (fa-map-edge-lists result-type
-                     (lambda (e) (funcall function (first e) (second e) (third e)))
-                     fa))
+  "Apply FUNCTION to each edge in FA."
+  (map result-type (curry #'apply function)
+       (fa-edges fa)))
 
 
 (defun fa-subset-indices (subset sequence)
   "return a list of indices of sequence elements that intersect with subset"
-  (let ((i -1))
-    (reduce (lambda (indices s)
-              (incf i)
-              (if (intersectionp subset s)
-                  (cons i indices)
-                  indices))
-         sequence :initial-value nil)))
+  (multiple-value-reduce (lambda (indices i s)
+                           (values (if (intersectionp subset s)
+                                       (cons i indices)
+                                       indices)
+                                   (1+ i)))
+                         sequence :initial-value-list '(nil 0)))
 
 
 (defun make-fa-simple (edges start accept)
@@ -140,12 +161,11 @@
       (map nil #'new-state (alexandria:ensure-list start))
       (map nil #'new-state (alexandria:ensure-list accept))
       ;; build hashes
-      (dolist (e edges)
-        (destructuring-bind (q0 z q1) e
-          (unless (gethash z token-hash)
-            (setf (gethash z token-hash) (incf token-counter)))
-          (push (list (new-state q0) (gethash z token-hash) (new-state q1))
-                nedges)))
+      (loop for  (q0 z q1) in edges
+         do (unless (gethash z token-hash)
+              (setf (gethash z token-hash) (incf token-counter)))
+           (push (list (new-state q0) (gethash z token-hash) (new-state q1))
+                 nedges))
       ;; map hashes to build new edges and mapping arrays
       (let ((state-array (make-array (1+ state-counter)
                                      :initial-element nil))   ; i -> q
@@ -206,10 +226,9 @@ PRESERVE-STATES: If true, sort state names.
                   ((zerop b) nil)
                   (t (symbol-list-compare  (aref (fa-tokens fa) a)
                                            (aref (fa-tokens fa) b))))))
-    (dotimes (i (length token-indices))
-      (setf (aref token-old
-                  (aref token-indices i))
-            i))
+    (reduce (lambda (i k)
+              (1+ (setf (aref token-old k) i)))
+            token-indices :initial-value 0)
     ;; sort state
     (if preserve-states
         ;; use original states
@@ -218,10 +237,9 @@ PRESERVE-STATES: If true, sort state names.
           (sort state-indices
                 (lambda (a b) (symbol-list-compare  (aref (fa-states fa) a)
                                                (aref (fa-states fa) b))))
-          (dotimes (i (length state-indices))
-            (setf (aref state-old
-                        (aref state-indices i))
-                  i)))
+          (reduce (lambda (i k)
+                    (1+ (setf (aref state-old k) i)))
+                  state-indices :initial-value 0))
         ;; renumber states
         (progn
           (dotimes (i (length state-indices))
@@ -249,13 +267,19 @@ PRESERVE-STATES: If true, sort state names.
   (assert (dfap b))
   (equalp (dfa-sort a) (dfa-sort b)))
 
+(defun fa-equiv (a b)
+  "Check if two FAs recognize the same language."
+  (dfa-equal (fa-minimize-brzozowski a)
+             (fa-minimize-brzozowski b)))
+
 (defun fa-mover (fa)
   (let ((move (make-array (list (length (fa-states fa)) (length (fa-tokens fa)))
                           :initial-element nil)))
     (fa-map-edges nil (lambda (q0 z q1)
                         (push q1 (aref move q0 z)))
                   fa)
-    (lambda (i-state i-token) (aref move i-state i-token))))
+    (curry-list #'aref move)))
+
 
 (defun fa-inv-mover (fa)
   (let ((move (make-array (list (length (fa-states fa)) (length (fa-tokens fa)))
@@ -263,18 +287,22 @@ PRESERVE-STATES: If true, sort state names.
     (fa-map-edges nil (lambda (q0 z q1)
                         (push q0 (aref move q1 z)))
                   fa)
-    (lambda (i-state i-token) (aref move i-state i-token))))
+    (curry-list #'aref move)))
 
 (defun fa-successor-array (fa)
   "Make array indexed by original state of edge lists from that state."
   (let ((array (make-array (length (fa-states fa)) :initial-element nil)))
-    (map nil (lambda (e) (push e (aref array (car e)))) (fa-edges fa))
+    (fa-map-edges nil (lambda (&rest e)
+                        (push e (aref array (car e))))
+                  fa)
     array))
 
 (defun fa-predecessor-array (fa)
   "Make array indexed by final state of edge lists to that state."
   (let ((array (make-array (length (fa-states fa)) :initial-element nil)))
-    (map nil (lambda (e) (push e (aref array (caddr e)))) (fa-edges fa))
+    (fa-map-edges nil (lambda (&rest e)
+                        (push e (aref array (caddr e))))
+                  fa)
     array))
 
 (defun fa-dot (fa &optional output )
@@ -385,9 +413,11 @@ SORT: if t, put the resulting DFA in a canonical order"
                  (aref token-map i)
                  i))
            (state-translate (list)
-             (mapcan (lambda (i) (when (new-state i)
-                              (list (new-state i))))
-                     list)))
+             (reduce (lambda (new-list old)
+                       (if (new-state old)
+                           (union (list (new-state old)) new-list)
+                           new-list))
+                     list :initial-value nil)))
     (let ((fa (%make-fa :states (cond ((null state-map) (fa-states fa))
                                       (t (map 'vector #'identity
                                               (loop
@@ -401,11 +431,13 @@ SORT: if t, put the resulting DFA in a canonical order"
                                                                    (remove-duplicates token-map)
                                                                  count x)
                                                               :initial-element nil)))
-                                      (loop with i = 0
-                                         for x across token-map
-                                         when x
-                                         do (setf (aref tokens (aref token-map i))
-                                                  (aref (fa-tokens fa) i)))
+                                      (reduce (lambda (i x)
+                                                (if x
+                                                  (progn (setf (aref tokens (aref token-map i))
+                                                               (aref (fa-tokens fa) i))
+                                                         (1+ i))
+                                                  i))
+                                              token-map :initial-value 0)
                                       tokens))
                         :start (state-translate (fa-start fa))
                         :accept (state-translate (fa-accept fa))
@@ -423,10 +455,11 @@ SORT: if t, put the resulting DFA in a canonical order"
                                                fa)
                                  (loop for key being the hash-keys of hash
                                     collect key)))))
+
       (when sort
         (setf (fa-edges fa) (sort (fa-edges fa) #'symbol-list-compare)
               (fa-start fa) (sort (fa-start fa) #'<)
-              (fa-accept fa) (sort (fa-start fa) #'<)))
+              (fa-accept fa) (sort (fa-accept fa) #'<)))
       fa)))
 
 
@@ -457,10 +490,10 @@ RESULT: (list edges start final)"
                           :initial-value start))
                  ((eq :union (car tree))
                   (let ((end (incf counter)))
-                    (mapcar (lambda (tree)
-                              (push (list (visit start tree) :epsilon end)
-                                    edges))
-                          (cdr tree))
+                    (map nil (lambda (tree)
+                               (push (list (visit start tree) :epsilon end)
+                                     edges))
+                         (cdr tree))
                     end))
                  ((eq :closure (car tree))
                   (assert (= 2 (length tree)))
@@ -483,18 +516,15 @@ RESULT: (list edges start final)"
   "epsilon-closure of list STATES.
 STATES: list of states
 MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
-  (if states
-      (nfa-e-closure (cdr states)
-                     mover
-                     (if (find (car states) closure)
-                         ;; already checked this state
-                         closure
-                         ;; new state
-                         (nfa-e-closure (funcall mover (car states) 0)
-                                        mover
-                                        (cons (car states) closure))))
-      ;; end of list
-      closure))
+  (reduce (lambda (closure state)
+            (if (find state closure)
+                ;; already checked this state
+                closure
+                ;; new state
+                (nfa-e-closure (funcall mover state 0)
+                               mover
+                               (cons state closure))))
+          states :initial-value closure))
 
 (defun nfa-move-e-closure (states z mover)
   "epsilon-closure of list STATES transitioned by token Z.
@@ -503,8 +533,7 @@ Z: token
 MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
   (reduce (lambda (closure state)
             (nfa-e-closure (funcall mover state z) mover closure))
-          states
-          :initial-value nil))
+          states :initial-value nil))
 
 ;; See Aho, 2nd p. 152
 (defun nfa->dfa (nfa)
@@ -548,9 +577,7 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
   (let ((is-accept (find i (fa-accept fa)))
         (succs (fa-successor-array fa))
         (state-map (make-array (length (fa-states fa)))))
-    (dotimes (j (length succs))
-      (setf (aref succs j)
-            (sort (aref succs j) #'symbol-list-compare)))
+    (map-into succs (curry-right #'sort #'symbol-list-compare) succs)
     (loop
        for j below (length succs)
        with k = -1
@@ -577,7 +604,10 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
 ;; Brzozowski's Algorithm
 (defun fa-minimize-brzozowski (dfa)
   "Minimize a DFA or NFA via Brzozowski's Algorithm."
-  (dfa-merge-start (nfa->dfa (fa-reverse (nfa->dfa (fa-reverse dfa))))))
+  (chain dfa
+         #'fa-reverse #'nfa->dfa
+         #'fa-reverse #'nfa->dfa
+         #'dfa-merge-start))
 
 ;; Hopcroft's Algorithm
 (defun dfa-minimize-hopcroft (dfa)
@@ -620,12 +650,13 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
     (assert (equal (sort (copy-list (reduce #'union p)) #'<)
                    (loop for i below (length (fa-states dfa)) collect i)))
     (let ((state-map (make-array (length (fa-states dfa)) :initial-element -1)))
-      (loop
-         for part in p
-         for i-new from 0
-         do (loop for i-old in part
-               do (progn (assert (= -1 (aref state-map i-old)))
-                         (setf (aref state-map i-old) i-new))))
+      (reduce (lambda (i-new part)
+                (map nil (lambda (i-old)
+                           (assert (= -1 (aref state-map i-old)))
+                           (setf (aref state-map i-old) i-new))
+                     part)
+                (1+ i-new))
+              p :initial-value 0)
       (dotimes (i (length state-map))
         (assert (or (null (aref state-map i))
                     (>= (aref state-map i) 0))))
@@ -638,15 +669,8 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
         (start (car (fa-start dfa)))
         (accept (fa-accept dfa)))
     (lambda (string)
-      (labels ((visit (state i)
-                 (cond
-                   ((null state) nil)
-                   ((>= i (length string))
-                    (find state accept))
-                   (t (let ((i-z (position (aref string i)
-                                           (fa-tokens dfa))))
-                        (when i-z
-                          (visit (car (funcall mover state
-                                               i-z))
-                                 (1+ i))))))))
-        (visit start 0)))))
+      (find (reduce (lambda (state x &aux (i-z (position x (fa-tokens dfa))))
+                      (when (and state i-z)
+                        (car (funcall mover state i-z))))
+                    string :initial-value start)
+            accept))))
