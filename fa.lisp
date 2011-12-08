@@ -279,9 +279,7 @@ PRESERVE-STATES: If true, sort state names.
 
 (defun fa-dot (fa &optional output )
   "Graphviz output of dfa.
-d: list of transitions '((state-0 token state-1)...)
-final: list of accept states
-start: start state
+fa: finite automaton
 output: output file, type determined by suffix (png,pdf,eps)"
   (labels ((token-label (i)
              (let ((name (fa-token-name fa i)))
@@ -376,7 +374,8 @@ output: output file, type determined by suffix (png,pdf,eps)"
 (defun fa-renumber (fa &key state-map token-map sort)
   "Reorder, merge, or remove states and tokens in the FA.
 STATE-MAP: (aref state-map old-index) => (or new-index nil)
-TOKEN-MAP: (aref token-map old-index) => new-index"
+TOKEN-MAP: (aref token-map old-index) => new-index
+SORT: if t, put the resulting DFA in a canonical order"
   (labels ((new-state (i)
              (if state-map
                  (aref state-map i)
@@ -476,19 +475,6 @@ RESULT: (list edges start final)"
       (let ((final (visit start regex)))
         (make-fa edges start final)))))
 
-
-
-(defun fa-index (edges)
-  "Returns a hash table whose
-- keys are the states
-- values are lists of (token state-1)"
-  (let ((h (make-hash-table :test #'equal)))
-    (dolist (e edges)
-      (push (cdr e) (gethash (car e) h)))
-    h))
-
-
-
 ;;; See Aho, 2nd p. 153-154. These closure computations are a
 ;;; functional variation thereof.
 
@@ -558,6 +544,7 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
         fa))))
 
 (defun fa-merge (fa i)
+  "Merge all states equivalent to state at index i"
   (let ((is-accept (find i (fa-accept fa)))
         (succs (fa-successor-array fa))
         (state-map (make-array (length (fa-states fa)))))
@@ -583,15 +570,18 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
 
 
 (defun dfa-merge-start (dfa)
+  "Merge all states equivalent to the start state"
   (assert (dfap dfa))
   (fa-merge dfa (car (fa-start dfa))))
 
 ;; Brzozowski's Algorithm
-(defun dfa-minimize-brzozowski (dfa)
+(defun fa-minimize-brzozowski (dfa)
+  "Minimize a DFA or NFA via Brzozowski's Algorithm."
   (dfa-merge-start (nfa->dfa (fa-reverse (nfa->dfa (fa-reverse dfa))))))
 
 ;; Hopcroft's Algorithm
 (defun dfa-minimize-hopcroft (dfa)
+  "Minimize a DFA via Hopcroft's's Algorithm."
   (let* ((dfa (fa-prune dfa)) ; pruning first should make things faster
          (p (cons (fa-accept dfa)
                   (let ((x (set-difference (loop for i below
@@ -643,6 +633,7 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
 
 
 (defun dfa->string-matcher (dfa)
+  "Return a (lambda (string)) predicate to test if dfa matches string."
   (let ((mover (fa-mover dfa))
         (start (car (fa-start dfa)))
         (accept (fa-accept dfa)))
@@ -659,64 +650,3 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                                                i-z))
                                  (1+ i))))))))
         (visit start 0)))))
-
-;; (defun nfa-e-close (n e-lookup)
-;;   "Returns an array where each element is the epsilon-closure of the ith state.
-;; N: number of states when numbered starting with 0
-;; E-LOOKUP: function from state number to list epsilon moves"
-;;   (let ((e-closure (make-array n :initial-element nil)))
-;;     (labels ((lookup (i)
-;;                (funcall e-lookup i))
-;;              (e-close (i)
-;;                (unless (aref e-closure i)
-;;                  (setf (aref e-closure i)
-;;                        (reduce (lambda (set i) (union set (e-close i)))
-;;                                (lookup i)
-;;                                :initial-value (list i))))
-;;                (aref e-closure i)))
-;;       (dotimes (i n)
-;;         (e-close i)))
-;;     e-closure))
-
-
-
-;; (defun fa-numerize (fa)
-;;   "Returns an edge list with all states and transitions as fixnums.
-;; 0 is epsilon"
-;;   (let ((state-hash (make-hash-table :test #'equal))
-;;         (token-hash (make-hash-table :test #'equal))
-;;         (state-counter -1)
-;;         (token-counter 0)
-;;         nedges)
-;;     (setf (gethash :epsilon token-hash) 0)
-;;     ;; start states
-;;     (map nil (lambda (x)
-;;                (setf (gethash x state-hash)
-;;                      (incf state-counter)))
-;;          (fa-start fa))
-;;     ;; build hashes
-;;     (dolist (e (fa-edges fa))
-;;       (destructuring-bind (q0 z q1) e
-;;         (unless (gethash q0 state-hash)
-;;           (setf (gethash q0 state-hash) (incf state-counter)))
-;;         (unless (gethash q1 state-hash)
-;;           (setf (gethash q1 state-hash) (incf state-counter)))
-;;         (unless (gethash z token-hash)
-;;           (setf (gethash z token-hash) (incf token-counter)))
-;;         (push (list (gethash q0 state-hash)
-;;                     (gethash z token-hash)
-;;                     (gethash q1 state-hash))
-;;               nedges)))
-;;     ;; map hashes to build new edges and mapping arrays
-;;     (let ((state-array (make-array (1+ state-counter)))   ; i -> q
-;;           (token-array (make-array (1+ token-counter))))  ; i -> z
-;;       (maphash (lambda (n d) (setf (aref state-array d) n))
-;;                state-hash)
-;;       (maphash (lambda (n d) (setf (aref token-array d) n))
-;;                token-hash)
-;;       (values (make-fa nedges
-;;                        (mapcar (lambda (x) (gethash x state-hash))
-;;                                (fa-start fa))
-;;                        (mapcar (lambda (x) (gethash x state-hash))
-;;                                (fa-accept fa)))
-;;               state-array token-array))))
