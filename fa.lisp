@@ -305,7 +305,7 @@ PRESERVE-STATES: If true, sort state names.
                   fa)
     array))
 
-(defun fa-dot (fa &optional output )
+(defun fa-dot (fa &key output (font-size 12))
   "Graphviz output of dfa.
 fa: finite automaton
 output: output file, type determined by suffix (png,pdf,eps)"
@@ -319,13 +319,14 @@ output: output file, type determined by suffix (png,pdf,eps)"
                name))
            (helper (s)
              (format s "~&digraph {~%")
+             (format s "~&rankdir=\"LR\";~%")
              ;; state labels
-             (format s "~:{~&  ~A[label=\"~A\"];~}"
+             (format s "~:{~&  ~A[label=\"~A\",fontsize=~D];~}"
                      (loop for i below (length (fa-states fa))
-                          collect (list i (state-label i))))
+                          collect (list i (state-label i) font-size)))
              ;; start state
              (when (fa-start fa)
-               (format s "~&  start[shape=none];")
+               (format s "~&  start[shape=none,fontsize=~D];" font-size)
                (format s "~{~&  start -> ~A;~}"
                        (map 'list #'identity
                             (alexandria:ensure-list (fa-start fa)))))
@@ -333,9 +334,10 @@ output: output file, type determined by suffix (png,pdf,eps)"
              (format s "~{~&  ~A [ shape=doublecircle ];~}"
                      (map 'list #'identity
                           (alexandria:ensure-list (fa-accept fa))))
-             (fa-map-edges nil (lambda (q0 z q1)
-                                 (format s "~&  ~A -> ~A [label=\"~A\"];~%"
-                                         q0 q1 (token-label z)))
+             (fa-map-edges nil
+                           (lambda (q0 z q1)
+                             (format s "~&  ~A -> ~A [fontsize=~D,label=\"~A\"];~%"
+                                     q0 q1 font-size (token-label z)))
                            fa)
              (format s "~&}~%"))
            (dot (ext)
