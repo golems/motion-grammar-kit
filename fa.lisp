@@ -1,6 +1,6 @@
 ;;;; -*- Lisp -*-
 ;;;;
-;;;; Copyright (c) 2011, Georgia Tech Research Corporation
+;;;; Copyright (c) 2011-2012, Georgia Tech Research Corporation
 ;;;; All rights reserved.
 ;;;;
 ;;;; Author(s): Neil T. Dantam <ntd@gatech.edu>
@@ -478,37 +478,40 @@ SORT: if t, put the resulting DFA in a canonical order"
 (defun regex->nfa (regex)
   "Convert a regex parse-tree to an NFA
 RESULT: (list edges start final)"
-  (let ((start 0)
-        (counter 1)
+  (let ((state-counter 0)
         (edges nil))
-    (labels ((visit (start tree &aux (end (incf counter)))
+    (labels ((is-op (symbol tree)
+               (and (listp tree)
+                    (eq symbol (first tree))))
+             (new-edge (state-0 token state-1)
+               (push (list state-0 token state-1) edges))
+             (visit (start tree)
                ;; recursively visit the tree
                (cond
-                 ((atom tree)
-                  (push (list start tree end) edges)
-                  end)
-                 ((eq :concatenation (car tree))
+                 ((is-op :concatenation tree)
                   (reduce #'visit (cdr tree)
                           :initial-value start))
-                 ((eq :union (car tree))
-                  (let ((end (incf counter)))
+                 ((is-op :union tree)
+                  (let ((end (incf state-counter)))
                     (map nil (lambda (tree)
-                               (push (list (visit start tree) :epsilon end)
-                                     edges))
+                               (new-edge (visit start tree) :epsilon end))
                          (cdr tree))
                     end))
-                 ((eq :closure (car tree))
+                 ((is-op :closure tree)
                   (assert (= 2 (length tree)))
-                  (let* ((start2 (incf counter))
+                  (let* ((start2 (incf state-counter))
                          (end (visit start2 (cadr tree))))
-                    (push (list start :epsilon start2) edges)
-                    (push (list start :epsilon end) edges)
-                    (push (list end :epsilon start2) edges)
+                    (new-edge start :epsilon start2)
+                    (new-edge start :epsilon end)
+                    (new-edge end :epsilon start2)
                     end))
-                 (t (error "Unknown tree ~A" tree)))))
+                 (t (push (list start tree (incf state-counter)) edges)
+                    state-counter)
+                 ;(error "Unknown tree ~A" tree)
+                 )))
       ;; visit the start
-      (let ((final (visit start regex)))
-        (make-fa edges start final)))))
+      (let ((final (visit 0 regex)))
+        (make-fa edges 0 final)))))
 
 ;;; See Aho, 2nd p. 153-154. These closure computations are a
 ;;; functional variation thereof.
