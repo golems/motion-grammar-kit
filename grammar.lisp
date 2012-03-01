@@ -100,6 +100,9 @@ RESULT: function reduced across grammar"
                   grammar)))
 
 
+(defun grammar-start-nonterminal (grammar)
+  (caar grammar))
+
 (defun grammar-substitute-terminal-list
     (grammar terminal list)
   "Replace TERMINAL in GRAMMAR with the list of terminals LIST.
@@ -127,18 +130,15 @@ RESULT: A new grammar with substitution performed"
         (nonterminals (grammar-nonterminals grammar)))
     (grammar-map nil
                  (lambda (lhs rhs)
+                   (declare (ignore lhs))
                    (unless
-                       (and
-                        ;; A -> .*
-                        (= 1 (length lhs))
-                        (or
-                         ;; A -> a | :epsilon
-                         (and (= 1 (length rhs))
-                              (finite-set-member terminals (first rhs)))
-                         ;; A -> a B
-                         (and (= 2 (length rhs))
+                       (or
+                        ;; A -> a | :epsilon
+                        (and (= 1 (length rhs)))
+                        ;; A -> a B
+                        (and (= 2 (length rhs))
                               (finite-set-member terminals (first rhs))
-                              (finite-set-member nonterminals (second rhs)))))
+                              (finite-set-member nonterminals (second rhs))))
                      (return-from grammar-right-regular-p nil)))
                  grammar))
   t)
@@ -167,9 +167,8 @@ RESULT: A new grammar with substitution performed"
                (setq nonterminals (finite-set-add nonterminals nonterm)))
              (simplify (lhs rhs)
                (cond
-                 ;; A -> a | :epsilon
-                 ((and (= 1 (length rhs))
-                       (finite-set-member terminals (first rhs)))
+                 ;; A -> a | B | :epsilon
+                 ((and (= 1 (length rhs)))
                   (add-production lhs rhs))
                  ;; A -> a B
                  ((and (= 2 (length rhs))
@@ -187,6 +186,39 @@ RESULT: A new grammar with substitution performed"
                  (t (error "Can't handle ~A => ~A" lhs rhs)))))
       ;; simplify initially
       (grammar-map nil #'simplify grammar))
-    new-grammar))
+    (cons (list (gensym "START") (grammar-start-nonterminal grammar))
+          new-grammar)))
 
 
+(defun grammar->fa (grammar)
+  (unless (grammar-right-regular-p grammar)
+    (setq grammar (grammar->right-regular grammar)))
+  (let ((terminals (grammar-terminals grammar))
+        (nonterminals (grammar-nonterminals grammar))
+        (edges)
+        (start (caar grammar))
+        (accept (gensym "ACCEPT-STATE")))
+    (grammar-map nil
+                 (lambda (lhs rhs)
+                   (cond
+                     ;; A -> a
+                     ((and (= 1 (length rhs))
+                           (finite-set-member terminals (first rhs)))
+                      (push (list lhs (first rhs) accept)
+                            edges))
+                     ;; A -> B
+                     ((and (= 1 (length rhs))
+                           (finite-set-member nonterminals (first rhs)))
+                      (push (list lhs :epsilon (first rhs))
+                            edges))
+                     ;; A -> a B
+                     ((and (= 2 (length rhs))
+                           (finite-set-member terminals (first rhs))
+                           (finite-set-member nonterminals (second rhs)))
+                      (push (list lhs (first rhs) (second rhs))
+                            edges))
+                     (t
+                      (error "Unhandled production: ~A => ~A"
+                             lhs rhs))))
+                 grammar)
+    (make-fa edges start accept)))
