@@ -79,6 +79,19 @@ RESULT: function reduced across grammar"
           grammar :initial-value initial-value))
 
 
+(defun grammar-index-head (grammar)
+  "Indexes productions by head.
+GRAMMAR: a grammar
+RESULT: (lambda (nonterminal)) => all productions bodies
+        that nonterminal expands to."
+  (let ((h (grammar-fold (lambda (h head body)
+                           (push (gethash head h) body)
+                           h)
+                         (make-hash-table :test #'equal)
+                         grammar)))
+    (curry-right #'gethash h)))
+
+
 (defun grammar-nonterminals (grammar)
   "Return list of nonterminals in the grammar."
   (let ((a nil))
