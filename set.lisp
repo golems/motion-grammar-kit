@@ -80,7 +80,7 @@
   "Is ITEM a member of SET?"
   (etypecase set
       (sequence
-       (find item set))))
+       (find item set :test #'equal))))
 
 (defun finite-set-add (set item)
   "Return a new set containing ITEM and all members of SET."
@@ -89,3 +89,14 @@
               set
               (cons item set)))))
 
+(defun finite-set-subsetp (set-1 set-2)
+  (cond
+    ((and (listp set-1) (listp set-2))
+     (subsetp set-1 set-2 :test #'equal))
+    (t (error "Can't operate on ~A and ~B" set-1 set-2))))
+
+(defun finite-set-union (set-1 set-2)
+  (cond
+    ((and (listp set-1) (listp set-2))
+     (union set-1 set-2 :test #'equal))
+    (t (error "Can't operate on ~A and ~B" set-1 set-2))))

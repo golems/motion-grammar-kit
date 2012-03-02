@@ -101,6 +101,54 @@ RESULT: function reduced across grammar"
                   (make-finite-set)
                   grammar)))
 
+(defun grammar-first-function (grammar)
+  "Computes first sets of grammar returns a function giving each first set.
+GRAMMAR: a grammar
+RESULT: (lambda (nonterminal)) => first set of nonterminal"
+  (let ((h (make-hash-table :test #'equal))
+        (terminals (grammar-terminals grammar))
+        did-it)
+    ;; init sets
+    (grammar-map nil (lambda (head tail)
+                       (declare (ignore tail))
+                       (setf (gethash head h) (make-finite-set)))
+                 grammar)
+    ;; add terminals
+    (finite-set-map nil (lambda (term) (setf (gethash term h)
+                                        (finite-set-add (gethash term h) term)))
+                    terminals)
+    ;; add nonterminals
+    (labels ((visit (head tail)
+               (let ((head-set (gethash head h))
+                     (tail-set (and (car tail)
+                                    (gethash (car tail) h))))
+                 ;; nonterminal, new
+                 (cond
+                   ;; epsilon
+                   ((and (null tail)
+                         (not (finite-set-member head-set :epsilon)))
+                    (setf (gethash head h)
+                          (finite-set-add head-set :epsilon))
+                    (setq did-it t))
+                   ((and tail-set
+                         (not (finite-set-subsetp tail-set head-set)))
+                    (setf (gethash head h)
+                          (finite-set-union head-set tail-set))
+                    (setq did-it t)))
+                 (when (finite-set-member (gethash (car tail) h) :epsilon)
+                   (visit head (cdr tail))))))
+      (loop do
+           (setq did-it nil)
+           (grammar-map nil #'visit grammar)
+         while did-it))
+    (maphash (lambda (k v)
+               (format t "~&~A => ~A~&" k v)) h)
+    (curry-right #'gethash h)))
+
+
+
+
+
 
 (defun grammar-start-nonterminal (grammar)
 "Return the starting nonterminal of GRAMMAR."
