@@ -252,8 +252,9 @@ PRESERVE-STATES: If true, sort state names.
                                   (= (aref state-old i-q)
                                      -1))
                          (setf (aref state-old i-q) (incf counter))
-                         (dotimes (i-z (length (fa-tokens fa)))
-                           (visit (car (funcall mover i-q (aref token-old i-z))))))))
+                         (loop for i below (length (fa-tokens fa))
+                            for io = (aref token-indices i) ;; in sorted token order
+                            do (visit (car (funcall mover i-q io)))))))
               (visit (car (fa-start fa)))))))
     (dotimes (i (length (fa-states fa)))
       (assert (>= (aref state-old i) 0)))
