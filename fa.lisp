@@ -402,6 +402,25 @@ output: output file, type determined by suffix (png,pdf,eps)"
                 (incf j)))
     (fa-renumber fa :state-map state-map)))
 
+(defun dfa-add-reject (dfa)
+  "Add explicit reject state to the dfa."
+  (let ((edges (fa-map-edges 'list
+                             (lambda (q0 z q1)
+                               (list q0 (aref (fa-tokens dfa) z) q1))
+                             dfa))
+        (mover (fa-mover dfa)))
+    (dotimes (i (length (fa-states dfa)))
+      (loop for j from 1 below (length (fa-tokens dfa))
+         do (unless (funcall mover i j)
+              (push (list i (aref (fa-tokens dfa) j) -1)
+                    edges))))
+
+    ;(loop for j from 1 below (length (fa-tokens dfa))
+       ;do (push (list -1 (aref (fa-tokens dfa) j) -1)
+                ;edges))
+    (make-fa edges (fa-start dfa) (fa-accept dfa))))
+
+
 
 (defun fa-renumber (fa &key state-map token-map sort)
   "Reorder, merge, or remove states and tokens in the FA.
@@ -619,39 +638,53 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
 ;; Hopcroft's Algorithm
 (defun dfa-minimize-hopcroft (dfa)
   "Minimize a DFA via Hopcroft's's Algorithm."
-  (let* ((dfa (fa-prune dfa)) ; pruning first should make things faster
-         (p (cons (fa-accept dfa)
-                  (let ((x (set-difference (loop for i below
-                                                (length (fa-states dfa))
-                                              collect i)
-                                           (fa-accept dfa))))
-                    (when x (list x))))))
+  ;; TODO: more efficient representation of rejecting state
+  ;;       make implicit somehow
+  (let* ((dfa (dfa-add-reject (fa-prune dfa)))
+         (p (list (fa-accept dfa)
+                  (set-difference (loop for i below
+                                       (length (fa-states dfa))
+                                     collect i)
+                                  (fa-accept dfa)))))
     ;; build minimal states
     (loop
        with imover = (fa-inv-mover dfa)
        with q = (list (fa-accept dfa))
        while q
        for a = (pop q)
-       do (loop for c below (length (fa-tokens dfa))
-             ;; x: predecessors of A for token c
-             for x = (reduce (lambda (x i-q)
-                               (union x (funcall imover i-q c)))
-                             a :initial-value nil)
-             when x
-             do (loop for yy on p
-                   for y = (car yy)
-                   for i = (and (cdr y)
-                                (intersection y x))
-                   for j = (and i (set-difference y x))
-                   when (and i j)
-                   do (when (< (length j) (length i))
-                        (rotatef i j))  ; i is smaller
-                     (loop for zz on q
-                        when (equal y (car zz))
-                        do (rplaca zz j))
-                     (push i q)
-                     (rplaca yy i)
-                     (rplacd yy (cons j (cdr yy))))))
+       do ;(print p)
+         (loop for c below (length (fa-tokens dfa))
+            ;; x: predecessors of a for token c
+            for x = (reduce (lambda (x i-q)
+                              (union x
+                                     (if (< i-q 0)
+                                         '(-1)
+                                         (funcall imover i-q c))))
+                            a :initial-value nil)
+            when x
+            do
+                                        ;(format t "~&z: ~A x: ~A~%" c x)
+              (loop for yy on p
+                 for y = (car yy)
+                 ;; subset of y transitioning to a on c
+                 for i = (and (cdr y)
+                              (intersection y x))
+
+                 ;; subset of y transitioning to (not a) on c
+                 for j = (and i (set-difference y x))
+                 when (and i j)
+                 do (when (< (length j) (length i))
+                      (rotatef i j))  ; i is smaller
+                   (assert (<= (length i) (length j)))
+                 ;; insert into q
+                   (loop for zz on q
+                      when (equal y (car zz))
+                      do (rplaca zz j))
+                   (push i q)
+                 ;; insert into p
+                   (rplaca yy i)
+                   (rplacd yy (cons j (cdr yy))))))
+    ;;(format t "~&~A" p)
     (assert (= (length (fa-states dfa))
                (loop for part in p summing (length part))))
     (assert (equal (sort (copy-list (reduce #'union p)) #'<)
@@ -667,7 +700,7 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
       (dotimes (i (length state-map))
         (assert (or (null (aref state-map i))
                     (>= (aref state-map i) 0))))
-      (fa-renumber dfa :state-map state-map))))
+      (fa-prune (fa-renumber dfa :state-map state-map)))))
 
 
 (defun dfa->string-matcher (dfa)
