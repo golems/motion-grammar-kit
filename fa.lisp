@@ -347,7 +347,8 @@ output: output file, type determined by suffix (png,pdf,eps)"
                                           :if-output-exists :supersede)))
                (helper (sb-ext:process-input p))
                (close (sb-ext:process-input p))
-               (sb-ext:process-wait p))))
+               (sb-ext:process-wait p)
+               (sb-ext:process-close p))))
     (cond
       ((and (stringp output) (ppcre:scan "\.png$" output))
        (dot "png"))
