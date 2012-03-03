@@ -281,3 +281,44 @@ RESULT: a finite automaton"
                              lhs rhs))))
                  grammar)
     (make-fa edges start accept)))
+
+(defun grammar->cnf (grammar)
+  "Convert grammar to Chomsky Normal Form"
+  (let ((terminals (grammar-terminals grammar)))
+    (labels ((visit (grammar)
+               (print grammar)
+               (when grammar
+                 (destructuring-bind ((head &rest body) &rest remainder) grammar
+                   (cond
+                     ;; correct form
+                     ((or (and (= 1 (length body))
+                               (finite-set-inp (car body) terminals))
+                          (and (= 2 (length body))
+                               (not (finite-set-inp (first body) terminals))
+                               (not (finite-set-inp (second body) terminals))))
+                      (cons (car grammar)
+                            (visit (cdr grammar))))
+                     ;; long nonterminal sequence split
+                     ((and (> (length body) 2)
+                           (not (finite-set-inp (first body) terminals))
+                           (not (finite-set-inp (second body) terminals)))
+                      (let ((xp (gensym (gsymbol-name (second body)))))
+                        (cons (list head (first body) xp)
+                              (visit `((,xp ,@(cdr body))
+                                       ,@remainder)))))
+                     (t ;; else, remove the terminals
+                      (let ((new-body
+                             (map 'list (lambda (x)
+                                          (if (finite-set-inp x terminals)
+                                              (gensym (gsymbol-name x))
+                                              x))
+                                  body)))
+                        (visit (cons (cons head new-body)
+                                     (fold (lambda (remainder new-x old-x)
+                                             (if (finite-set-inp old-x terminals)
+                                                 (cons (list new-x old-x)
+                                                       remainder)
+                                                 remainder))
+                                           remainder new-body body))))))))))
+             (visit grammar))))
+
