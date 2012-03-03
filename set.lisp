@@ -47,13 +47,37 @@
 ;;;; tables, search trees, or bit vectors later.
 
 
-(defun make-finite-set ()
-  nil)
+(defun make-finite-set (&key mutable)
+  "Create a finite set.
+MUTABLE: Should this be a mutable set?
+         This changes the performance characteristics."
+  (cond
+    (mutable (make-hash-table :test #'equal))
+    (t nil)))
 
 (defun finite-set-map (result-type function set)
   "Apply FUNCTION to all members of SET."
   (etypecase set
-    (list (map result-type function set))))
+    (sequence (map result-type function set))
+    (hash-table (maphash (lambda (k v)
+                           (declare (ignore v))
+                           (funcall function k))
+                         set))))
+
+
+(defun finite-set-map-cross (function set-1 &rest sets)
+  (cond
+    ((null sets) (finite-set-map nil function set-1))
+    (t
+     (finite-set-map nil
+                     (lambda (s-1)
+                       (apply #'finite-set-map-cross
+                              (curry-list function s-1)
+                              sets))
+                     set-1))))
+
+
+
 
 (defmacro do-finite-set ((var set &optional result-form) &body body)
   "Iterate over members of the set."
@@ -64,8 +88,22 @@
                  ,@body))))))
 
 (defun finite-set-fold (function initial-value set)
+  "Fold FUNCTION over SET beginning with first argument INITIAL-VALUE."
   (etypecase set
-    (sequence (reduce function set :initial-value initial-value))))
+    (sequence (reduce function set :initial-value initial-value))
+    (hash-table
+     (let ((value initial-value))
+       (maphash (lambda (k v)
+                  (declare (ignore v))
+                  (setq value (funcall function value k)))
+                set)
+       value))))
+
+(defun finite-set-length (set)
+  "Return the number of elements in set."
+  (etypecase set
+    (sequence (length set))
+    (hash-table (hash-table-size set))))
 
 (defun finite-set-equal (a b)
   "Are sets A and B equal?"
@@ -76,11 +114,20 @@
     (t
      (error "Can't operate on ~A and ~B" a b))))
 
-(defun finite-set-member (set item)
-  "Is ITEM a member of SET?"
+(defun finite-set-inp (item set)
+  "Is ITEM in SET?"
   (etypecase set
       (sequence
-       (find item set :test #'equal))))
+       (find item set :test #'equal))
+      (hash-table
+       (multiple-value-bind (val present)
+           (gethash item set)
+         (declare (ignore val))
+         present))))
+
+(defun finite-set-member (set item)
+  "Is ITEM a member of SET?"
+  (finite-set-inp item set))
 
 (defun finite-set-add (set item)
   "Return a new set containing ITEM and all members of SET."
@@ -89,13 +136,23 @@
               set
               (cons item set)))))
 
+(defun finite-set-nadd (set item)
+  "Destructively return a new set containing ITEM and all members of SET."
+  (etypecase set
+    (list (finite-set-add set item))
+    (hash-table (setf (gethash item set)
+                      t)
+                set)))
+
 (defun finite-set-subsetp (set-1 set-2)
+  "Is set-1 a subset of set-2?"
   (cond
     ((and (listp set-1) (listp set-2))
      (subsetp set-1 set-2 :test #'equal))
     (t (error "Can't operate on ~A and ~B" set-1 set-2))))
 
 (defun finite-set-union (set-1 set-2)
+  "Return the union of set-1 and set-2."
   (cond
     ((and (listp set-1) (listp set-2))
      (union set-1 set-2 :test #'equal))

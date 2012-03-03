@@ -222,28 +222,49 @@ RESULT: A new grammar with substitution performed"
   ;; TODO: prune epsilons, singletons, and redundant nonterminals
   ;;       do this using same steps an CNF conversion
   (let ((terminals (grammar-terminals grammar)))
-    (labels ((simplify (grammar)
-               (when grammar
-                 (destructuring-bind ((lhs &rest rhs) &rest remaining) grammar
-                   (cond
-                     ;; A -> a | B | :epsilon
-                     ((and (= 1 (length rhs)))
-                      (cons (car grammar) (simplify (cdr grammar))))
-                     ;; A -> a B
-                     ((and (= 2 (length rhs))
-                           (finite-set-member terminals (first rhs))
-                           (not (finite-set-member terminals (second rhs))))
-                      (cons (car grammar) (simplify (cdr grammar))))
-                     ;; A -> a b ALPHA
-                     ((and (<= 2 (length rhs))
-                           (finite-set-member terminals (first rhs))
-                           (finite-set-member terminals (second rhs)))
-                      (let ((new-nonterm (gensym "GRAMMAR->RIGHT-REGULAR")))
-                        (simplify `(,(list lhs (first rhs) new-nonterm)
-                                     (,new-nonterm ,@(rest rhs))
-                                     ,@remaining))))
-                     (t (error "Can't handle ~A => ~A" lhs rhs)))))))
-      (simplify grammar))))
+    (rewrite-grammar
+     (lambda (head body)
+       (cond
+         ((or
+           ;; A -> a | B | :epsilon
+           (and (= 1 (length body)))
+           ;; A -> a B
+           (and (= 2 (length body))
+                (finite-set-member terminals (first body))
+                (not (finite-set-member terminals (second body)))))
+          (list (cons head body)))
+         ;; A -> a b ALPHA
+         ((and (<= 2 (length body))
+               (finite-set-member terminals (first body))
+               (finite-set-member terminals (second body)))
+          (let ((new-nonterm (gensym "GRAMMAR->RIGHT-REGULAR")))
+            (list (list head (first body) new-nonterm)
+                  (cons new-nonterm (rest body)))))
+         (t (error "Can't handle ~A => ~A" head body))))
+     grammar)))
+
+    ;; (labels ((simplify (grammar)
+    ;;            (when grammar
+    ;;              (destructuring-bind ((lhs &rest rhs) &rest remaining) grammar
+    ;;                (cond
+    ;;                  ;; A -> a | B | :epsilon
+    ;;                  ((and (= 1 (length rhs)))
+    ;;                   (cons (car grammar) (simplify (cdr grammar))))
+    ;;                  ;; A -> a B
+    ;;                  ((and (= 2 (length rhs))
+    ;;                        (finite-set-member terminals (first rhs))
+    ;;                        (not (finite-set-member terminals (second rhs))))
+    ;;                   (cons (car grammar) (simplify (cdr grammar))))
+    ;;                  ;; A -> a b ALPHA
+    ;;                  ((and (<= 2 (length rhs))
+    ;;                        (finite-set-member terminals (first rhs))
+    ;;                        (finite-set-member terminals (second rhs)))
+    ;;                   (let ((new-nonterm (gensym "GRAMMAR->RIGHT-REGULAR")))
+    ;;                     (simplify `(,(list lhs (first rhs) new-nonterm)
+    ;;                                  (,new-nonterm ,@(rest rhs))
+    ;;                                  ,@remaining))))
+    ;;                  (t (error "Can't handle ~A => ~A" lhs rhs)))))))
+    ;;   (simplify grammar))))
 
 
 (defun grammar->fa (grammar)
@@ -282,43 +303,266 @@ RESULT: a finite automaton"
                  grammar)
     (make-fa edges start accept)))
 
+
+(defun make-grammar-from-adjacency (adj)
+  (let ((nonterminal-table (make-hash-table :test #'equal)))
+    ;; construct nonterminal symbols
+    (map nil (lambda (x)
+               (assert (= 2 (length x)))
+               (map nil (lambda (y)
+                          (unless (gethash y nonterminal-table)
+                            (format t "adding ~A~%" y)
+                            (setf (gethash y nonterminal-table)
+                                  (gensym (gsymbol-name y)))))
+                    x))
+         adj)
+    ;; construct grammar
+    (map 'list (lambda (x)
+                 (destructuring-bind (a b) x
+                   (list (gethash a nonterminal-table)
+                         b
+                         (gethash b nonterminal-table))))
+         adj)))
+
+
+(defmacro walk-grammar (name grammar (head-var body-var rest-var)
+                        &body body)
+  (alexandria:with-gensyms (grammar-var)
+    `(labels ((,name (,grammar-var)
+                (when ,grammar-var
+                  (destructuring-bind ((,head-var &rest ,body-var)
+                                       &rest ,rest-var ) ,grammar-var
+                    ,@body))))
+       (,name ,grammar))))
+
+
+(defun apply-rewrite (function grammar)
+  "Rewrites GRAMMAR by applying FUNCTION.
+FUNCTION: (lambda (term)) => (list new-terms...)"
+  (let ((h (make-finite-set :mutable t)))
+    (labels ((visit-term (term)
+               (if (finite-set-inp term h)
+                   (list term)
+                 (let ((result (funcall function term)))
+                   (finite-set-nadd h term) ;; don't re-visit already-rewritten terms
+                   (cond
+                     ((null result) nil)
+                     ((and (= 1 (length result))
+                           (equal term (car result)))
+                      result)
+                     (t (mapcan #'visit-term result)))))))
+      (mapcan #'visit-term grammar))))
+
+(defun rewrite-grammar (function grammar)
+  "Rewrites GRAMMAR by applying FUNCTION.
+FUNCTION: (lambda (head body)) => (list new-productions...)"
+  (apply-rewrite (lambda (term)
+                   (destructuring-bind (head &rest body) term
+                     (funcall function head body)))
+                 grammar))
+
+(defun grammar-remove-epsilon (grammar)
+  ;;(format t "~&START: ~A~&" grammar)
+  (let ((epsilon-nonterms (make-finite-set :mutable t))
+        (non-epsilon-nonterms (make-finite-set :mutable t))
+        (modified))
+    ;; FIXME: check for infite loop sometime
+    ;; find epsilon nonterminals
+    (grammar-map nil
+                 (lambda (head body)
+                   (finite-set-nadd (if (or (null body)
+                                            (equal '(:epsilon) body))
+                                        epsilon-nonterms
+                                        non-epsilon-nonterms)
+                                    head))
+                 grammar)
+    ;; rewrite the grammar
+    (setq grammar
+          (rewrite-grammar
+           (lambda (head body)
+             (cond
+               ;; remove epsilon rule
+               ((and (finite-set-inp head epsilon-nonterms)
+                     (or (null body)
+                         (equal '(:epsilon) body)))
+                (setq modified t)
+                nil)
+               ;; head -> A and somewhere A -> :epsilon, but never head -> epsilon
+               ((and (= 1 (length body))
+                     (finite-set-inp (car body) epsilon-nonterms)
+                     (not (finite-set-inp head epsilon-nonterms)))
+                (list (cons head body)
+                      (list head :epsilon)))
+               ;; head -> A and somewhere A -> :epsilon and somewhere head -> :epsilon
+               ((and (= 1 (length body))
+                     (finite-set-inp (car body) epsilon-nonterms)
+                     (finite-set-inp head epsilon-nonterms))
+                nil)
+               ;; general case
+               (t
+                (setq body
+                      (remove-if (lambda (x)
+                                   (and (finite-set-inp x epsilon-nonterms)
+                                        (not (finite-set-inp x non-epsilon-nonterms))))
+                                 body))
+                ;;(format t "~&new-body : ~A => ~A~&" head body)
+                (let ((new-prods (loop
+                                    for x in body
+                                    for suffix on body
+                                    for k from 0
+                                    when (finite-set-inp x epsilon-nonterms)
+                                    collect (cons head
+                                                  (append (subseq body 0 k)
+                                                          (cdr suffix))))))
+                  ;;(format t "~&new-prods : ~A~&" new-prods)
+                  (if (null new-prods)
+                      (list (cons head body))
+                      (cons (cons head body)
+                            new-prods))))))
+           grammar))
+    ;;(format t "~&grams : ~A~&" grammar)
+    ;; possibly recurse
+    (if modified
+        (grammar-remove-epsilon grammar)
+        grammar)))
+
+
+(defun grammar-remove-unit (grammar)
+  (let ((nonterms (grammar-nonterminals grammar))
+        (unit-prod (make-finite-set :mutable t))
+        (unit-body (make-hash-table :test #'equal))
+        (modified))
+    ;; find unit nonterminals
+    (grammar-map nil
+                 (lambda (head body)
+                   (when (and (= 1 (length body))
+                              (finite-set-inp (first body) nonterms))
+                     (finite-set-nadd unit-prod (cons head body))
+                     (push head (gethash (first body) unit-body ))))
+                 grammar)
+    ;; rewrite
+    (setq grammar
+          (rewrite-grammar
+           (lambda (head body)
+             (cond
+               ((finite-set-inp (cons head body) unit-prod)
+                (setq modified t)
+                nil)
+               ((and (finite-set-inp head unit-body))
+                (cons (cons head body)
+                      (loop for A in (gethash head unit-body)
+                         for p = (cons A body)
+                         unless (finite-set-inp p unit-prod)
+                         collect p)))
+               (t (cons head body))))
+           grammar))
+    (if modified
+        (grammar-remove-unit grammar)
+        grammar)))
+
+
+
+
 (defun grammar->cnf (grammar)
   "Convert grammar to Chomsky Normal Form"
   (let ((terminals (grammar-terminals grammar)))
-    (labels ((visit (grammar)
-               (print grammar)
-               (when grammar
-                 (destructuring-bind ((head &rest body) &rest remainder) grammar
-                   (cond
-                     ;; correct form
-                     ((or (and (= 1 (length body))
-                               (finite-set-inp (car body) terminals))
-                          (and (= 2 (length body))
-                               (not (finite-set-inp (first body) terminals))
-                               (not (finite-set-inp (second body) terminals))))
-                      (cons (car grammar)
-                            (visit (cdr grammar))))
-                     ;; long nonterminal sequence split
-                     ((and (> (length body) 2)
-                           (not (finite-set-inp (first body) terminals))
-                           (not (finite-set-inp (second body) terminals)))
-                      (let ((xp (gensym (gsymbol-name (second body)))))
-                        (cons (list head (first body) xp)
-                              (visit `((,xp ,@(cdr body))
-                                       ,@remainder)))))
-                     (t ;; else, remove the terminals
-                      (let ((new-body
-                             (map 'list (lambda (x)
-                                          (if (finite-set-inp x terminals)
-                                              (gensym (gsymbol-name x))
-                                              x))
-                                  body)))
-                        (visit (cons (cons head new-body)
-                                     (fold (lambda (remainder new-x old-x)
-                                             (if (finite-set-inp old-x terminals)
-                                                 (cons (list new-x old-x)
-                                                       remainder)
-                                                 remainder))
-                                           remainder new-body body))))))))))
-             (visit grammar))))
+    (rewrite-grammar
+     (lambda (head body)
+       (cond
+         ;; correct form
+         ((or (and (= 1 (length body))
+                   (finite-set-inp (car body) terminals))
+              (and (= 2 (length body))
+                   (not (finite-set-inp (first body) terminals))
+                   (not (finite-set-inp (second body) terminals))))
+          (list (cons head body)))
+         ;; long nonterminal sequence split
+         ((and (> (length body) 2)
+               (not (finite-set-inp (first body) terminals))
+               (not (finite-set-inp (second body) terminals)))
+          (let ((xp (gensym (gsymbol-name (second body)))))
+            (list (list head (first body) xp)
+                  (cons xp (rest body)))))
+         (t ;; else, remove the terminals
+          (let ((new-body
+                 (map 'list (lambda (x)
+                              (if (finite-set-inp x terminals)
+                                  (gensym (gsymbol-name x))
+                                  x))
+                      body)))
+            (cons (cons head new-body)
+                  (fold (lambda (rest new-x old-x)
+                          (if (finite-set-inp old-x terminals)
+                              (cons (list new-x old-x)
+                                    rest)
+                              rest))
+                               nil new-body body))))))
+     grammar)))
 
+    ;; (walk-grammar visit grammar (head body rest)
+    ;;   (cond
+    ;;     ;; correct form
+    ;;     ((or (and (= 1 (length body))
+    ;;               (finite-set-inp (car body) terminals))
+    ;;          (and (= 2 (length body))
+    ;;               (not (finite-set-inp (first body) terminals))
+    ;;               (not (finite-set-inp (second body) terminals))))
+    ;;      (cons (cons head body)
+    ;;            (visit rest)))
+    ;;     ;; long nonterminal sequence split
+    ;;     ((and (> (length body) 2)
+    ;;           (not (finite-set-inp (first body) terminals))
+    ;;           (not (finite-set-inp (second body) terminals)))
+    ;;      (let ((xp (gensym (gsymbol-name (second body)))))
+    ;;        (cons (list head (first body) xp)
+    ;;              (visit `((,xp ,@(cdr body))
+    ;;                       ,@rest)))))
+    ;;     (t ;; else, remove the terminals
+    ;;      (let ((new-body
+    ;;             (map 'list (lambda (x)
+    ;;                          (if (finite-set-inp x terminals)
+    ;;                              (gensym (gsymbol-name x))
+    ;;                              x))
+    ;;                  body)))
+    ;;        (visit (cons (cons head new-body)
+    ;;                     (fold (lambda (rest new-x old-x)
+    ;;                             (if (finite-set-inp old-x terminals)
+    ;;                                 (cons (list new-x old-x)
+    ;;                                       rest)
+    ;;                                 rest))
+    ;;                           rest new-body body)))))))))
+
+
+
+
+
+;; (defun grammar->pda
+
+;; (defun grammar-cross-regular (cfg rrg)
+;;   (let ((c-index (grammar-index-head cfg))
+;;         (r-index (grammar-index-head rrg))
+;;         (r-first (grammar-first-function rrg))
+;;         (terminals (finite-set-union (grammar-terminals cfg)
+;;                                      (grammar-terminals rrg)))
+;;         (hash (make-hash-table :test #'equal)))
+;;     (labels ((add (c-nonterm r-nonterm)
+;;                (let ((x-nonterm (list c-nonterm r-nonterm)))
+;;                  (unless (finite-set-inp x-nonterm hash)
+;;                    (setf (gethash x-nonterm hash) nil)
+;;                    (finite-set-map nil
+;;                                    (lambda (c-body)
+;;                                      (simulate c-nonterm r-nonterm nil c-body-2))
+;;                                    (funcall c-index c-nonterm)))))
+;;              (simulate (c-nonterm r-nonterm c-body-1 c-body-2)
+;;                (cond
+;;                  ((null c-body-2)
+;;                   (push (gethash (list c-nonterm r-nonterm) h)
+;;                         c-body-1))
+;;                  ((finite-set-inp (first c-body-2) terminals)
+;;                   (finite-set-map (lambda (r-body)
+;;                                     (when (equal (first c-body)
+;;                                                  (first r-body))
+;;                                       (simulate c-nonterm (second r-body)
+;;                                                 (append c-body-1 (list (first c-body-2)))
+;;                                                 (rest c-body-2))))
+;;                                   (funcall r-index r-nonterm)))

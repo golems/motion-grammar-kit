@@ -79,6 +79,14 @@
              (cdr functions))
       value))
 
+(defun fold (function initial-value &rest lists)
+  (let ((value initial-value))
+    (apply #'map nil
+           (lambda (&rest args)
+             (setq value (apply function value args)))
+           lists)
+    value))
+
 (defun multiple-value-reduce (function sequence &key initial-value-list)
   (let ((result initial-value-list))
     (map nil
