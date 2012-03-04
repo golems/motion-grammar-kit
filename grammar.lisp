@@ -338,20 +338,31 @@ RESULT: a finite automaton"
 
 (defun apply-rewrite (function grammar)
   "Rewrites GRAMMAR by applying FUNCTION.
-FUNCTION: (lambda (term)) => (list new-terms...)"
-  (let ((h (make-finite-set :mutable t)))
+FUNCTION: (lambda (term)) => (list new-terms...),
+          must return a fresh list as it will be NCONC'ed"
+  (let ((visited (make-finite-set :mutable t))   ;; stuff we've already expanded
+        (included (make-finite-set :mutable t))) ;; stuff we've already included
     (labels ((visit-term (term)
-               (if (finite-set-inp term h)
-                   (list term)
-                 (let ((result (funcall function term)))
-                   (finite-set-nadd h term) ;; don't re-visit already-rewritten terms
-                   (cond
-                     ((null result) nil)
-                     ((and (= 1 (length result))
-                           (equal term (car result)))
-                      result)
-                     (t (mapcan #'visit-term result)))))))
-      (mapcan #'visit-term grammar))))
+               ;;(format t "visit ~A~&" term)
+               (cond
+                 ((finite-set-inp term included)
+                  (assert (finite-set-nadd term visited))
+                  ;;(format t "included ~A~&" term)
+                  nil)
+                 ((finite-set-inp term visited)
+                  ;;(format t "visited ~A~&" term)
+                  (finite-set-nadd included term)
+                  (list term))
+                 (t ;; new term
+                  ;;(format t "new ~A~&" term)
+                  (finite-set-nadd visited term) ;; don't re-visit already-rewritten terms
+                  (visit-list (funcall function term)))))
+             (visit-list (list)
+               ;;(mapcan #'visit-term list)
+               ;; the loop slightly outperforms mapcan
+               (loop for term in list
+                  nconc (visit-term term))))
+      (visit-list grammar))))
 
 (defun rewrite-grammar (function grammar)
   "Rewrites GRAMMAR by applying FUNCTION.
@@ -444,6 +455,7 @@ FUNCTION: (lambda (head body)) => (list new-productions...)"
     (setq grammar
           (rewrite-grammar
            (lambda (head body)
+             ;;(format t "rewrite ~A => ~A~&" head body)
              (cond
                ((finite-set-inp (cons head body) unit-prod)
                 (setq modified t)
@@ -454,13 +466,14 @@ FUNCTION: (lambda (head body)) => (list new-productions...)"
                          for p = (cons A body)
                          unless (finite-set-inp p unit-prod)
                          collect p)))
-               (t (cons head body))))
+               (t (list (cons head body)))))
            grammar))
     (if modified
         (grammar-remove-unit grammar)
         grammar)))
 
-
+(defun grammar-print (grammar &optional (output *standard-output*))
+  (grammar-map nil (curry-list #'format output  "~&~A => ~{~A~^ ~}~%") grammar))
 
 
 (defun grammar->cnf (grammar)
