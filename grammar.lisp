@@ -54,6 +54,8 @@
 ;;;   - grammar -> ((prod1) (prod2) (prod3)...)
 ;;;   - prod -> (left-hand-side &rest expansion
 
+(in-package :motion-grammar)
+
 
 (defun gsymbol-name (gsym)
   (format nil "~A" gsym))

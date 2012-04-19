@@ -35,7 +35,6 @@
 ;;;;   EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-
 ;;;; FILE: set.lisp
 ;;;; BRIEF: basic operations for finite sets
 ;;;; AUTHOR: Neil T. Dantam
@@ -46,6 +45,8 @@
 ;;;; replacement of underlying representation with something like hash
 ;;;; tables, search trees, or bit vectors later.
 
+
+(in-package :motion-grammar)
 
 (defun make-finite-set (&key mutable)
   "Create a finite set.

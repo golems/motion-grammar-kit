@@ -36,6 +36,8 @@
 
 ;;; Utils
 
+(in-package :motion-grammar)
+
 (defun intersectionp (a b &optional (test #'eql))
   (map nil (lambda (a)
              (map nil (lambda (b)
