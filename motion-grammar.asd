@@ -43,7 +43,8 @@
   :description "Motion-Grammar Kit"
   :depends-on (:cl-ppcre :alexandria)
   :components ((:file "package")
-               (:file "set")
-               (:file "fa" :depends-on ("set"))
-               (:file "grammar" :depends-on ("package"))
+               (:file "util" :depends-on ("package"))
+               (:file "set" :depends-on ("package" "util"))
+               (:file "fa" :depends-on ("package" "set" "util"))
+               (:file "grammar" :depends-on ("package" "set" "util"))
                ))
