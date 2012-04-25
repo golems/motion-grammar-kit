@@ -57,8 +57,6 @@
 (in-package :motion-grammar)
 
 
-(defun gsymbol-name (gsym)
-  (format nil "~A" gsym))
 
 (defun grammar-map (result function grammar)
   "Applies function to each production in grammar.

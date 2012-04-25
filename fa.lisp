@@ -174,7 +174,7 @@ PRESERVE-STATES: If true, sort state names.
           (lambda (a b)
             (cond ((zerop a) t)
                   ((zerop b) nil)
-                  (t (symbol-list-compare  (aref (fa-tokens fa) a)
+                  (t (gsymbol-list-compare  (aref (fa-tokens fa) a)
                                            (aref (fa-tokens fa) b))))))
     (reduce (lambda (i k)
               (1+ (setf (aref token-old k) i)))
@@ -185,7 +185,7 @@ PRESERVE-STATES: If true, sort state names.
         (progn
           (dotimes (i (length state-indices)) (setf (aref state-indices i) i))
           (sort state-indices
-                (lambda (a b) (symbol-list-compare  (aref (fa-states fa) a)
+                (lambda (a b) (gsymbol-list-compare  (aref (fa-states fa) a)
                                                (aref (fa-states fa) b))))
           (reduce (lambda (i k)
                     (1+ (setf (aref state-old k) i)))
@@ -430,7 +430,7 @@ SORT: if t, put the resulting DFA in a canonical order"
                                     collect key)))))
 
       (when sort
-        (setf (fa-edges fa) (sort (fa-edges fa) #'symbol-list-compare)
+        (setf (fa-edges fa) (sort (fa-edges fa) #'gsymbol-list-compare)
               (fa-start fa) (sort (fa-start fa) #'<)
               (fa-accept fa) (sort (fa-accept fa) #'<)))
       fa)))
@@ -553,7 +553,7 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
   (let ((is-accept (find i (fa-accept fa)))
         (succs (fa-successor-array fa))
         (state-map (make-array (length (fa-states fa)))))
-    (map-into succs (curry-right #'sort #'symbol-list-compare) succs)
+    (map-into succs (curry-right #'sort #'gsymbol-list-compare) succs)
     (loop
        for j below (length succs)
        with k = -1
