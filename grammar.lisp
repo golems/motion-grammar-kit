@@ -57,16 +57,22 @@
 (in-package :motion-grammar)
 
 
+(defun grammar-map-list (result function grammar)
+  "Applies function to each production in grammar.
+RESULT: (or nil 'list 'vector)
+FUNCTION: (lambda (production))
+GRAMMAR: the BNF grammar"
+  (map result function grammar))
 
 (defun grammar-map (result function grammar)
   "Applies function to each production in grammar.
 RESULT: (or nil 'list 'vector)
 FUNCTION: (lambda (left-hand-side right-hand-side))
 GRAMMAR: the BNF grammar"
-  (map result (lambda (prod)
-                (destructuring-bind (lhs &rest rhs) prod
-                  (funcall function lhs rhs)))
-       grammar))
+  (grammar-map-list result (lambda (prod)
+                             (destructuring-bind (lhs &rest rhs) prod
+                               (funcall function lhs rhs)))
+                    grammar))
 
 (defun grammar-fold (function initial-value grammar)
   "Reduces function across productions of the grammar.
@@ -113,6 +119,116 @@ RESULT: (lambda (nonterminal)) => all productions bodies
                             :initial-value terminals))
                   (make-finite-set)
                   grammar)))
+
+
+(defun grammar-terminalp (terminals nonterminals gsymbol)
+  "Is GSYMBOL a terminal?"
+  (let ((in-terms (finite-set-inp gsymbol terminals))
+        (in-nonterms (finite-set-inp gsymbol nonterminals)))
+    (cond
+      ((and in-terms in-nonterms)
+       (error "Found ~A in both sets" gsymbol) )
+      ((and in-terms (not in-nonterms))
+       t)
+      ((and (not in-terms) in-nonterms)
+       nil)
+      ((and (not in-terms) (not in-nonterms))
+       (error "Found ~A in neither set" gsymbol))
+      (t (error "Godel was here")))))
+
+(defun grammar-nonterminalp (terminals nonterminals gsymbol)
+  (not (grammar-terminalp terminals nonterminals gsymbol)))
+
+
+
+(defun grammar-chain-rule-p (terminals nonterminals production)
+  "Is PRODUCTION a chain rule (A -> B)?"
+  (assert (grammar-nonterminalp terminals nonterminals (car production)))
+  (and (= 2 (length production))
+       (grammar-nonterminalp terminals nonterminals (second production))))
+
+(defun grammar-nonterminal-fixpoint (function grammar)
+  "Compute a fixpoint mapping from nonterminals of grammar to some set.
+FUNCTION: (lambda head body current-set mapping-function) => next-set of head
+GRAMMAR: a list of productions"
+  (let ((hash (make-hash-table :test #'equal)))
+    (flet ((mapping (x) (gethash x hash)))
+      (loop
+         for modified = nil
+         do (loop
+               for (head . body) in grammar
+               for current-set = (mapping head)
+               for next-set = (funcall function head body current-set #'mapping)
+               unless (finite-set-equal current-set next-set)
+               do
+                 ;(format t "current: ~A~&" current-set)
+                 ;(format t "next: ~A~&" next-set)
+                 (setf modified t
+                        (gethash head hash) next-set))
+           while modified)
+      #'mapping)))
+
+(defun grammar-chainable-function (grammar &optional
+                                   (terminals (grammar-terminals grammar))
+                                   (nonterminals (grammar-nonterminals grammar)))
+  "Compute nonterminals reachable for each nonterminal of the grammar using only chain rules.
+RESULT: (lambda nonterminal) => finite-set of chainable nonterminals"
+  (grammar-nonterminal-fixpoint (lambda (head body head-set mapping-function)
+                                  (declare (ignore head))
+                                  (finite-set-add (finite-set-union head-set
+                                                                    (funcall mapping-function (car body)))
+                                                  (car body)))
+                                ;; consider only chain rules
+                                (finite-set-filter (lambda (rule)
+                                                     (grammar-chain-rule-p terminals nonterminals rule))
+                                                   grammar)))
+
+
+
+(defun grammar-first-nonterminals-function (grammar &optional
+                                            (terminals (grammar-terminals grammar))
+                                            (nonterminals (grammar-nonterminals grammar)))
+  "For each nonterminal A in GRAMMAR, compute the set of nonterminals which my begin A."
+  (grammar-nonterminal-fixpoint (lambda (head body head-set mapping-function)
+                                  (declare (ignore head))
+                                  (finite-set-add (finite-set-union head-set
+                                                                    (funcall mapping-function (car body)))
+                                                  (car body)))
+                                ;; only productions with leading nonterminal
+                                (finite-set-filter (lambda (rule)
+                                                     (grammar-nonterminalp terminals nonterminals (second rule)))
+                                                   grammar)))
+
+
+
+;; (defun grammar-index-chainable (terminals nonterminals grammar)
+;;   "Compute nonterminals reachable for each nonterminal of the grammar using only chain rules.
+;; RESULT: (lambda (nonterminal)) => finite-set of chainable nonterminals"
+;;   (let ((hash (make-hash-table :size (length nonterminals) :test #'equal))
+;;         (chain-rules (finite-set-filter (lambda (rule)
+;;                                           (when (grammar-chain-rule-p terminals nonterminals rule)))
+;;                                         grammar)))
+;;     ;; initialize reachable sets to self
+;;     (finite-set-map nil (lambda (nonterm)
+;;                           (setf (gethash nonterm hash)
+;;                                 (finite-set-add (make-finite-set) nonterm)))
+;;                     nonterminals)
+;;     ;; iteratively update sets
+;;     (loop
+;;        for modified = nil
+;;        do (grammar-map-list nil
+;;                             (lambda (rule)
+;;                               (destructuring-bind (a b) rule
+;;                                 (let ((a-reachable (gethash a hash))
+;;                                       (b-reachable (gethash b hash)))
+;;                                 (unless (finite-set-subsetp b-reachable a-reachable)
+;;                                   (setf (gethash a hash) (finite-set-union a-reachable b-reachable)
+;;                                         modified t)))))
+;;                             chain-rules)
+;;        while modified)
+;;     (lambda (nonterm)
+;;       (gethash nonterm hash))))
+
 
 (defun grammar-first-function (grammar)
   "Computes first sets of grammar returns a function giving each first set.
@@ -313,7 +429,7 @@ RESULT: a finite automaton"
                           (unless (gethash y nonterminal-table)
                             (format t "adding ~A~%" y)
                             (setf (gethash y nonterminal-table)
-                                  (gensym (gsymbol-name y)))))
+                                  (gsymbol-gen y))))
                     x))
          adj)
     ;; construct grammar
@@ -336,41 +452,80 @@ RESULT: a finite automaton"
        (,name ,grammar))))
 
 
-(defun apply-rewrite (function grammar)
+;; (defun apply-rewrite (function grammar recursive)
+;;   "Rewrites GRAMMAR by applying FUNCTION.
+;; FUNCTION: (lambda (term)) => (list new-terms...),
+;;           must return a fresh list as it will be NCONC'ed"
+;;   (let ((visited (make-finite-set :mutable t))   ;; stuff we've already expanded
+;;         (included (make-finite-set :mutable t))) ;; stuff we've already included
+;;     (labels ((visit-term (term)
+;;                ;;(format t "visit ~A~&" term)
+;;                (cond
+;;                  ((finite-set-inp term included)
+;;                   (assert (finite-set-nadd term visited))
+;;                   ;;(format t "included ~A~&" term)
+;;                   nil)
+;;                  ((finite-set-inp term visited)
+;;                   ;;(format t "visited ~A~&" term)
+;;                   nil)
+;;                   ;;(finite-set-nadd included term)
+;;                   ;;(list term))
+;;                  (t ;; new term
+;;                   ;;(format t "new ~A~&" term)
+;;                   (finite-set-nadd visited term) ;; don't re-visit already-rewritten terms
+;;                   (visit-list (funcall function term)))))
+;;              (visit-list (list)
+;;                ;;(mapcan #'visit-term list)
+;;                ;; the loop slightly outperforms mapcan
+;;                (if recursive
+;;                    (loop for term in list
+;;                       nconc (visit-term term))
+;;                    (mapcan function list))))
+;;       (visit-list grammar))))
+
+
+
+
+(defun rewrite-grammar-list (function grammar &key
+                             (recursive t)
+                             (keep-repeated))
   "Rewrites GRAMMAR by applying FUNCTION.
 FUNCTION: (lambda (term)) => (list new-terms...),
           must return a fresh list as it will be NCONC'ed"
-  (let ((visited (make-finite-set :mutable t))   ;; stuff we've already expanded
-        (included (make-finite-set :mutable t))) ;; stuff we've already included
-    (labels ((visit-term (term)
-               ;;(format t "visit ~A~&" term)
-               (cond
-                 ((finite-set-inp term included)
-                  (assert (finite-set-nadd term visited))
-                  ;;(format t "included ~A~&" term)
-                  nil)
-                 ((finite-set-inp term visited)
-                  ;;(format t "visited ~A~&" term)
-                  (finite-set-nadd included term)
-                  (list term))
-                 (t ;; new term
-                  ;;(format t "new ~A~&" term)
-                  (finite-set-nadd visited term) ;; don't re-visit already-rewritten terms
-                  (visit-list (funcall function term)))))
-             (visit-list (list)
-               ;;(mapcan #'visit-term list)
-               ;; the loop slightly outperforms mapcan
-               (loop for term in list
-                  nconc (visit-term term))))
-      (visit-list grammar))))
+  (labels ((visit-term (term parent-set)
+             ;;(format t "parent ~A~&" parent-set)
+             ;;(format t "visit ~A~&" term)
+             (cond
+               ((and keep-repeated
+                     (finite-set-inp term parent-set))
+                (list term))
+               ((finite-set-inp term parent-set)
+                (error "Detected repetition of term ~A" term))
+               (t (let ((new-terms (funcall function term)))
+                    (if (and new-terms
+                             (null (cdr new-terms))
+                             (equal term (car new-terms)))
+                        ;; Equivalent
+                        new-terms
+                        ;; Modified
+                        (visit-list new-terms (finite-set-add parent-set term)))))))
+           (visit-list (list parent)
+             (loop for term in list
+                nconc (visit-term term parent))))
+    (if recursive
+        (visit-list grammar (make-finite-set))
+        (mapcan function grammar))))
 
-(defun rewrite-grammar (function grammar)
+
+(defun rewrite-grammar (function grammar &key (recursive t) keep-repeated)
   "Rewrites GRAMMAR by applying FUNCTION.
 FUNCTION: (lambda (head body)) => (list new-productions...)"
-  (apply-rewrite (lambda (term)
+  (rewrite-grammar-list (lambda (term)
                    (destructuring-bind (head &rest body) term
                      (funcall function head body)))
-                 grammar))
+                 grammar
+                 :recursive recursive
+                 :keep-repeated keep-repeated))
 
 (defun grammar-remove-epsilon (grammar)
   ;;(format t "~&START: ~A~&" grammar)
@@ -430,7 +585,8 @@ FUNCTION: (lambda (head body)) => (list new-productions...)"
                       (list (cons head body))
                       (cons (cons head body)
                             new-prods))))))
-           grammar))
+           grammar
+           :keep-repeated t))
     ;;(format t "~&grams : ~A~&" grammar)
     ;; possibly recurse
     (if modified
@@ -467,7 +623,7 @@ FUNCTION: (lambda (head body)) => (list new-productions...)"
                          unless (finite-set-inp p unit-prod)
                          collect p)))
                (t (list (cons head body)))))
-           grammar))
+           grammar :keep-repeated t))
     (if modified
         (grammar-remove-unit grammar)
         grammar)))
@@ -493,14 +649,14 @@ FUNCTION: (lambda (head body)) => (list new-productions...)"
          ((and (> (length body) 2)
                (not (finite-set-inp (first body) terminals))
                (not (finite-set-inp (second body) terminals)))
-          (let ((xp (gensym (gsymbol-name (second body)))))
+          (let ((xp (gsymbol-gen (second body))))
             (list (list head (first body) xp)
                   (cons xp (rest body)))))
          (t ;; else, remove the terminals
           (let ((new-body
                  (map 'list (lambda (x)
                               (if (finite-set-inp x terminals)
-                                  (gensym (gsymbol-name x))
+                                  (gsymbol-gen x)
                                   x))
                       body)))
             (cons (cons head new-body)
@@ -511,6 +667,77 @@ FUNCTION: (lambda (head body)) => (list new-productions...)"
                               rest))
                                nil new-body body))))))
      grammar)))
+
+
+;; Algorithm by:
+;;   Blum, N. and Koch, R.  Greibach normal form transformation revisited.
+;;   Information and Computation. 1999."
+
+(defun blum-koch-subgrammar (b grammar &optional
+                             (terminals (grammar-terminals grammar))
+                             (nonterminals (grammar-nonterminals grammar))
+                             (chainable-function (grammar-chainable-function grammar terminals nonterminals))
+                             (first-nonterminals-function (grammar-first-nonterminals-function grammar
+                                                                                               terminals
+                                                                                               nonterminals)))
+  "Compute G-B.
+RETURNS: (values S-B {A-B} P-B)"
+  (let ((s-b (gsymbol-gen b 'start))
+        (local-nonterms (make-hash-table :test #'equal))
+        (chainable-set (finite-set-add (funcall chainable-function b) b))
+        (first-nonterm-set (funcall first-nonterminals-function b)))
+    ;; create local nonterminals, A-B
+    (do-finite-set (a nonterminals)
+      (setf (gethash a local-nonterms)
+            (gsymbol-gen a b)))
+    ;;(format t "~&terminals: ~A" terminals)
+    ;;(format t "~&first-nonterms: ~A" first-nonterm-set)
+    ;;(format t "~&chainable: ~A" chainable-set)
+    ;; Results
+    (values s-b
+            local-nonterms
+            (rewrite-grammar (lambda (head body)
+                               (let ((first-terminalp (grammar-terminalp terminals nonterminals
+                                                                         (car body)))
+                                     (head-chainable (finite-set-inp head chainable-set))
+                                     (head-first-nonterm (finite-set-inp head first-nonterm-set)))
+                                 ;;(format t "~&prod ~A => ~A~&" head body)
+                                ; (print first-terminalp)
+                                ; (print head-chainable)
+                                ; (print head-first-nonterm)
+                                 (append (when (and first-terminalp head-chainable)
+                                           ;; start production
+                                           ;;(format t "~&start 1: ~A => ~A~&" head body)
+                                           (list (cons s-b body)))
+                                         ;; An apparently necessary modification to Blum-Koch:
+                                         ;; Only include this start production when HEAD
+                                         ;; can appear at the beginning of a leftmost derivation of
+                                         ;; B.
+                                         (when (and first-terminalp head-first-nonterm)
+                                           ;;(format t "~&start 2: ~A => ~A~&" head body)
+                                           (list (cons s-b (append body
+                                                                   (list (gethash head local-nonterms))))))
+                                         ;; inner
+                                         (when (and (not first-terminalp)
+                                                    head-first-nonterm ;; MODIFICATION
+                                                    (not (equal b head)))
+                                           ;;(format t "~&inner: ~A => ~A~&" head body)
+                                           (list `(,(gethash (first body) local-nonterms)
+                                                    ,@(rest body)
+                                                    ,(gethash head local-nonterms))))
+                                         ;; final
+                                         (when (and (not first-terminalp)
+                                                    (cdr body)
+                                                    head-chainable)
+                                           ;;(format t "~&final: ~A => ~A~&" head body)
+                                           (list (cons (gethash (first body) local-nonterms)
+                                                       (rest body)))))))
+                               grammar :recursive nil))))
+
+(defun blum-koch-subgrammar-productions (b grammar)
+  (third (multiple-value-list (blum-koch-subgrammar b grammar))))
+
+
 
     ;; (walk-grammar visit grammar (head body rest)
     ;;   (cond

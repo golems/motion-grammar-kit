@@ -56,6 +56,9 @@ MUTABLE: Should this be a mutable set?
     (mutable (make-hash-table :test #'equal))
     (t nil)))
 
+(defun finite-set (&rest items)
+  (fold #'finite-set-add (make-finite-set) items))
+
 (defun finite-set-map (result-type function set)
   "Apply FUNCTION to all members of SET."
   (etypecase set
@@ -100,11 +103,23 @@ MUTABLE: Should this be a mutable set?
                 set)
        value))))
 
+(defun finite-set-filter (predicate set)
+  "Return the subset of SET where PREDICATE is true.
+PREDICATE: (lambda (x))
+SET: a finite set
+RESULT: a finite set"
+  (etypecase set
+    (list
+     (loop for x in set
+        when (funcall predicate x)
+          collect x))))
+
+
 (defun finite-set-length (set)
   "Return the number of elements in set."
   (etypecase set
     (sequence (length set))
-    (hash-table (hash-table-size set))))
+    (hash-table (hash-table-count set))))
 
 (defun finite-set-equal (a b)
   "Are sets A and B equal?"
@@ -112,6 +127,18 @@ MUTABLE: Should this be a mutable set?
     ((and (listp a) (listp b))
      (and (null (set-difference a b :test #'equal))
           (null (set-difference b a :test #'equal))))
+    ((hash-table-p a)
+     (and (= (finite-set-length a)
+             (finite-set-length b))
+          (progn
+            (maphash (lambda (k v)
+                       (declare (ignore v))
+                       (unless (finite-set-inp k b)
+                         (return-from finite-set-equal nil)))
+                     a)
+            t)))
+    ((hash-table-p b)
+     (finite-set-equal b a))
     (t
      (error "Can't operate on ~A and ~B" a b))))
 
