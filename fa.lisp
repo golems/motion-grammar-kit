@@ -256,6 +256,7 @@ PRESERVE-STATES: If true, sort state names.
                   fa)
     array))
 
+#+sbcl
 (defun fa-dot (fa &key output (font-size 12))
   "Graphviz output of dfa.
 fa: finite automaton

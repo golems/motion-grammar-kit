@@ -34,6 +34,21 @@
 ;;;;   OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
 ;;;;   EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+
+
+;; Try to load quicklisp
+(unless (find-package :quicklisp)
+  (let ((ql0 (merge-pathnames "quicklisp/setup.lisp"
+                              (user-homedir-pathname)))
+        (ql1 (merge-pathnames ".quicklisp/setup.lisp"
+                              (user-homedir-pathname))))
+    (cond
+      ((probe-file ql0)
+       (load ql0))
+      ((probe-file ql1)
+       (load ql1)))))
+
+;; Try to ASDF load this Package
 (require :asdf)
 
 (asdf:operate 'asdf:load-op :motion-grammar)
@@ -41,6 +56,8 @@
 
 (load "test.lisp")
 
+
+;; Run the tests
 (in-package :motion-grammar)
 
 (lisp-unit:run-tests)
@@ -48,3 +65,6 @@
 
 #+sbcl
 (sb-ext:quit)
+
+#+ccl
+(ccl:quit)
