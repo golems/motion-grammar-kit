@@ -85,19 +85,6 @@ RESULT: function reduced across grammar"
           grammar :initial-value initial-value))
 
 
-(defun grammar-index-head (grammar)
-  "Indexes productions by head.
-GRAMMAR: a grammar
-RESULT: (lambda (nonterminal)) => all productions bodies
-        that nonterminal expands to."
-  (let ((h (grammar-fold (lambda (h head body)
-                           (push (gethash head h) body)
-                           h)
-                         (make-hash-table :test #'equal)
-                         grammar)))
-    (curry-right #'gethash h)))
-
-
 (defun grammar-nonterminals (grammar)
   "Return list of nonterminals in the grammar."
   (let ((a nil))
@@ -138,8 +125,6 @@ RESULT: (lambda (nonterminal)) => all productions bodies
 
 (defun grammar-nonterminalp (terminals nonterminals gsymbol)
   (not (grammar-terminalp terminals nonterminals gsymbol)))
-
-
 
 (defun grammar-chain-rule-p (terminals nonterminals production)
   "Is PRODUCTION a chain rule (A -> B)?"
@@ -183,6 +168,19 @@ RESULT: (lambda nonterminal) => finite-set of chainable nonterminals"
                                                      (grammar-chain-rule-p terminals nonterminals rule))
                                                    grammar)))
 
+(defun grammar-body-function (grammar)
+  "Indexes productions by head.
+GRAMMAR: a grammar
+RESULT: (lambda (nonterminal)) => set of production bodies NONTERMINAL expands to."
+  (curry-right #'gethash
+               (grammar-fold (lambda (h head body)
+                               (setf (gethash head h)
+                                     (finite-set-add (or (gethash head h)
+                                                         (make-finite-set))
+                                                     body))
+                               h)
+                             (make-hash-table :test #'equal)
+                             grammar)))
 
 
 (defun grammar-first-nonterminals-function (grammar &optional
@@ -198,7 +196,6 @@ RESULT: (lambda nonterminal) => finite-set of chainable nonterminals"
                                 (finite-set-filter (lambda (rule)
                                                      (grammar-nonterminalp terminals nonterminals (second rule)))
                                                    grammar)))
-
 
 
 ;; (defun grammar-index-chainable (terminals nonterminals grammar)
@@ -273,10 +270,6 @@ RESULT: (lambda (nonterminal)) => first set of nonterminal"
     (maphash (lambda (k v)
                (format t "~&~A => ~A~&" k v)) h)
     (curry-right #'gethash h)))
-
-
-
-
 
 
 (defun grammar-start-nonterminal (grammar)
@@ -668,6 +661,68 @@ FUNCTION: (lambda (head body)) => (list new-productions...)"
                                nil new-body body))))))
      grammar)))
 
+
+;; Close enough to Hopcroft '79, p. 89
+(defun grammar-remove-unreachable (grammar &optional
+                                   (terminals (grammar-terminals grammar))
+                                   (nonterminals (grammar-nonterminals grammar)))
+  "Remove unreachable nonterminals and production sfrom the grammar.
+RESULT: reduced grammar"
+  (let ((body-function (grammar-body-function grammar))
+        (start (grammar-start-nonterminal grammar)))
+    (labels ((visit (visited A)
+               ;; fold over expansion bodies of A
+               (finite-set-fold (lambda (visited body)
+                                  ;; fold over symbols of body
+                                  (fold (lambda (visited x)
+                                          (if (and (grammar-nonterminalp terminals nonterminals x)
+                                                   (not (finite-set-inp x visited)))
+                                              (visit (finite-set-add visited x) x)
+                                              visited))
+                                        visited body))
+                                visited (funcall body-function A))))
+      (let ((reachable-nonterms (visit (finite-set start) start)))
+        (rewrite-grammar (lambda (head body)
+                           (when (finite-set-inp head reachable-nonterms)
+                             (list (cons head body))))
+                         grammar :recursive nil)))))
+
+
+;; Hopcroft '79, p. 89
+(defun grammar-remove-nonsentential (grammar &optional
+                                     (terminals (grammar-terminals grammar)))
+  "Remove productions which can derive no terminal string."
+  (let ((old-v (make-finite-set))
+        (new-v (grammar-fold (lambda (v head body)
+                               (if (every (curry-right #'finite-set-inp terminals) body)
+                                   (finite-set-add v head)
+                                   v))
+                             (make-finite-set) grammar)))
+    (loop
+       while (not (finite-set-equal old-v new-v))
+       do
+         (setq old-v new-v)
+         (setq new-v (grammar-fold (lambda (v head body)
+                                     (if (every (lambda (x)
+                                                  (or (finite-set-inp x terminals))
+                                                  (or (finite-set-inp x old-v)))
+                                                body)
+                                         (finite-set-add v head)
+                                         v))
+                                   old-v grammar)))
+    (let* ((pred (curry-right #'finite-set-inp (finite-set-union terminals new-v))))
+      (rewrite-grammar-list (lambda (production)
+                              (when (every pred production)
+                                (list production)))
+                            grammar :recursive nil))))
+
+
+(defun grammar-remove-useless (grammar &optional
+                               (terminals (grammar-terminals grammar))
+                               (nonterminals (grammar-nonterminals grammar)))
+  "Remove 'useless' symbols from GRAMMAR."
+  (grammar-remove-unreachable (grammar-remove-nonsentential grammar terminals)
+                              terminals nonterminals))
 
 ;; Algorithm by:
 ;;   Blum, N. and Koch, R.  Greibach normal form transformation revisited.
