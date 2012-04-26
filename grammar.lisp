@@ -74,15 +74,23 @@ GRAMMAR: the BNF grammar"
                                (funcall function lhs rhs)))
                     grammar))
 
+
+(defun grammar-fold-list (function initial-value grammar)
+  "Reduces function across productions of the grammar.
+FUNCTION: (lambda (value production))
+GRAMMAR: the BNF grammar
+RESULT: function reduced across grammar"
+  (reduce function grammar :initial-value initial-value))
+
 (defun grammar-fold (function initial-value grammar)
   "Reduces function across productions of the grammar.
 FUNCTION: (lambda (value lhs rhs))
 GRAMMAR: the BNF grammar
 RESULT: function reduced across grammar"
-  (reduce (lambda (value production)
-            (destructuring-bind (lhs &rest rhs) production
-              (funcall function value lhs rhs)))
-          grammar :initial-value initial-value))
+  (grammar-fold-list (lambda (value production)
+                       (destructuring-bind (lhs &rest rhs) production
+                         (funcall function value lhs rhs)))
+          initial-value grammar ))
 
 
 (defun grammar-nonterminals (grammar)
@@ -132,6 +140,7 @@ RESULT: function reduced across grammar"
   (and (= 2 (length production))
        (grammar-nonterminalp terminals nonterminals (second production))))
 
+
 (defun grammar-nonterminal-fixpoint (function grammar)
   "Compute a fixpoint mapping from nonterminals of grammar to some set.
 FUNCTION: (lambda head body current-set mapping-function) => next-set of head
@@ -157,7 +166,7 @@ GRAMMAR: a list of productions"
                                    (terminals (grammar-terminals grammar))
                                    (nonterminals (grammar-nonterminals grammar)))
   "Compute nonterminals reachable for each nonterminal of the grammar using only chain rules.
-RESULT: (lambda nonterminal) => finite-set of chainable nonterminals"
+RESULT: (lambda nonterminal) => finite-set of chainable child nonterminals"
   (grammar-nonterminal-fixpoint (lambda (head body head-set mapping-function)
                                   (declare (ignore head))
                                   (finite-set-add (finite-set-union head-set
@@ -167,6 +176,22 @@ RESULT: (lambda nonterminal) => finite-set of chainable nonterminals"
                                 (finite-set-filter (lambda (rule)
                                                      (grammar-chain-rule-p terminals nonterminals rule))
                                                    grammar)))
+
+(defun grammar-chainable-parent-function (grammar &optional
+                                    (terminals (grammar-terminals grammar))
+                                    (nonterminals (grammar-nonterminals grammar)))
+  "Compute nonterminals reachable for each nonterminal of the grammar using only chain rules.
+RESULT: (lambda nonterminal) => finite-set of chainable parent nonterminals"
+  (let* ((chainable (grammar-chainable-function grammar terminals nonterminals)))
+    (curry-right #'gethash
+                 (finite-set-fold (lambda (hash A)
+                                    (finite-set-fold (lambda (hash B)
+                                                       (setf (gethash b hash)
+                                                             (finite-set-add (gethash b hash) a))
+                                                       hash)
+                                                     hash (funcall chainable a)))
+                                  (make-hash-table :test #'equal)
+                                  nonterminals))))
 
 (defun grammar-body-function (grammar)
   "Indexes productions by head.
@@ -587,39 +612,23 @@ FUNCTION: (lambda (head body)) => (list new-productions...)"
         grammar)))
 
 
+;; Hopcroft '79 p. 91
 (defun grammar-remove-unit (grammar)
-  (let ((nonterms (grammar-nonterminals grammar))
-        (unit-prod (make-finite-set :mutable t))
-        (unit-body (make-hash-table :test #'equal))
-        (modified))
-    ;; find unit nonterminals
-    (grammar-map nil
-                 (lambda (head body)
-                   (when (and (= 1 (length body))
-                              (finite-set-inp (first body) nonterms))
-                     (finite-set-nadd unit-prod (cons head body))
-                     (push head (gethash (first body) unit-body ))))
-                 grammar)
-    ;; rewrite
-    (setq grammar
-          (rewrite-grammar
-           (lambda (head body)
-             ;;(format t "rewrite ~A => ~A~&" head body)
-             (cond
-               ((finite-set-inp (cons head body) unit-prod)
-                (setq modified t)
-                nil)
-               ((and (finite-set-inp head unit-body))
-                (cons (cons head body)
-                      (loop for A in (gethash head unit-body)
-                         for p = (cons A body)
-                         unless (finite-set-inp p unit-prod)
-                         collect p)))
-               (t (list (cons head body)))))
-           grammar :keep-repeated t))
-    (if modified
-        (grammar-remove-unit grammar)
-        grammar)))
+  "Remove unit productions from the grammar."
+  ;; FIXME: sometimes reorders and loses the start symbol
+  (let* ((terminals (grammar-terminals grammar))
+         (nonterminals (grammar-nonterminals grammar))
+         (chainable (grammar-chainable-parent-function  grammar terminals nonterminals)))
+    (rewrite-grammar-list
+     (lambda (production)
+       (unless (grammar-chain-rule-p terminals nonterminals production)
+         (let* ((b (car production))
+                (alpha (cdr production))
+                (a-list (funcall chainable b)))
+           (cons production
+                 (finite-set-map 'list (lambda (a) (cons a alpha)) a-list)))))
+     grammar :recursive nil)))
+
 
 (defun grammar-print (grammar &optional (output *standard-output*))
   (grammar-map nil (curry-list #'format output  "~&~A => ~{~A~^ ~}~%") grammar))
