@@ -103,6 +103,17 @@ MUTABLE: Should this be a mutable set?
                 set)
        value))))
 
+(defun finite-set-fold-range (function initial-value set)
+  "Fold FUNCTION over range of SET with first argument INITIAL-VALUE."
+  (etypecase set
+    (hash-table
+     (let ((value initial-value))
+       (maphash (lambda (k v)
+                  (declare (ignore k))
+                  (setq value (funcall function value v)))
+                set)
+       value))))
+
 (defun finite-set-filter (predicate set)
   "Return the subset of SET where PREDICATE is true.
 PREDICATE: (lambda (x))

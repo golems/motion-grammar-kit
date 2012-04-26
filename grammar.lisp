@@ -736,6 +736,7 @@ RESULT: reduced grammar"
 ;; Algorithm by:
 ;;   Blum, N. and Koch, R.  Greibach normal form transformation revisited.
 ;;   Information and Computation. 1999."
+;; TODO: Implementation follows the Blum-Koch proof.  Efficiency could be improved.
 
 (defun blum-koch-subgrammar (b grammar &optional
                              (terminals (grammar-terminals grammar))
@@ -802,71 +803,56 @@ RETURNS: (values S-B {A-B} P-B)"
   (third (multiple-value-list (blum-koch-subgrammar b grammar))))
 
 
-
-    ;; (walk-grammar visit grammar (head body rest)
-    ;;   (cond
-    ;;     ;; correct form
-    ;;     ((or (and (= 1 (length body))
-    ;;               (finite-set-inp (car body) terminals))
-    ;;          (and (= 2 (length body))
-    ;;               (not (finite-set-inp (first body) terminals))
-    ;;               (not (finite-set-inp (second body) terminals))))
-    ;;      (cons (cons head body)
-    ;;            (visit rest)))
-    ;;     ;; long nonterminal sequence split
-    ;;     ((and (> (length body) 2)
-    ;;           (not (finite-set-inp (first body) terminals))
-    ;;           (not (finite-set-inp (second body) terminals)))
-    ;;      (let ((xp (gensym (gsymbol-name (second body)))))
-    ;;        (cons (list head (first body) xp)
-    ;;              (visit `((,xp ,@(cdr body))
-    ;;                       ,@rest)))))
-    ;;     (t ;; else, remove the terminals
-    ;;      (let ((new-body
-    ;;             (map 'list (lambda (x)
-    ;;                          (if (finite-set-inp x terminals)
-    ;;                              (gensym (gsymbol-name x))
-    ;;                              x))
-    ;;                  body)))
-    ;;        (visit (cons (cons head new-body)
-    ;;                     (fold (lambda (rest new-x old-x)
-    ;;                             (if (finite-set-inp old-x terminals)
-    ;;                                 (cons (list new-x old-x)
-    ;;                                       rest)
-    ;;                                 rest))
-    ;;                           rest new-body body)))))))))
-
-
-
-
-
-;; (defun grammar->pda
-
-;; (defun grammar-cross-regular (cfg rrg)
-;;   (let ((c-index (grammar-index-head cfg))
-;;         (r-index (grammar-index-head rrg))
-;;         (r-first (grammar-first-function rrg))
-;;         (terminals (finite-set-union (grammar-terminals cfg)
-;;                                      (grammar-terminals rrg)))
-;;         (hash (make-hash-table :test #'equal)))
-;;     (labels ((add (c-nonterm r-nonterm)
-;;                (let ((x-nonterm (list c-nonterm r-nonterm)))
-;;                  (unless (finite-set-inp x-nonterm hash)
-;;                    (setf (gethash x-nonterm hash) nil)
-;;                    (finite-set-map nil
-;;                                    (lambda (c-body)
-;;                                      (simulate c-nonterm r-nonterm nil c-body-2))
-;;                                    (funcall c-index c-nonterm)))))
-;;              (simulate (c-nonterm r-nonterm c-body-1 c-body-2)
-;;                (cond
-;;                  ((null c-body-2)
-;;                   (push (gethash (list c-nonterm r-nonterm) h)
-;;                         c-body-1))
-;;                  ((finite-set-inp (first c-body-2) terminals)
-;;                   (finite-set-map (lambda (r-body)
-;;                                     (when (equal (first c-body)
-;;                                                  (first r-body))
-;;                                       (simulate c-nonterm (second r-body)
-;;                                                 (append c-body-1 (list (first c-body-2)))
-;;                                                 (rest c-body-2))))
-;;                                   (funcall r-index r-nonterm)))
+(defun blum-koch-greibach (grammar)
+  "Convert grammar to Greibach Normal Form using the Blum-Koch-Greibach algorithm"
+  ;; FIXME: check what happens to start symbol
+  (let ((terminals (grammar-terminals grammar))
+        (nonterminals (grammar-nonterminals grammar))
+        (start (grammar-start-nonterminal grammar)))
+    (let ((first-nonterminals-function (grammar-first-nonterminals-function grammar terminals nonterminals))
+          (chainable-function (grammar-chainable-function grammar terminals nonterminals))
+          (b->s-b (make-hash-table :test #'equal))
+          (s-b->b (make-hash-table :test #'equal))
+          (b->p-b (make-hash-table :test #'equal)))
+      ;; Sub-grammars
+      (finite-set-map nil
+                      (lambda (b)
+                        (multiple-value-bind (s-b a-b p-b) (blum-koch-subgrammar b grammar
+                                                                                 terminals
+                                                                                 nonterminals
+                                                                                 chainable-function
+                                                                                 first-nonterminals-function)
+                          (declare (ignore a-b))
+                          (setf (gethash b b->s-b) s-b
+                                (gethash s-b s-b->b) b
+                                (gethash b b->p-b) p-b)))
+                      nonterminals)
+      (let ((h-grammar (finite-set-fold-range #'finite-set-union grammar b->p-b)))
+        ;(grammar-print h-grammar)
+        (setq h-grammar (rewrite-grammar (lambda (head body)
+                                        ;(format t "~&Check: ~A -> ~A~&" head body)
+                                           (let ((x-1 (car body)))
+                                             (cond
+                                               ;; remove head s-b
+                                               ((finite-set-inp head s-b->b)
+                                        ;(format t "~&  prune~&")
+                                                nil)
+                                               ;; replace non-greibach with leading s-b
+                                               ((finite-set-inp x-1 nonterminals)
+                                        ;(format t "~&  non-greibach~&")
+                                                (list `(,head ,(gethash x-1 b->s-b) ,@(rest body))))
+                                               ;; replace leading s-b with it's alternatives
+                                               ((gethash x-1 s-b->b)
+                                        ;(format t "~&  lead-s_b~&")
+                                                (rewrite-grammar (lambda (head-1 body-1)
+                                                                   (when (eq head-1 x-1)
+                                                                     (list (cons head (append body-1
+                                                                                              (rest body))))))
+                                                                 (gethash (gethash x-1 s-b->b) b->p-b)
+                                                                 :recursive nil))
+                                               ;; otherwise, keep it
+                                               (t (list (cons head body))))))
+                                         h-grammar :recursive t))
+        (setq h-grammar
+              (grammar-remove-useless (cons (list 'start start) h-grammar) terminals))
+        (grammar-remove-unit h-grammar)))))
