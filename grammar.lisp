@@ -141,57 +141,54 @@ RESULT: function reduced across grammar"
        (grammar-nonterminalp terminals nonterminals (second production))))
 
 
-(defun grammar-nonterminal-fixpoint (function grammar)
-  "Compute a fixpoint mapping from nonterminals of grammar to some set.
-FUNCTION: (lambda head body current-set mapping-function) => next-set of head
+
+(defun grammar-fixpoint (function grammar &key (test #'finite-set-equal))
+  "Compute a fixpoint mapping for the grammar.
+FUNCTION: (lambda head body mapping-function) => (values key set)
 GRAMMAR: a list of productions"
-  (let ((hash (make-hash-table :test #'equal)))
-    (flet ((mapping (x) (gethash x hash)))
-      (loop
-         for modified = nil
-         do (loop
-               for (head . body) in grammar
-               for current-set = (mapping head)
-               for next-set = (funcall function head body current-set #'mapping)
-               unless (finite-set-equal current-set next-set)
-               do
-                 ;(format t "current: ~A~&" current-set)
-                 ;(format t "next: ~A~&" next-set)
-                 (setf modified t
-                        (gethash head hash) next-set))
-           while modified)
-      #'mapping)))
+  (let* ((hash (make-hash-table :test #'equal))
+         (mapping (lambda (x) (gethash x hash))))
+    (loop
+       for modified = nil
+       do (loop
+             for (head . body) in grammar
+             do (multiple-value-bind (key set) (funcall function head body mapping)
+                  (unless (funcall test (funcall mapping key) set)
+                    (setf (gethash key hash) set
+                          modified t))))
+       while modified)
+    mapping))
+
 
 (defun grammar-chainable-function (grammar &optional
                                    (terminals (grammar-terminals grammar))
                                    (nonterminals (grammar-nonterminals grammar)))
   "Compute nonterminals reachable for each nonterminal of the grammar using only chain rules.
 RESULT: (lambda nonterminal) => finite-set of chainable child nonterminals"
-  (grammar-nonterminal-fixpoint (lambda (head body head-set mapping-function)
-                                  (declare (ignore head))
-                                  (finite-set-add (finite-set-union head-set
-                                                                    (funcall mapping-function (car body)))
-                                                  (car body)))
-                                ;; consider only chain rules
-                                (finite-set-filter (lambda (rule)
-                                                     (grammar-chain-rule-p terminals nonterminals rule))
-                                                   grammar)))
+  (grammar-fixpoint (lambda (head body mapping-function)
+                      (values head
+                              (finite-set-add (finite-set-union (funcall mapping-function head)
+                                                                (funcall mapping-function (car body)))
+                                              (car body))))
+                    ;; consider only chain rules
+                    (finite-set-filter (lambda (rule)
+                                         (grammar-chain-rule-p terminals nonterminals rule))
+                                       grammar)))
 
 (defun grammar-chainable-parent-function (grammar &optional
-                                    (terminals (grammar-terminals grammar))
-                                    (nonterminals (grammar-nonterminals grammar)))
+                                          (terminals (grammar-terminals grammar))
+                                          (nonterminals (grammar-nonterminals grammar)))
   "Compute nonterminals reachable for each nonterminal of the grammar using only chain rules.
 RESULT: (lambda nonterminal) => finite-set of chainable parent nonterminals"
-  (let* ((chainable (grammar-chainable-function grammar terminals nonterminals)))
-    (curry-right #'gethash
-                 (finite-set-fold (lambda (hash A)
-                                    (finite-set-fold (lambda (hash B)
-                                                       (setf (gethash b hash)
-                                                             (finite-set-add (gethash b hash) a))
-                                                       hash)
-                                                     hash (funcall chainable a)))
-                                  (make-hash-table :test #'equal)
-                                  nonterminals))))
+  (grammar-fixpoint (lambda (head body mapping-function)
+                      (values (car body)
+                              (finite-set-add (finite-set-union (funcall mapping-function head)
+                                                                (funcall mapping-function (car body)))
+                                              head)))
+                    ;; consider only chain rules
+                    (finite-set-filter (lambda (rule)
+                                         (grammar-chain-rule-p terminals nonterminals rule))
+                                       grammar)))
 
 (defun grammar-body-function (grammar)
   "Indexes productions by head.
@@ -212,44 +209,15 @@ RESULT: (lambda (nonterminal)) => set of production bodies NONTERMINAL expands t
                                             (terminals (grammar-terminals grammar))
                                             (nonterminals (grammar-nonterminals grammar)))
   "For each nonterminal A in GRAMMAR, compute the set of nonterminals which my begin A."
-  (grammar-nonterminal-fixpoint (lambda (head body head-set mapping-function)
-                                  (declare (ignore head))
-                                  (finite-set-add (finite-set-union head-set
-                                                                    (funcall mapping-function (car body)))
-                                                  (car body)))
-                                ;; only productions with leading nonterminal
-                                (finite-set-filter (lambda (rule)
-                                                     (grammar-nonterminalp terminals nonterminals (second rule)))
-                                                   grammar)))
-
-
-;; (defun grammar-index-chainable (terminals nonterminals grammar)
-;;   "Compute nonterminals reachable for each nonterminal of the grammar using only chain rules.
-;; RESULT: (lambda (nonterminal)) => finite-set of chainable nonterminals"
-;;   (let ((hash (make-hash-table :size (length nonterminals) :test #'equal))
-;;         (chain-rules (finite-set-filter (lambda (rule)
-;;                                           (when (grammar-chain-rule-p terminals nonterminals rule)))
-;;                                         grammar)))
-;;     ;; initialize reachable sets to self
-;;     (finite-set-map nil (lambda (nonterm)
-;;                           (setf (gethash nonterm hash)
-;;                                 (finite-set-add (make-finite-set) nonterm)))
-;;                     nonterminals)
-;;     ;; iteratively update sets
-;;     (loop
-;;        for modified = nil
-;;        do (grammar-map-list nil
-;;                             (lambda (rule)
-;;                               (destructuring-bind (a b) rule
-;;                                 (let ((a-reachable (gethash a hash))
-;;                                       (b-reachable (gethash b hash)))
-;;                                 (unless (finite-set-subsetp b-reachable a-reachable)
-;;                                   (setf (gethash a hash) (finite-set-union a-reachable b-reachable)
-;;                                         modified t)))))
-;;                             chain-rules)
-;;        while modified)
-;;     (lambda (nonterm)
-;;       (gethash nonterm hash))))
+  (grammar-fixpoint (lambda (head body mapping-function)
+                      (values head
+                              (finite-set-add (finite-set-union (funcall mapping-function head)
+                                                                (funcall mapping-function (car body)))
+                                              (car body))))
+                    ;; only productions with leading nonterminal
+                    (finite-set-filter (lambda (rule)
+                                         (grammar-nonterminalp terminals nonterminals (second rule)))
+                                       grammar)))
 
 
 (defun grammar-first-function (grammar)
