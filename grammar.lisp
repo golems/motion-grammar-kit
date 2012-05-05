@@ -142,12 +142,20 @@ RESULT: function reduced across grammar"
 
 
 
-(defun grammar-fixpoint (function grammar &key (test #'finite-set-equal))
+(defun grammar-fixpoint (function grammar &key
+                         (test #'finite-set-equal)
+                         initial-mapping)
   "Compute a fixpoint mapping for the grammar.
+Continue applying FUNCTION to each production of GRAMMAR until no
+new updates to key=>set.
 FUNCTION: (lambda head body mapping-function) => (values key set)
-GRAMMAR: a list of productions"
+GRAMMAR: a list of productions
+INITIAL-MAPPING (list (key . set))
+RESULT: (lambda (key) => set"
   (let* ((hash (make-hash-table :test #'equal))
          (mapping (lambda (x) (gethash x hash))))
+    (loop for (key . set) in initial-mapping
+         do (setf (gethash key hash) set))
     (loop
        for modified = nil
        do (loop
@@ -220,49 +228,17 @@ RESULT: (lambda (nonterminal)) => set of production bodies NONTERMINAL expands t
                                        grammar)))
 
 
-(defun grammar-first-function (grammar)
+(defun grammar-first-function (grammar &optional
+                               (terminals (grammar-terminals grammar)))
   "Computes first sets of grammar returns a function giving each first set.
 GRAMMAR: a grammar
-RESULT: (lambda (nonterminal)) => first set of nonterminal"
-  (let ((h (make-hash-table :test #'equal))
-        (terminals (grammar-terminals grammar))
-        did-it)
-    ;; init sets
-    (grammar-map nil (lambda (head tail)
-                       (declare (ignore tail))
-                       (setf (gethash head h) (make-finite-set)))
-                 grammar)
-    ;; add terminals
-    (finite-set-map nil (lambda (term) (setf (gethash term h)
-                                        (finite-set-add (gethash term h) term)))
-                    terminals)
-    ;; add nonterminals
-    (labels ((visit (head tail)
-               (let ((head-set (gethash head h))
-                     (tail-set (and (car tail)
-                                    (gethash (car tail) h))))
-                 ;; nonterminal, new
-                 (cond
-                   ;; epsilon
-                   ((and (null tail)
-                         (not (finite-set-member head-set :epsilon)))
-                    (setf (gethash head h)
-                          (finite-set-add head-set :epsilon))
-                    (setq did-it t))
-                   ((and tail-set
-                         (not (finite-set-subsetp tail-set head-set)))
-                    (setf (gethash head h)
-                          (finite-set-union head-set tail-set))
-                    (setq did-it t)))
-                 (when (finite-set-member (gethash (car tail) h) :epsilon)
-                   (visit head (cdr tail))))))
-      (loop do
-           (setq did-it nil)
-           (grammar-map nil #'visit grammar)
-         while did-it))
-    (maphash (lambda (k v)
-               (format t "~&~A => ~A~&" k v)) h)
-    (curry-right #'gethash h)))
+RESULT: (lambda (symbol)) => first set of symbol"
+  (grammar-fixpoint (lambda (head body mapping-function)
+                      (values head (finite-set-union (funcall mapping-function head)
+                                                     (funcall mapping-function (car body)))))
+                    grammar
+                    :initial-mapping (loop for a in terminals
+                                        collect (cons a (finite-set a)))))
 
 
 (defun grammar-start-nonterminal (grammar)
