@@ -168,21 +168,6 @@ RESULT: a finite set"
   "Is ITEM a member of SET?"
   (finite-set-inp item set))
 
-(defun finite-set-add (set item)
-  "Return a new set containing ITEM and all members of SET."
-  (etypecase set
-    (list (if (finite-set-member set item)
-              set
-              (cons item set)))))
-
-(defun finite-set-nadd (set item)
-  "Destructively return a new set containing ITEM and all members of SET."
-  (etypecase set
-    (list (finite-set-add set item))
-    (hash-table (setf (gethash item set)
-                      t)
-                set)))
-
 (defun finite-set-subsetp (set-1 set-2)
   "Is set-1 a subset of set-2?"
   (cond
@@ -196,3 +181,28 @@ RESULT: a finite set"
     ((and (listp set-1) (listp set-2))
      (union set-1 set-2 :test #'equal))
     (t (error "Can't operate on ~A and ~B" set-1 set-2))))
+
+(defun finite-set-difference (set-1 set-2)
+  "Return the difference of set-1 and set-2."
+  (cond
+    ((and (listp set-1) (listp set-2))
+     (set-difference set-1 set-2 :test #'equal))
+    (t (error "Can't operate on ~A and ~B" set-1 set-2))))
+
+(defun finite-set-add (set item)
+  "Return a new set containing ITEM and all members of SET."
+  (etypecase set
+    (list (finite-set-union set (list item)))))
+
+(defun finite-set-nadd (set item)
+  "Destructively return a new set containing ITEM and all members of SET."
+  (etypecase set
+    (list (finite-set-add set item))
+    (hash-table (setf (gethash item set)
+                      t)
+                set)))
+
+(defun finite-set-remove (set item)
+  "Return a new set  all members of SET except item."
+  (etypecase set
+    (list (finite-set-difference set (list item)))))
