@@ -41,6 +41,7 @@
 ;;;;  - Predicate: Synchronous
 ;;;;  - Semantic:  A function call
 
+(in-package :motion-grammar)
 
 (defun token-interrupt-p (token)
   (and (listp token)
@@ -54,6 +55,52 @@
   (and (listp token)
        (eq :semantic (car token))))
 
+
+
+;; Aho 2nd (Purple Dragon), p224, Algorithm 4.31
+(defun make-predictive-table (grammar &key (duplicate-error-p t))
+  "Generate parsing table for a nonrecursive predictive parser.
+GRAMMAR: an grammar
+DUPLICATE-ERROR-P: if t, require an LL(1) grammar and map each (X a) to a single production
+                   if nil, map each (X a) to a finite set of productions
+RESULT: (lambda (X a)) => (or production nil (finite-set productions))"
+  (let* ((terminals (grammar-terminals grammar))
+         (nonterminals (grammar-nonterminals grammar))
+         (first (grammar-first-function grammar terminals))
+         (follow (grammar-follow-function grammar terminals nonterminals first))
+         (hash (make-hash-table :test #'equal))) ; (A . a) => productions
+    (grammar-map nil
+                 (lambda (head body)
+                   (labels ((add-function (a)
+                              (unless (eq a :epsilon)
+                                (let* ((key (cons head a))
+                                       (old-set (gethash key hash))
+                                       (new-item (cons head body)))
+                                  (setf (gethash key hash)
+                                        (cond
+                                          ((and old-set
+                                                duplicate-error-p)
+                                           (error "Duplicate entries for [~A,~A]"
+                                                  head a))
+                                          ((and (not old-set)
+                                                duplicate-error-p)
+                                           new-item)
+                                          ((and old-set
+                                                (not duplicate-error-p))
+                                           (finite-set-add old-set new-item))
+                                          ((and (not old-set)
+                                                (not duplicate-error-p))
+                                           (finite-set new-item))
+                                          (t (error "Godel was here"))))))))
+                     (let ((first-body (grammar-list-first first body)))
+                       (finite-set-map nil #'add-function first-body)
+                       (when (finite-set-inp :epsilon first-body)
+                         (finite-set-map nil #'add-function (funcall follow head))))))
+                 grammar)
+    (lambda (X a)
+      (gethash (cons X a) hash))))
+
+
 ;; Parsing Structures:
 ;; - Big Table
 ;; - Per-state structure with
@@ -61,33 +108,28 @@
 ;;   - Predicate List
 ;;   - Successor array / Edge List / Search Tree / (Perfect) Hash table
 
-(defun dfa->motion-parser (dfa)
-  (assert (dfap dfa))
-  (assert (= 1 (length (fa-start dfa))))
-  (let ((mover (fa-mover dfa)))
-    (lambda (predicate-function semantic-function interrupt-function)
-      (labels ((transition (state token)
-                 ;; go to the next state
-                 (execute (car (funcall mover state token))))
-               (execute (state)
-                 (let ((zeta (block find-token
-                            ;; check predicates
-                            (dotimes (i (length (fa-tokens fa)))
-                              (when (and (token-predicate-p
-                                          (fa-token-name fa i))
-                                         (funcall predicate-function i))
-                                (return-from find-token i)))
-                            ;; check for semantics
-                            (dotimes (i (length (fa-tokens fa)))
-                              (when (token-semantic-p (fa-token-name fa i))
-                                (return-from find-token i)))
-                            ;; wait for interrupt
-                            (interrupt-function))))
-                   (unless (= zeta -1)
-                     (transition state zeta))))))
-      (execute (car (fa-start dfa))))))
-
-
-
-
-
+;; (defun dfa->motion-parser (dfa)
+;;   (assert (dfap dfa))
+;;   (assert (= 1 (length (fa-start dfa))))
+;;   (let ((mover (fa-mover dfa)))
+;;     (lambda (predicate-function semantic-function interrupt-function)
+;;       (labels ((transition (state token)
+;;                  ;; go to the next state
+;;                  (execute (car (funcall mover state token))))
+;;                (execute (state)
+;;                  (let ((zeta (block find-token
+;;                             ;; check predicates
+;;                             (dotimes (i (length (fa-tokens fa)))
+;;                               (when (and (token-predicate-p
+;;                                           (fa-token-name fa i))
+;;                                          (funcall predicate-function i))
+;;                                 (return-from find-token i)))
+;;                             ;; check for semantics
+;;                             (dotimes (i (length (fa-tokens fa)))
+;;                               (when (token-semantic-p (fa-token-name fa i))
+;;                                 (return-from find-token i)))
+;;                             ;; wait for interrupt
+;;                             (interrupt-function))))
+;;                    (unless (= zeta -1)
+;;                      (transition state zeta))))))
+;;       (execute (car (fa-start dfa))))))
