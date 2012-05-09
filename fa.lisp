@@ -598,12 +598,12 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                                      collect i)
                                   (fa-accept dfa)))))
     ;; build minimal states
-    (loop
-       with imover = (fa-inv-mover dfa)
-       with q = (list (fa-accept dfa))
-       while q
-       for a = (pop q)
-       do ;(print p)
+    ;; Note: CLISP 2.48 seemingly can't handle LOOP here
+    (do ((q (list (fa-accept dfa)))
+         (imover (fa-inv-mover dfa))
+         (a (fa-accept dfa) (pop q)))
+        ((null a))
+         ;(format t "~&p: ~A~&" p)
          (loop for c below (length (fa-tokens dfa))
             ;; x: predecessors of a for token c
             for x = (reduce (lambda (x i-q)
@@ -635,6 +635,7 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                  ;; insert into p
                    (rplaca yy i)
                    (rplacd yy (cons j (cdr yy))))))
+    ;(print p)
     ;;(format t "~&~A" p)
     (assert (= (length (fa-states dfa))
                (loop for part in p summing (length part))))

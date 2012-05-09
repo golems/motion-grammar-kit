@@ -1,6 +1,6 @@
 
 
-check: check-sbcl check-ccl
+check: check-sbcl check-ccl check-clisp
 
 
 check-sbcl:
