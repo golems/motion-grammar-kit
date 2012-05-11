@@ -256,7 +256,6 @@ PRESERVE-STATES: If true, sort state names.
                   fa)
     array))
 
-#+sbcl
 (defun fa-dot (fa &key output (font-size 12))
   "Graphviz output of dfa.
 fa: finite automaton
@@ -268,52 +267,31 @@ output: output file, type determined by suffix (png,pdf,eps)"
                    name)))
            (state-label (i)
              (let ((name (fa-state-name fa i)))
-               name))
-           (helper (s)
-             (format s "~&digraph {~%")
-             (format s "~&rankdir=\"LR\";~%")
-             ;; state labels
-             (format s "~:{~&  ~A[label=\"~A\",fontsize=~D];~}"
-                     (loop for i below (length (fa-states fa))
-                          collect (list i (state-label i) font-size)))
-             ;; start state
-             (when (fa-start fa)
-               (format s "~&  start[shape=none,fontsize=~D];" font-size)
-               (format s "~{~&  start -> ~A;~}"
-                       (map 'list #'identity
-                            (alexandria:ensure-list (fa-start fa)))))
-             ;; accept state
-             (format s "~{~&  ~A [ shape=doublecircle ];~}"
-                     (map 'list #'identity
-                          (alexandria:ensure-list (fa-accept fa))))
-             (fa-map-edges nil
-                           (lambda (q0 z q1)
-                             (format s "~&  ~A -> ~A [fontsize=~D,label=\"~A\"];~%"
-                                     q0 q1 font-size (token-label z)))
-                           fa)
-             (format s "~&}~%"))
-           (dot (ext)
-             (let ((p (sb-ext:run-program "dot" (list (concatenate 'string "-T" ext))
-                                          :wait nil :search t :input :stream :output output
-                                          :if-output-exists :supersede)))
-               (helper (sb-ext:process-input p))
-               (close (sb-ext:process-input p))
-               (sb-ext:process-wait p)
-               (sb-ext:process-close p))))
-    (cond
-      ((and (stringp output) (ppcre:scan "\.png$" output))
-       (dot "png"))
-      ((and (stringp output) (ppcre:scan "\.ps$" output))
-       (dot "ps"))
-      ((and (stringp output) (ppcre:scan "\.eps$" output))
-       (dot "eps"))
-      ((and (stringp output) (ppcre:scan "\.pdf$" output))
-       (dot "pdf"))
-      ((streamp output)
-       (helper output))
-      (t
-       (with-output-to-string (s)
-         (helper s))))))
+               name)))
+    (output-dot output
+                (lambda (s)
+                  (format s "~&digraph {~%")
+                  (format s "~&rankdir=\"LR\";~%")
+                  ;; state labels
+                  (format s "~:{~&  ~A[label=\"~A\",fontsize=~D];~}"
+                          (loop for i below (length (fa-states fa))
+                             collect (list i (state-label i) font-size)))
+                  ;; start state
+                  (when (fa-start fa)
+                    (format s "~&  start[shape=none,fontsize=~D];" font-size)
+                    (format s "~{~&  start -> ~A;~}"
+                            (map 'list #'identity
+                                 (alexandria:ensure-list (fa-start fa)))))
+                  ;; accept state
+                  (format s "~{~&  ~A [ shape=doublecircle ];~}"
+                          (map 'list #'identity
+                               (alexandria:ensure-list (fa-accept fa))))
+                  (fa-map-edges nil
+                                (lambda (q0 z q1)
+                                  (format s "~&  ~A -> ~A [fontsize=~D,label=\"~A\"];~%"
+                                          q0 q1 font-size (token-label z)))
+                                fa)
+                  (format s "~&}~%")))))
 
 (defun fa-reverse (fa)
   (%make-fa :states (fa-states fa)
