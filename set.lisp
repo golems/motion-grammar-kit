@@ -206,3 +206,12 @@ RESULT: a finite set"
   "Return a new set  all members of SET except item."
   (etypecase set
     (list (finite-set-difference set (list item)))))
+
+(defun finite-set-enumerate (set)
+  "Return a function mapping from members of set to integers.
+RESULT: (lambda (item)) => integer"
+  (let ((hash (make-hash-table :test #'equal))
+        (i -1))
+    (do-finite-set (x set)
+      (setf (gethash x hash) (incf i)))
+    (curry-right #'gethash hash)))

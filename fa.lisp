@@ -261,10 +261,7 @@ PRESERVE-STATES: If true, sort state names.
 fa: finite automaton
 output: output file, type determined by suffix (png,pdf,eps)"
   (labels ((token-label (i)
-             (let ((name (fa-token-name fa i)))
-               (if (eq :epsilon name)
-                   "&epsilon;" ; print epsilons in greek
-                   name)))
+             (dot-gsymbol (fa-token-name fa i)))
            (state-label (i)
              (let ((name (fa-state-name fa i)))
                name)))
