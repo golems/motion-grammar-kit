@@ -61,11 +61,15 @@
 (defun fa-token-name (fa i)
   (aref (fa-tokens fa) i))
 
+(defun fa-state-set (fa)
+  (fold #'finite-set-add (make-finite-set) (fa-states fa)))
+
 (defun fa-map-edge-lists (result-type function fa)
   (map result-type function (fa-edges fa)))
 
 (defun fa-map-edges (result-type function fa)
-  "Apply FUNCTION to each edge in FA."
+  "Apply FUNCTION to each edge in FA.
+FUNCTION: (lambda (q-0 z q-1))"
   (map result-type (curry #'apply function)
        (fa-edges fa)))
 
@@ -91,7 +95,9 @@
     (%make-fa :states states
               :tokens tokens
               :edges edges
-              :start (alexandria:ensure-list start)
+              ;; Not a set
+              :start start; (alexandria:ensure-list start)
+              ;; A set
               :accept (alexandria:ensure-list accept))))
 
 ;; fixme: multiple start states

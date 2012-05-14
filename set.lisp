@@ -182,6 +182,12 @@ RESULT: a finite set"
      (union set-1 set-2 :test #'equal))
     (t (error "Can't operate on ~A and ~B" set-1 set-2))))
 
+(defun finite-set-intersection (set-1 set-2)
+  (cond
+    ((and (listp set-1) (listp set-2))
+     (intersection set-1 set-2 :test #'equal))
+    (t (error "Can't operate on ~A and ~B" set-1 set-2))))
+
 (defun finite-set-difference (set-1 set-2)
   "Return the difference of set-1 and set-2."
   (cond
@@ -215,3 +221,34 @@ RESULT: (lambda (item)) => integer"
     (do-finite-set (x set)
       (setf (gethash x hash) (incf i)))
     (curry-right #'gethash hash)))
+
+(defun map-finite-set-product (result-type function set-1 &rest more-sets)
+  "Apply function to all products of set arguments.
+RESULT-TYPE: (or nil 'list)"
+  (cond
+    ((eq result-type 'list)
+     (let ((result))
+       (apply #'map-finite-set-product nil
+              (lambda (&rest args)
+                (push (apply function args) result))
+              set-1
+              more-sets)
+       result))
+    (result-type (error "Unknown result-type ~A" result-type))
+    (more-sets
+     (do-finite-set (x-1 set-1)
+       (apply #'map-finite-set-product nil
+              (curry-list function x-1)
+              more-sets)))
+    (t
+     (do-finite-set (x-1 set-1)
+       (funcall function x-1)))))
+
+;; (defun map-finite-set-product (result-type function set-1 set-2)
+;;   (let ((result))
+;;     (do-finite-set (x-1 set-1)
+;;       (do-finite-set (x-2 set-2)
+;;         (let ((y (funcall function x-1 x-2)))
+;;           (when (eq 'list result-type)
+;;             (push y result)))))
+;;     result))
