@@ -38,10 +38,10 @@
 
 
 (asdf:defsystem motion-grammar
-  ;; The version should get updated from the Makefile via sed
   :version "0.0.20120419"
   :description "Motion-Grammar Kit"
   :depends-on (:cl-ppcre :alexandria)
+  :weakly-depends-on (:lisp-unit)
   :components ((:file "package")
                (:file "util" :depends-on ("package"))
                (:file "tree" :depends-on ("package"))
