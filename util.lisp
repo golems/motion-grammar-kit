@@ -107,27 +107,33 @@
 (defun gsymbol-gen (gsym &optional (unique (gensym)))
   (cons gsym unique))
 
-
 (defun gsymbol-compare (a b)
+  (declare (type (or character list symbol string number)
+                 a b))
   (cond
+    ((equalp a b) 0)
+    ((and a (null b))
+     1)
+    ((and (null a) b)
+     -1)
+    ((and (listp a)
+          (listp b))
+     (let ((c (gsymbol-compare (car a) (car b))))
+       (if (zerop c)
+           (gsymbol-compare (cdr a) (cdr b))
+           c)))
+    ((listp a) 1)
+    ((listp b) -1)
     ((and (numberp a) (numberp b))
-     (< a b))
-    ((numberp a) t)
-    ((numberp b) nil)
-    (t (string< (string a) (string b)))))
+     (- a b))
+    ((numberp a) -1)
+    ((numberp b) 1)
+    ((string< (string a) (string b))
+     -1)
+    (t 1)))
 
-(defun gsymbol-list-compare (a b)
-  (cond
-    ((and (atom a) (atom b)) (gsymbol-compare a b))
-    ((atom a) t)
-    ((atom b) nil)
-    ((null a) t)
-    ((null b) t)
-    (t (if (equal (car a) (car b))
-           (gsymbol-list-compare (cdr a) (cdr b))
-           (gsymbol-list-compare  (car a) (car b))))))
-
-
+(defun gsymbol-predicate (a b)
+  (< (gsymbol-compare a b) 0))
 
 ;;;;;;;;;
 ;; I/O ;;

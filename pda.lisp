@@ -67,7 +67,7 @@ FUNCTION: (lambda ( (list q-0 z g-0) (list q-1 g-1))"
 
 
 (defun make-pda (edges start accept)
-  (let ((hash (make-hash-table :test #'equal))
+  (let ((tree-map (make-tree-map #'gsymbol-compare))
         (states (make-finite-set))
         (input-alphabet (make-finite-set))
         (stack-alphabet (make-finite-set)))
@@ -81,7 +81,9 @@ FUNCTION: (lambda ( (list q-0 z g-0) (list q-1 g-1))"
                           (eq sigma :epsilon)
                           (eq gamma-0 :epsilon)
                           (equal gamma-1 '(:epsilon))) ;; prune silly transition
-               (setf (gethash x hash) (finite-set-add (gethash x hash) y)
+               (setq tree-map (tree-map-insert tree-map x
+                                               (finite-set-add (tree-map-find tree-map x) y))
+               ;(setf (gethash x hash) (finite-set-add (gethash x hash) y)
                      states (finite-set-union states (finite-set q-0 q-1))
                      input-alphabet (finite-set-add input-alphabet sigma)
                      stack-alphabet (finite-set-union stack-alphabet
@@ -92,7 +94,8 @@ FUNCTION: (lambda ( (list q-0 z g-0) (list q-1 g-1))"
     (%make-pda :states states
                :input-alphabet input-alphabet
                :stack-alphabet stack-alphabet
-               :transition (lambda (q sigma gamma) (gethash (list q sigma gamma) hash))
+               ;:transition (lambda (q sigma gamma) (gethash (list q sigma gamma) hash))
+               :transition (lambda (q sigma gamma) (tree-map-find tree-map (list q sigma gamma)))
                :start start
                :accept accept)))
 
