@@ -68,6 +68,18 @@ MUTABLE: Should this be a mutable set?
                            (funcall function k))
                          set))))
 
+(defun fold-finite-set (function initial-value set)
+  (etypecase set
+    (sequence (reduce function set :initial-value initial-value))
+    (hash-table
+     (let ((value initial-value))
+       (maphash (lambda (k v)
+                  (declare (ignore v))
+                  (setq value (funcall function value k)))
+                set)
+       value))))
+
+
 
 (defun finite-set-map-cross (function set-1 &rest sets)
   (cond

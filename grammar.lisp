@@ -418,8 +418,7 @@ RESULT: a finite automaton"
                       (error "Unhandled production: ~A => ~A"
                              lhs rhs))))
                  grammar)
-    (make-fa edges start accept)))
-
+    (make-fa edges start (finite-set accept))))
 
 (defun make-grammar-from-adjacency (adj)
   (let ((nonterminal-table (make-hash-table :test #'equal)))

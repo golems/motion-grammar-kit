@@ -140,12 +140,12 @@
 ;;;;;;;;;
 
 #+sbcl
-(defun output-dot-file (output function lang)
+(defun output-dot-file (program output function lang)
   "Run `dot' on the output of FUNCTION.
 OUTPUT: output filename
 FUNCTION: (lambda (stream)) => nil, prints dot on STREAM
 LANG: language output for dot, (or pdf ps eps png)"
-  (let ((p (sb-ext:run-program "dot" (list (concatenate 'string "-T" lang))
+  (let ((p (sb-ext:run-program program (list (concatenate 'string "-T" lang))
                                :wait nil :search t :input :stream :output output
                                :if-output-exists :supersede)))
     (funcall function (sb-ext:process-input p))
@@ -180,7 +180,9 @@ LANG: language output for dot, (or pdf ps eps png)"
     (:omega "&omega;")
     (t gsymbol)))
 
-(defun output-dot (output function &optional (lang (and (stringp output) (car (last (ppcre:split "\\." output))))))
+(defun output-dot (output function &key
+                   (program "dot")
+                   (lang (and (stringp output) (car (last (ppcre:split "\\." output))))))
   "Produce graphiz output, dispatching on type of OUTPUT.
 OUTPUT:  (or filename stream t nil)
 FUNCTION: (lambda (stream)) => nil, prints dot text on STREAM
@@ -192,5 +194,5 @@ LANG: language output for dot, (or pdf ps eps png)"
      (with-output-to-string (s) (output-dot s function)))
     ((eq output t) (output-dot *standard-output* function))
     ((stringp output)
-     (output-dot-file output function lang))
+     (output-dot-file program output function lang))
     (t (error "Unknown output: ~A" output))))
