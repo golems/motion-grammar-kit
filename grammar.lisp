@@ -309,30 +309,15 @@ RESULT: A new grammar with substitution performed"
   ;; A -> :epsilon
   (let ((terminals (grammar-terminals grammar))
         (nonterminals (grammar-nonterminals grammar)))
-    (grammar-map nil
-                 (lambda (lhs rhs)
-                   (declare (ignore lhs))
-                   (unless
-                       (or
-                        ;; A -> a | :epsilon
-                        (and (= 1 (length rhs)))
-                        ;; A -> a B
-                        (and (= 2 (length rhs))
-                              (finite-set-member terminals (first rhs))
-                              (finite-set-member nonterminals (second rhs))))
-                     (return-from grammar-right-regular-p nil)))
-                 grammar))
-  t)
+    (every (lambda (production)
+             (destructuring-bind (head &rest body) production
+               (declare (ignore head))
+               (or (= 1 (length body))
+                   (and (= 2 (length body))
+                        (finite-set-member terminals (first body))
+                        (finite-set-member nonterminals (second body))))))
+           grammar)))
 
-
-;; (defun grammar-prune-epsilon (grammar)
-;;   (let ((production-table (make-hash-table :test #'equal))
-;;         (epsilon-set (make-finite-set)))
-
-;;     (grammar-map nil (lambda (lhs rhs)
-;;                        (if (equal rhs '(:epsilon))
-;;                            (setq epsilon-set (finite-set-add epsilon-set lhs))
-;;                        (pushnew rhs (gethash lhs production-table))))
 
 (defun grammar->right-regular (grammar)
   "Attempt to convert this grammar to right-regular form."
@@ -359,29 +344,6 @@ RESULT: A new grammar with substitution performed"
                   (cons new-nonterm (rest body)))))
          (t (error "Can't handle ~A => ~A" head body))))
      grammar)))
-
-    ;; (labels ((simplify (grammar)
-    ;;            (when grammar
-    ;;              (destructuring-bind ((lhs &rest rhs) &rest remaining) grammar
-    ;;                (cond
-    ;;                  ;; A -> a | B | :epsilon
-    ;;                  ((and (= 1 (length rhs)))
-    ;;                   (cons (car grammar) (simplify (cdr grammar))))
-    ;;                  ;; A -> a B
-    ;;                  ((and (= 2 (length rhs))
-    ;;                        (finite-set-member terminals (first rhs))
-    ;;                        (not (finite-set-member terminals (second rhs))))
-    ;;                   (cons (car grammar) (simplify (cdr grammar))))
-    ;;                  ;; A -> a b ALPHA
-    ;;                  ((and (<= 2 (length rhs))
-    ;;                        (finite-set-member terminals (first rhs))
-    ;;                        (finite-set-member terminals (second rhs)))
-    ;;                   (let ((new-nonterm (gensym "GRAMMAR->RIGHT-REGULAR")))
-    ;;                     (simplify `(,(list lhs (first rhs) new-nonterm)
-    ;;                                  (,new-nonterm ,@(rest rhs))
-    ;;                                  ,@remaining))))
-    ;;                  (t (error "Can't handle ~A => ~A" lhs rhs)))))))
-    ;;   (simplify grammar))))
 
 
 (defun grammar->fa (grammar)
@@ -420,26 +382,39 @@ RESULT: a finite automaton"
                  grammar)
     (make-fa edges start (finite-set accept))))
 
-(defun make-grammar-from-adjacency (adj)
-  (let ((nonterminal-table (make-hash-table :test #'equal)))
-    ;; construct nonterminal symbols
-    (map nil (lambda (x)
-               (assert (= 2 (length x)))
-               (map nil (lambda (y)
-                          (unless (gethash y nonterminal-table)
-                            (format t "adding ~A~%" y)
-                            (setf (gethash y nonterminal-table)
-                                  (gsymbol-gen y))))
-                    x))
-         adj)
-    ;; construct grammar
-    (map 'list (lambda (x)
-                 (destructuring-bind (a b) x
-                   (list (gethash a nonterminal-table)
-                         b
-                         (gethash b nonterminal-table))))
-         adj)))
-
+(defun grammar-from-adjacency (adj &key
+                               directed)
+  (let ((incoming (make-hash-table :test #'equal))
+        (outgoing (make-hash-table :test #'equal))
+        (places (make-hash-table :test #'equal)))
+    ;; index incoming, outgoing, and places
+    (dolist (e adj)
+      (destructuring-bind (q0 q1) e
+        (push e (gethash q0 outgoing))
+        (push e (gethash q1 incoming))
+        (unless directed
+          (let ((e (list q1 q0)))
+            (push e (gethash q1 outgoing))
+            (push e (gethash q0 incoming))))
+        (setf (gethash q0 places) t
+              (gethash q1 places) t)))
+    (let ((edges))
+      (loop for q being the hash-keys of places
+         do
+           (dolist (in (gethash q incoming))
+             (push (list in q) edges)
+             (dolist (out (gethash q outgoing))
+               (push (list in q out) edges))))
+      (assert (every (lambda (e)
+                       (if (= 2 (length e))
+                           (destructuring-bind ((q0 q1) z) e
+                             (declare (ignore q0))
+                             (equal q1 z))
+                           (destructuring-bind ((q0 q1) z (q2 q3)) e
+                             (declare (ignore q0 q3))
+                             (and (equal q1 z) (equal q2 z)))))
+                     edges))
+      edges)))
 
 (defmacro walk-grammar (name grammar (head-var body-var rest-var)
                         &body body)

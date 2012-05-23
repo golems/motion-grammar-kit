@@ -48,6 +48,8 @@
 
 (in-package :motion-grammar)
 
+(deftype finite-set () '(or list hash-table))
+
 (defun make-finite-set (&key mutable)
   "Create a finite set.
 MUTABLE: Should this be a mutable set?
@@ -91,9 +93,6 @@ MUTABLE: Should this be a mutable set?
                               (curry-list function s-1)
                               sets))
                      set-1))))
-
-
-
 
 (defmacro do-finite-set ((var set &optional result-form) &body body)
   "Iterate over members of the set."
@@ -164,6 +163,11 @@ RESULT: a finite set"
      (finite-set-equal b a))
     (t
      (error "Can't operate on ~A and ~B" a b))))
+
+(defun finite-set-list (set)
+  (etypecase set
+    (list set)
+    (hash-table (loop for k being the hash-keys of set collect k))))
 
 (defun finite-set-inp (item set)
   "Is ITEM in SET?"

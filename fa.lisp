@@ -69,7 +69,7 @@ FUNCTION: (lambda (q-0 z q-1))"
         initial-value (fa-edges fa)))
 
 (defun make-fa (edges start accept)
-  (declare (type (or list) accept))
+  (declare (type finite-set accept))
   (%make-fa :states (fold (lambda (set edge)
                             (destructuring-bind (q0 z q1) edge
                               (declare (ignore z))
@@ -83,7 +83,7 @@ FUNCTION: (lambda (q-0 z q-1))"
                              #'gsymbol-predicate)
             :edges edges
             :start start
-            :accept accept))
+            :accept (finite-set-list accept)))
 
 (defun dfa-mover (fa)
   (let ((hash (fold-fa-edges (lambda (hash q0 z q1)
@@ -311,12 +311,15 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
 
 
 ;; Hopcroft's Algorithm
-(defun dfa-minimize-hopcroft (dfa)
+(defun fa-minimize-hopcroft (fa)
   "Minimize a DFA via Hopcroft's's Algorithm."
   ;; TODO: more efficient representation of rejecting state
   ;;       make implicit somehow
   (let* ((reject (gensym "reject"))
-         (dfa (dfa-add-reject dfa reject))
+         (dfa (dfa-add-reject (if (dfap fa)
+                                  fa
+                                  (nfa->dfa fa))
+                              reject))
          (p (list (fa-accept dfa)
                   (finite-set-difference (fa-states dfa)
                                          (fa-accept dfa)))))
@@ -450,6 +453,44 @@ RESULT: (list edges start final)"
                         (push e (aref array (caddr e))))
                   fa)
     array))
+
+(defun fa-from-adjacency (adj &key (start (car adj))  directed)
+  (let ((incoming (make-hash-table :test #'equal))
+        (outgoing (make-hash-table :test #'equal))
+        (places (make-hash-table :test #'equal))
+        (accept (make-hash-table :test #'equal)))
+    ;; index incoming, outgoing, and places
+    (dolist (e adj)
+      (destructuring-bind (q0 q1) e
+        (push e (gethash q0 outgoing))
+        (push e (gethash q1 incoming))
+        (setf (gethash e accept) t)
+        (unless directed
+          (let ((e (list q1 q0)))
+            (setf (gethash e accept) t)
+            (push e (gethash q1 outgoing))
+            (push e (gethash q0 incoming))))
+        (setf (gethash q0 places) t
+              (gethash q1 places) t)))
+    ;; build edges
+    (let ((edges))
+      (loop for q being the hash-keys of places
+         do
+           (dolist (in (gethash q incoming))
+             (dolist (out (gethash q outgoing))
+               (push (list in q out) edges))))
+      (assert (every (lambda (e)
+                       (if (= 2 (length e))
+                           (destructuring-bind ((q0 q1) z) e
+                             (declare (ignore q0))
+                             (equal q1 z))
+                           (destructuring-bind ((q0 q1) z (q2 q3)) e
+                             (declare (ignore q0 q3))
+                             (and (equal q1 z) (equal q2 z)))))
+                     edges))
+      (make-fa edges
+               start
+               accept))))
 
 
 
