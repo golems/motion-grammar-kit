@@ -454,6 +454,25 @@ RESULT: (list edges start final)"
                   fa)
     array))
 
+(defun fa-state->edge (fa &optional (unique (gensym)))
+  (let ((incoming (make-hash-table :test #'equal))
+        (outgoing (make-hash-table :test #'equal)))
+    ;; q => (q0 q q1)
+    (let ((state-edges (finite-set-map 'list (lambda (q)
+                                               (let ((in (gsymbol-gen (cons q 0) unique))
+                                                     (out (gsymbol-gen (cons q 1) unique)))
+                                                 (setf (gethash q incoming) in
+                                                       (gethash q outgoing) out)
+                                                 (list in q out)))
+                                       (fa-states fa))))
+      ;; make
+      (make-fa (nconc state-edges (loop for (q0 z q1) in (fa-edges fa)
+                                     collect (list (gethash q0 outgoing)
+                                                   z
+                                                   (gethash q1 incoming))))
+               (gethash (fa-start fa) incoming)
+               (finite-set-map 'list (curry-right #'gethash outgoing) (fa-accept fa))))))
+
 (defun fa-from-adjacency (adj &key (start (car adj))  directed)
   (let ((incoming (make-hash-table :test #'equal))
         (outgoing (make-hash-table :test #'equal))
