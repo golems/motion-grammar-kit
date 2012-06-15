@@ -162,6 +162,10 @@ FUNCTION: (lambda (q-0 z q-1))"
              new-start
              (list (fa-start fa)))))
 
+
+(defun fa-canonicalize (fa)
+  (dfa-canonicalize (fa-minimize-brzozowski fa)))
+
 ;;; See Aho, 2nd p. 153-154. These closure computations are a
 ;;; functional variation thereof.
 
@@ -511,7 +515,8 @@ RESULT: (list edges start final)"
                start
                accept))))
 
-
+(defun fa->right-regular-grammar (fa)
+  (fa-edges fa))
 
 (defun fa-dot (fa &key output (font-size 12))
   "Graphviz output of dfa.

@@ -346,7 +346,7 @@ RESULT: A new grammar with substitution performed"
      grammar)))
 
 
-(defun grammar->fa (grammar)
+(defun grammar->fa (grammar &key accept)
   "Convert grammar to a finite automata.
 GRAMMAR: a right regular grammar (or something close to right regular)
 RESULT: a finite automaton"
@@ -356,14 +356,14 @@ RESULT: a finite automaton"
         (nonterminals (grammar-nonterminals grammar))
         (edges)
         (start (caar grammar))
-        (accept (gensym "ACC")))
+        (new-accept (gensym "ACC")))
     (grammar-map nil
                  (lambda (lhs rhs)
                    (cond
                      ;; A -> a
                      ((and (= 1 (length rhs))
                            (finite-set-member terminals (first rhs)))
-                      (push (list lhs (first rhs) accept)
+                      (push (list lhs (first rhs) new-accept)
                             edges))
                      ;; A -> B
                      ((and (= 1 (length rhs))
@@ -380,7 +380,7 @@ RESULT: a finite automaton"
                       (error "Unhandled production: ~A => ~A"
                              lhs rhs))))
                  grammar)
-    (make-fa edges start (finite-set accept))))
+    (make-fa edges start (finite-set-add accept new-accept))))
 
 (defun grammar-from-adjacency (adj &key
                                directed)
