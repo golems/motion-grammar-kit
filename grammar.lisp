@@ -460,7 +460,6 @@ RESULT: a finite automaton"
 
 
 
-
 (defun rewrite-grammar-list (function grammar &key
                              (recursive t)
                              (keep-repeated))
@@ -813,3 +812,17 @@ RETURNS: (values S-B {A-B} P-B)"
         (setq h-grammar
               (grammar-remove-useless (cons (list 'start start) h-grammar) terminals))
         (grammar-remove-unit h-grammar)))))
+
+(defun grammar-nonterm->terminal (grammar nonterm &optional (unique (gensym)))
+  "Convert nonterminal symbol to terminal"
+  (let ((new-nonterm (gsymbol-gen nonterm unique)))
+    (rewrite-grammar (lambda (head body)
+                       (list (cons (if (equal head nonterm)  ; maybe fix head
+                                       new-nonterm
+                                       head)
+                                   ;; replace all occurrences of nonterm in body
+                                   (mapcan (lambda (x) (if (equal x nonterm)
+                                                      (list x new-nonterm)
+                                                      (list x)))
+                                           body))))
+                     grammar :recursive nil)))
