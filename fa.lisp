@@ -118,6 +118,18 @@ FUNCTION: (lambda (q-0 z q-1))"
                              nfa)))
     (lambda (q1 z) (gethash (list q1 z) hash))))
 
+(defun fa-outgoing-terminal-function (fa)
+  "Index fa state to terminals leaving that state.
+RESULT: (lambda (state)) => (finite-set terminals)"
+  (let ((hash (make-hash-table :test #'equal)))
+    (fa-map-edges nil (lambda (q z p)
+                        (declare (ignore p))
+                        (setf (gethash q hash)
+                              (finite-set-add (gethash q hash) z)))
+                  fa)
+    (lambda (q) (gethash q hash))))
+
+
 (defun dfap (fa)
   "True if FA is deterministic"
   (labels ((rec (set edges)
@@ -428,6 +440,8 @@ RESULT: (list edges start final)"
       (let ((final (visit 0 regex)))
         (make-fa edges 0 (finite-set final))))))
 
+(defun regex->dfa (regex)
+  (fa-canonicalize (regex->nfa regex)))
 
 
 (defun dfa->string-matcher (dfa)
@@ -518,7 +532,44 @@ RESULT: (list edges start final)"
 (defun fa->right-regular-grammar (fa)
   (fa-edges fa))
 
-(defun fa-dot (fa &key output (font-size 12))
+
+(defun dfa-intersection (fa1 fa2)
+  "Intersection of two FA"
+  ;; Simulate each FA simultaneously.  Accept when both FAs accept.
+  (let ((move-1 (dfa-mover fa1))
+        (move-2 (dfa-mover fa2))
+        (out-1 (fa-outgoing-terminal-function fa1))
+        (out-2 (fa-outgoing-terminal-function fa2))
+        (visited (make-finite-set :mutable t))  ;; visited states of new fa
+        (edges)) ;; edges of new fa
+    (labels ((visit (q1 q2)
+               (let ((qq (list q1 q2))
+                     (zz-1 (funcall out-1 q1))
+                     (zz-2 (funcall out-2 q2)))
+                 (setf visited (finite-set-nadd visited (list q1 q2))) ;; mark state visited
+                 ;; map over outgoing terminals from the compound state
+                 (finite-set-map 'nil
+                                 (lambda (z)
+                                   (when (finite-set-inp z zz-2) ;; follow only when both fa have outgoing terminal
+                                     (let* ((p1 (funcall move-1 q1 z))
+                                           (p2 (funcall move-2 q2 z))
+                                           (pp (list p1 p2)))
+                                       (push (list qq z pp) edges)
+                                       (unless (finite-set-inp pp visited)
+                                         (visit p1 p2)))))
+                                 zz-1))))
+      (visit (fa-start fa1) (fa-start fa2)))
+    ;; now build the fa structure
+    (make-fa edges
+             (list (fa-start fa1) (fa-start fa2)) ;; start of both fa
+             ;; accept when both FAs accept
+             (loop for k being the hash-keys of visited
+                when (and (finite-set-inp (first k) (fa-accept fa1))
+                          (finite-set-inp (second k) (fa-accept fa2)))
+                collect k))))
+
+
+(defun fa-dot (fa &key output (font-size 12) (accept-shape "doublecircle"))
   "Graphviz output of dfa.
 fa: finite automaton
 output: output file, type determined by suffix (png,pdf,eps)"

@@ -305,6 +305,17 @@
                                      (fa-minimize-hopcroft edge-fa)))))
 
 
+
+(lisp-unit:define-test fa-op
+  ;; intersection
+  (let ((r-1 '(:closure (:concatenation a a b)))
+        (r-2 '(:concatenation  (:closure (:union a b)) b))
+        (r-i '(:concatenation a a b  (:closure (:concatenation a a b)))))
+    (lisp-unit:assert-true
+     (fa-equiv (regex->nfa r-i)
+               (dfa-intersection (regex->dfa r-1) (regex->dfa r-2)))))
+  )
+
 (lisp-unit:define-test grammar-basic
   (let ((g '((a b c) (b e f))))
     ;; map
