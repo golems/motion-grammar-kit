@@ -68,6 +68,11 @@ FUNCTION: (lambda (q-0 z q-1))"
   (fold (lambda (v e) (apply function v e))
         initial-value (fa-edges fa)))
 
+(defmacro do-fa-edges ((q0 z q1) fa &body body)
+  `(loop for (,q0 ,z ,q1) in (fa-edges ,fa)
+      do ,@body))
+
+
 (defun make-fa (edges start accept)
   (declare (type finite-set accept))
   (%make-fa :states (fold (lambda (set edge)
@@ -443,6 +448,81 @@ RESULT: (list edges start final)"
 (defun regex->dfa (regex)
   (fa-canonicalize (regex->nfa regex)))
 
+
+
+;; GNFAs from Sipser p. 70
+
+(defun dfa->gnfa (dfa)
+  (let ((new-start (gensym "START"))
+        (new-accept (gensym "ACCEPT"))
+        (accept (fa-accept dfa))
+        (edges)
+        (states (fa-states dfa))
+        (hash (make-hash-table :test #'equal)))
+    ;; start state
+    (push (list new-start :epsilon (fa-start dfa)) edges)
+    ;; index edges
+    (fa-map-edges nil (lambda (q0 z q1)
+                        (push z (gethash (list q0 q1) hash)))
+                  dfa)
+    ;; build new edges
+    (do-finite-set (q0 states)
+      ;; maybe accept
+      (when (finite-set-inp q0 accept)
+        (push (list q0 :epsilon new-accept) edges))
+      ;; successor edges
+      (do-finite-set (q1 states)
+        (print q1)
+        (let ((zz (gethash (list q0 q1) hash)))
+          (when zz
+            (push (list q0 (cons :union zz) q1)
+                  edges)))))
+    (print edges)
+    ;; create new fa
+    (make-fa edges
+             new-start
+             (list new-accept))))
+
+(defun gnfa-rip (gnfa)
+  (let ((start (fa-start gnfa))
+        (accept (fa-accept gnfa)))
+    (assert (= 1 (finite-set-length accept)))
+    (do-finite-set (q (fa-states gnfa))
+      (when (and (not (equal start q))
+                 (not (equal (car accept) q)))
+        (return-from gnfa-rip q)))
+    (error "couldn't find rip state")))
+
+(defun gnfa->regex (gnfa)
+  (cond
+   ((= 2 (finite-set-length (fa-states gnfa)))
+    (assert (= 1 (length (fa-edges gnfa))))
+    (cadar (fa-edges gnfa)))
+   (t (let ((q-rip (gnfa-rip gnfa))
+            (hash (make-hash-table :test #'equal))) ;; (list q0 q1) -> regex
+        ;; index regexes
+        (do-fa-edges (q0 z q1) gnfa
+          (assert (null (gethash (list q0 q1) hash)))
+          (setf (gethash (list q0 q1) hash) z))
+        (let ((edges)
+              (rip-closure (regex-apply :closure (gethash (list q-rip q-rip) hash))))
+          (do-finite-set (q0 (fa-states gnfa))
+            (unless (or (eq q0 q-rip)
+                        (finite-set-inp q0 (fa-accept gnfa)))
+              (do-finite-set (q1 (fa-states gnfa))
+                (unless (or (eq q1 q-rip)
+                            (eq q1 (fa-start gnfa)))
+                  (let ((z1 (gethash (list q0 q-rip) hash)) ;; q0 -> q-rip
+                        (z3 (gethash (list q-rip q1) hash)) ;; q-rip -> q1
+                        (z4 (gethash (list q0 q1) hash)))   ;; q0 -> q1
+                    (let ((zz (if (and z1 z3)
+                                  (regex-apply :union
+                                               z4
+                                               (regex-apply :concatenation z1 rip-closure z3))
+                                  z4)))
+                      (when zz (push (list q0 zz q1) edges))))))))
+          ;; new-fa
+          (gnfa->regex (make-fa edges (fa-start gnfa) (fa-accept gnfa))))))))
 
 (defun dfa->string-matcher (dfa)
   "Return a (lambda (string)) predicate to test if dfa matches string."
