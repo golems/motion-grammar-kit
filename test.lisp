@@ -311,10 +311,16 @@
   (let ((r-1 '(:closure (:concatenation a a b)))
         (r-2 '(:concatenation  (:closure (:union a b)) b))
         (r-i '(:concatenation a a b  (:closure (:concatenation a a b)))))
+    (let ((fa-1 (regex->dfa r-1))
+          (fa-2 (regex->dfa r-2))
+          (fa-i (regex->dfa r-i)))
     (lisp-unit:assert-true
      (fa-equiv (regex->nfa r-i)
-               (dfa-intersection (regex->dfa r-1) (regex->dfa r-2)))))
-  )
+               (fa-intersection fa-1 fa-2)))
+    (lisp-unit:assert-true (fa-empty-p (fa-intersection fa-1 (fa-complement fa-1))))
+    (lisp-unit:assert-true (fa-empty-p (fa-intersection fa-2 (fa-complement fa-2))))
+    (lisp-unit:assert-true (fa-empty-p (fa-intersection fa-i (fa-complement fa-i))))
+  )))
 
 (lisp-unit:define-test grammar-basic
   (let ((g '((a b c) (b e f))))

@@ -46,6 +46,7 @@
                (:file "util" :depends-on ("package"))
                (:file "set" :depends-on ("package" "util"))
                (:file "fa" :depends-on ("package" "set" "util"))
+               (:file "regex" :depends-on ("fa"))
                (:file "grammar" :depends-on ("package" "set" "util"))
                (:file "parse" :depends-on ("package" "set" "util" "grammar"))
                ))

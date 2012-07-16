@@ -90,6 +90,11 @@ FUNCTION: (lambda (q-0 z q-1))"
             :start start
             :accept (finite-set-list accept)))
 
+
+;;;;;;;;;;;;;;
+;; INDEXING ;;
+;;;;;;;;;;;;;;
+
 (defun dfa-mover (fa)
   (let ((hash (fold-fa-edges (lambda (hash q0 z q1)
                                (assert (not (eq z :epsilon)))
@@ -134,6 +139,19 @@ RESULT: (lambda (state)) => (finite-set terminals)"
                   fa)
     (lambda (q) (gethash q hash))))
 
+(defun fa-successors (fa)
+  "Map from original-state to (list (list nonterminal resultant-state))."
+  (let ((hash (make-hash-table :test #'equal)))
+    (loop for e in (fa-edges fa)
+       for q0 = (car e)
+       for z-q1 = (cdr e)
+       do (push z-q1 (gethash q0 hash)))
+    (lambda (q0) (gethash q0 hash))))
+
+
+;;;;;;;;;;;;;;;;;
+;; CONVERSIONS ;;
+;;;;;;;;;;;;;;;;;
 
 (defun dfap (fa)
   "True if FA is deterministic"
@@ -144,9 +162,11 @@ RESULT: (lambda (state)) => (finite-set terminals)"
                    (let ((k (list q0 z)))
                      (unless (or (eq z :epsilon )
                                  (finite-set-inp k set))
-                       (rec (finite-set-add set k) edges))))
+                       (rec (finite-set-nadd set k) edges))))
                  t)))
     (rec nil (fa-edges fa))))
+
+
 
 (defun dfa-canonicalize (dfa)
   (let ((mover (dfa-mover dfa))
@@ -245,24 +265,21 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
       (assert (dfap fa))
       fa)))
 
+(defmacro with-dfa ((var fa) &body body)
+  (alexandria:with-gensyms (fa-sym)
+
+    `(let ((,var (let ((,fa-sym ,fa))
+                   (if (dfap ,fa-sym)
+                       ,fa-sym
+                       (nfa->dfa ,fa-sym)))))
+       ,@body)))
+
 ;; Brzozowski's Algorithm
 (defun fa-minimize-brzozowski (dfa)
   "Minimize a DFA or NFA via Brzozowski's Algorithm."
   (chain dfa
          #'fa-reverse #'nfa->dfa
          #'fa-reverse #'nfa->dfa))
-
-
-(defun dfa-equal (a b)
-  "Check equivalence up to state names of DFAs"
-  (assert (dfap a))
-  (assert (dfap b))
-  (equalp (dfa-canonicalize a) (dfa-canonicalize b)))
-
-(defun fa-equiv (a b)
-  "Check if two FAs recognize the same language."
-  (dfa-equal (fa-minimize-brzozowski a)
-             (fa-minimize-brzozowski b)))
 
 
 (defun fa-prune (fa)
@@ -403,127 +420,6 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                             when (finite-set-intersection x (fa-accept dfa))
                             collect x))))))
 
-
-;; The McNaughton-Yamada-Thompson algorithm
-;; Aho 2nd Ed., P 159
-
-(defun regex->nfa (regex)
-  "Convert a regex parse-tree to an NFA
-RESULT: (list edges start final)"
-  (let ((state-counter 0)
-        (edges nil))
-    (labels ((is-op (symbol tree)
-               (and (listp tree)
-                    (eq symbol (first tree))))
-             (new-edge (state-0 token state-1)
-               (push (list state-0 token state-1) edges))
-             (visit (start tree)
-               ;; recursively visit the tree
-               (cond
-                 ((is-op :concatenation tree)
-                  (reduce #'visit (cdr tree)
-                          :initial-value start))
-                 ((is-op :union tree)
-                  (let ((end (incf state-counter)))
-                    (map nil (lambda (tree)
-                               (new-edge (visit start tree) :epsilon end))
-                         (cdr tree))
-                    end))
-                 ((is-op :closure tree)
-                  (assert (= 2 (length tree)))
-                  (let* ((start2 (incf state-counter))
-                         (end (visit start2 (cadr tree))))
-                    (new-edge start :epsilon start2)
-                    (new-edge start :epsilon end)
-                    (new-edge end :epsilon start2)
-                    end))
-                 (t (push (list start tree (incf state-counter)) edges)
-                    state-counter)
-                 ;(error "Unknown tree ~A" tree)
-                 )))
-      ;; visit the start
-      (let ((final (visit 0 regex)))
-        (make-fa edges 0 (finite-set final))))))
-
-(defun regex->dfa (regex)
-  (fa-canonicalize (regex->nfa regex)))
-
-
-
-;; GNFAs from Sipser p. 70
-
-(defun dfa->gnfa (dfa)
-  (let ((new-start (gensym "START"))
-        (new-accept (gensym "ACCEPT"))
-        (accept (fa-accept dfa))
-        (edges)
-        (states (fa-states dfa))
-        (hash (make-hash-table :test #'equal)))
-    ;; start state
-    (push (list new-start :epsilon (fa-start dfa)) edges)
-    ;; index edges
-    (fa-map-edges nil (lambda (q0 z q1)
-                        (push z (gethash (list q0 q1) hash)))
-                  dfa)
-    ;; build new edges
-    (do-finite-set (q0 states)
-      ;; maybe accept
-      (when (finite-set-inp q0 accept)
-        (push (list q0 :epsilon new-accept) edges))
-      ;; successor edges
-      (do-finite-set (q1 states)
-        (print q1)
-        (let ((zz (gethash (list q0 q1) hash)))
-          (when zz
-            (push (list q0 (cons :union zz) q1)
-                  edges)))))
-    (print edges)
-    ;; create new fa
-    (make-fa edges
-             new-start
-             (list new-accept))))
-
-(defun gnfa-rip (gnfa)
-  (let ((start (fa-start gnfa))
-        (accept (fa-accept gnfa)))
-    (assert (= 1 (finite-set-length accept)))
-    (do-finite-set (q (fa-states gnfa))
-      (when (and (not (equal start q))
-                 (not (equal (car accept) q)))
-        (return-from gnfa-rip q)))
-    (error "couldn't find rip state")))
-
-(defun gnfa->regex (gnfa)
-  (cond
-   ((= 2 (finite-set-length (fa-states gnfa)))
-    (assert (= 1 (length (fa-edges gnfa))))
-    (cadar (fa-edges gnfa)))
-   (t (let ((q-rip (gnfa-rip gnfa))
-            (hash (make-hash-table :test #'equal))) ;; (list q0 q1) -> regex
-        ;; index regexes
-        (do-fa-edges (q0 z q1) gnfa
-          (assert (null (gethash (list q0 q1) hash)))
-          (setf (gethash (list q0 q1) hash) z))
-        (let ((edges)
-              (rip-closure (regex-apply :closure (gethash (list q-rip q-rip) hash))))
-          (do-finite-set (q0 (fa-states gnfa))
-            (unless (or (eq q0 q-rip)
-                        (finite-set-inp q0 (fa-accept gnfa)))
-              (do-finite-set (q1 (fa-states gnfa))
-                (unless (or (eq q1 q-rip)
-                            (eq q1 (fa-start gnfa)))
-                  (let ((z1 (gethash (list q0 q-rip) hash)) ;; q0 -> q-rip
-                        (z3 (gethash (list q-rip q1) hash)) ;; q-rip -> q1
-                        (z4 (gethash (list q0 q1) hash)))   ;; q0 -> q1
-                    (let ((zz (if (and z1 z3)
-                                  (regex-apply :union
-                                               z4
-                                               (regex-apply :concatenation z1 rip-closure z3))
-                                  z4)))
-                      (when zz (push (list q0 zz q1) edges))))))))
-          ;; new-fa
-          (gnfa->regex (make-fa edges (fa-start gnfa) (fa-accept gnfa))))))))
-
 (defun dfa->string-matcher (dfa)
   "Return a (lambda (string)) predicate to test if dfa matches string."
   (let ((mover (dfa-mover dfa))
@@ -536,21 +432,6 @@ RESULT: (list edges start final)"
                             start string)
        accept))))
 
-(defun fa-successor-array (fa)
-  "Make array indexed by original state of edge lists from that state."
-  (let ((array (make-array (length (fa-states fa)) :initial-element nil)))
-    (fa-map-edges nil (lambda (&rest e)
-                        (push e (aref array (car e))))
-                  fa)
-    array))
-
-(defun fa-predecessor-array (fa)
-  "Make array indexed by final state of edge lists to that state."
-  (let ((array (make-array (length (fa-states fa)) :initial-element nil)))
-    (fa-map-edges nil (lambda (&rest e)
-                        (push e (aref array (caddr e))))
-                  fa)
-    array))
 
 (defun fa-state->edge (fa &optional (unique (gensym)))
   (let ((incoming (make-hash-table :test #'equal))
@@ -612,42 +493,97 @@ RESULT: (list edges start final)"
 (defun fa->right-regular-grammar (fa)
   (fa-edges fa))
 
+;;;;;;;;;;;;;;;;;;;;
+;; SET OPERATIONS ;;
+;;;;;;;;;;;;;;;;;;;;
 
-(defun dfa-intersection (fa1 fa2)
+(defun dfa-equal (a b)
+  "Check equivalence up to state names of DFAs"
+  (assert (dfap a))
+  (assert (dfap b))
+  (equalp (dfa-canonicalize a) (dfa-canonicalize b)))
+
+(defun fa-equiv (a b)
+  "Check if two FAs recognize the same language."
+  (dfa-equal (fa-minimize-brzozowski a)
+             (fa-minimize-brzozowski b)))
+
+(defun fa-empty-p (fa)
+  (with-dfa (dfa fa)
+    (let ((succ (fa-successors dfa))
+          (visited (make-finite-set :mutable t))
+          (accept (fa-accept dfa)))
+      (labels ((visit (q)
+                 (unless (or (null q) (finite-set-inp q visited))
+                   (if (finite-set-inp q accept)
+                       t ;; found accept (not empty)
+                       (progn (setq visited (finite-set-nadd visited q))
+                              (some (lambda (z-q1) (visit (second z-q1))) (funcall succ q)))))))
+        (not (visit (fa-start dfa)))))))
+
+(defun fa-intersection (fa1 fa2)
   "Intersection of two FA"
-  ;; Simulate each FA simultaneously.  Accept when both FAs accept.
-  (let ((move-1 (dfa-mover fa1))
-        (move-2 (dfa-mover fa2))
-        (out-1 (fa-outgoing-terminal-function fa1))
-        (out-2 (fa-outgoing-terminal-function fa2))
-        (visited (make-finite-set :mutable t))  ;; visited states of new fa
-        (edges)) ;; edges of new fa
-    (labels ((visit (q1 q2)
-               (let ((qq (list q1 q2))
-                     (zz-1 (funcall out-1 q1))
-                     (zz-2 (funcall out-2 q2)))
-                 (setf visited (finite-set-nadd visited (list q1 q2))) ;; mark state visited
-                 ;; map over outgoing terminals from the compound state
-                 (finite-set-map 'nil
-                                 (lambda (z)
-                                   (when (finite-set-inp z zz-2) ;; follow only when both fa have outgoing terminal
-                                     (let* ((p1 (funcall move-1 q1 z))
-                                           (p2 (funcall move-2 q2 z))
-                                           (pp (list p1 p2)))
-                                       (push (list qq z pp) edges)
-                                       (unless (finite-set-inp pp visited)
-                                         (visit p1 p2)))))
-                                 zz-1))))
-      (visit (fa-start fa1) (fa-start fa2)))
-    ;; now build the fa structure
-    (make-fa edges
-             (list (fa-start fa1) (fa-start fa2)) ;; start of both fa
-             ;; accept when both FAs accept
-             (loop for k being the hash-keys of visited
-                when (and (finite-set-inp (first k) (fa-accept fa1))
-                          (finite-set-inp (second k) (fa-accept fa2)))
-                collect k))))
+  (with-dfa (dfa1 fa1)
+    (with-dfa (dfa2 fa2)
+      ;; Simulate each FA simultaneously.  Accept when both FAs accept.
+      (let ((move-1 (dfa-mover dfa1))
+            (move-2 (dfa-mover dfa2))
+            (out-1 (fa-outgoing-terminal-function dfa1))
+            (out-2 (fa-outgoing-terminal-function dfa2))
+            (visited (make-finite-set :mutable t))  ;; visited states of new fa
+            (edges)) ;; edges of new fa
+        (labels ((visit (q1 q2)
+                   (let ((qq (list q1 q2))
+                         (zz-1 (funcall out-1 q1))
+                         (zz-2 (funcall out-2 q2)))
+                     (setf visited (finite-set-nadd visited (list q1 q2))) ;; mark state visited
+                     ;; map over outgoing terminals from the compound state
+                     (finite-set-map 'nil
+                                     (lambda (z)
+                                       (when (finite-set-inp z zz-2) ;; follow only when both have outgoing terminal
+                                         (let* ((p1 (funcall move-1 q1 z))
+                                                (p2 (funcall move-2 q2 z))
+                                                (pp (list p1 p2)))
+                                           (push (list qq z pp) edges)
+                                           (unless (finite-set-inp pp visited)
+                                             (visit p1 p2)))))
+                                     zz-1))))
+          (visit (fa-start dfa1) (fa-start dfa2)))
+        ;; now build the fa structure
+        (make-fa edges
+                 (list (fa-start dfa1) (fa-start dfa2)) ;; start of both fa
+                 ;; accept when both FAs accept
+                 (loop for k being the hash-keys of visited
+                    when (and (finite-set-inp (first k) (fa-accept dfa1))
+                              (finite-set-inp (second k) (fa-accept dfa2)))
+                    collect k))))))
 
+
+(defun fa-complement (nfa &optional (terminals (finite-set-remove (fa-terminals nfa) :epsilon)))
+  (with-dfa (dfa nfa)
+    (let ((dead-accept (gensym "ACCEPT"))
+          (edges (fa-edges dfa))
+          (outgoing (fa-outgoing-terminal-function dfa)))
+      ;; add "dead" edges"
+      (do-finite-set (q (fa-states dfa))
+        (do-finite-set (z (finite-set-difference terminals
+                                                 (funcall outgoing q)))
+          (push (list q z dead-accept) edges)))
+      ;; add dead self edges
+      (do-finite-set (z terminals)
+        (push (list dead-accept z dead-accept) edges))
+      ;; make fa
+      (make-fa edges
+               (fa-start dfa)
+               (finite-set-add (finite-set-difference (fa-states dfa) (fa-accept dfa))
+                               dead-accept)))))
+
+
+
+
+;;;;;;;;;;;;;;
+;;; OUTPUT ;;;
+;;;;;;;;;;;;;;
 
 (defun fa-dot (fa &key output (font-size 12) (accept-shape "doublecircle"))
   "Graphviz output of dfa.

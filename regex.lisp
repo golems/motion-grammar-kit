@@ -36,6 +36,52 @@
 
 (in-package :motion-grammar)
 
+
+;; The McNaughton-Yamada-Thompson algorithm
+;; Aho 2nd Ed., P 159
+
+(defun regex->nfa (regex)
+  "Convert a regex parse-tree to an NFA
+RESULT: (list edges start final)"
+  (let ((state-counter 0)
+        (edges nil))
+    (labels ((is-op (symbol tree)
+               (and (listp tree)
+                    (eq symbol (first tree))))
+             (new-edge (state-0 token state-1)
+               (push (list state-0 token state-1) edges))
+             (visit (start tree)
+               ;; recursively visit the tree
+               (cond
+                 ((is-op :concatenation tree)
+                  (reduce #'visit (cdr tree)
+                          :initial-value start))
+                 ((is-op :union tree)
+                  (let ((end (incf state-counter)))
+                    (map nil (lambda (tree)
+                               (new-edge (visit start tree) :epsilon end))
+                         (cdr tree))
+                    end))
+                 ((is-op :closure tree)
+                  (assert (= 2 (length tree)))
+                  (let* ((start2 (incf state-counter))
+                         (end (visit start2 (cadr tree))))
+                    (new-edge start :epsilon start2)
+                    (new-edge start :epsilon end)
+                    (new-edge end :epsilon start2)
+                    end))
+                 (t (push (list start tree (incf state-counter)) edges)
+                    state-counter)
+                 ;(error "Unknown tree ~A" tree)
+                 )))
+      ;; visit the start
+      (let ((final (visit 0 regex)))
+        (make-fa edges 0 (finite-set final))))))
+
+(defun regex->dfa (regex)
+  (fa-canonicalize (regex->nfa regex)))
+
+
 (defun regex-apply (operator &rest args)
   (let ((args (loop for a in args
                  when (and a (not (eq :epsilon a)))
@@ -50,12 +96,120 @@
        (car args))
       (t (cons operator args)))))
 
-;; (defun regex-sweeten (regex symbols)
-;;   "Apply some regex sugar operators.
-;; :NOT : match complement
-;; :. : match anything"
-;;   (etypecase regex
-;;     (atom
-;;      (
-;;      )
-;;     (list)))
+
+(defun regex-simplify (regex)
+  (etypecase regex
+    (atom regex)
+    (list
+     (destructuring-bind (op &rest rest) regex
+         (case op
+           ((:union :concatenation)
+            (if (null (cdr rest))
+                (regex-simplify (car rest))
+                (cons op (map 'list #'regex-simplify rest))))
+           (:closure
+            (assert (null (cdr rest)))
+            (list op (regex-simplify (car rest)))))))))
+
+
+;; GNFAs from Sipser p. 70
+
+(defun dfa->gnfa (dfa)
+  (let ((new-start (gensym "START"))
+        (new-accept (gensym "ACCEPT"))
+        (accept (fa-accept dfa))
+        (edges)
+        (states (fa-states dfa))
+        (hash (make-hash-table :test #'equal)))
+    ;; start state
+    (push (list new-start :epsilon (fa-start dfa)) edges)
+    ;; index edges
+    (fa-map-edges nil (lambda (q0 z q1)
+                        (push z (gethash (list q0 q1) hash)))
+                  dfa)
+    ;; build new edges
+    (do-finite-set (q0 states)
+      ;; maybe accept
+      (when (finite-set-inp q0 accept)
+        (push (list q0 :epsilon new-accept) edges))
+      ;; successor edges
+      (do-finite-set (q1 states)
+        ;;(print q1)
+        (let ((zz (gethash (list q0 q1) hash)))
+          (when zz
+            (push (list q0 (cons :union zz) q1)
+                  edges)))))
+    ;;(print edges)
+    ;; create new fa
+    (make-fa edges
+             new-start
+             (list new-accept))))
+
+(defun gnfa-rip (gnfa)
+  (let ((start (fa-start gnfa))
+        (accept (fa-accept gnfa)))
+    (assert (= 1 (finite-set-length accept)))
+    (do-finite-set (q (fa-states gnfa))
+      (when (and (not (equal start q))
+                 (not (equal (car accept) q)))
+        (return-from gnfa-rip q)))
+    (error "couldn't find rip state")))
+
+(defun gnfa->regex (gnfa)
+  (cond
+   ((= 2 (finite-set-length (fa-states gnfa)))
+    (assert (= 1 (length (fa-edges gnfa))))
+    (regex-simplify (cadar (fa-edges gnfa))))
+   (t (let ((q-rip (gnfa-rip gnfa))
+            (hash (make-hash-table :test #'equal))) ;; (list q0 q1) -> regex
+        ;; index regexes
+        (do-fa-edges (q0 z q1) gnfa
+          (assert (null (gethash (list q0 q1) hash)))
+          (setf (gethash (list q0 q1) hash) z))
+        (let ((edges)
+              (rip-closure (regex-apply :closure (gethash (list q-rip q-rip) hash))))
+          (do-finite-set (q0 (fa-states gnfa))
+            (unless (or (eq q0 q-rip)
+                        (finite-set-inp q0 (fa-accept gnfa)))
+              (do-finite-set (q1 (fa-states gnfa))
+                (unless (or (eq q1 q-rip)
+                            (eq q1 (fa-start gnfa)))
+                  (let ((z1 (gethash (list q0 q-rip) hash)) ;; q0 -> q-rip
+                        (z3 (gethash (list q-rip q1) hash)) ;; q-rip -> q1
+                        (z4 (gethash (list q0 q1) hash)))   ;; q0 -> q1
+                    (let ((zz (if (and z1 z3)
+                                  (regex-apply :union
+                                               z4
+                                               (regex-apply :concatenation z1 rip-closure z3))
+                                  z4)))
+                      (when zz (push (list q0 zz q1) edges))))))))
+          ;; new-fa
+          (gnfa->regex (make-fa edges (fa-start gnfa) (fa-accept gnfa))))))))
+
+
+(defun fa->regex (fa)
+  (with-dfa (dfa fa)
+    (gnfa->regex (dfa->gnfa dfa))))
+
+(defun regex-sweeten (regex symbols)
+  "Apply some regex sugar operators.
+:NOT : match complement
+:. : match anything"
+  ;; FIXME: what if :NOT produces an empty match?
+  (let ((dot (cons :union symbols)))
+    (labels ((rec (regex)
+               (etypecase regex
+                 (atom
+                  (if (eq regex :.)
+                      dot
+                      regex))
+                 (list
+                  (destructuring-bind (op &rest rest) regex
+                    (case op
+                      ((:union :concatenation :closure)
+                       (cons op (map 'list #'rec rest)))
+                      (:not
+                       (assert (null (cdr rest)))
+                       (fa->regex (fa-complement (regex->dfa (rec (car rest))) symbols)))
+                      (otherwise regex)))))))
+      (rec regex))))
