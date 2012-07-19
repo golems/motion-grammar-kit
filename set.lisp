@@ -55,7 +55,7 @@
 MUTABLE: Should this be a mutable set?
          This changes the performance characteristics."
   (cond
-    (mutable (make-hash-table :test #'equalp))
+    (mutable (make-hash-table :test #'equal))
     (t nil)))
 
 (defun finite-set (&rest items)
@@ -147,8 +147,8 @@ RESULT: a finite set"
   "Are sets A and B equal?"
   (cond
     ((and (listp a) (listp b))
-     (and (null (set-difference a b :test #'equalp))
-          (null (set-difference b a :test #'equalp))))
+     (and (null (set-difference a b :test #'equal))
+          (null (set-difference b a :test #'equal))))
     ((hash-table-p a)
      (and (= (finite-set-length a)
              (finite-set-length b))
@@ -173,7 +173,7 @@ RESULT: a finite set"
   "Is ITEM in SET?"
   (etypecase set
       (sequence
-       (find item set :test #'equalp))
+       (find item set :test #'equal))
       (hash-table
        (multiple-value-bind (val present)
            (gethash item set)
@@ -188,27 +188,27 @@ RESULT: a finite set"
   "Is set-1 a subset of set-2?"
   (cond
     ((and (listp set-1) (listp set-2))
-     (subsetp set-1 set-2 :test #'equalp))
+     (subsetp set-1 set-2 :test #'equal))
     (t (error "Can't operate on ~A and ~B" set-1 set-2))))
 
 (defun finite-set-union (set-1 set-2)
   "Return the union of set-1 and set-2."
   (cond
     ((and (listp set-1) (listp set-2))
-     (union set-1 set-2 :test #'equalp))
+     (union set-1 set-2 :test #'equal))
     (t (error "Can't operate on ~A and ~B" set-1 set-2))))
 
 (defun finite-set-intersection (set-1 set-2)
   (cond
     ((and (listp set-1) (listp set-2))
-     (intersection set-1 set-2 :test #'equalp))
+     (intersection set-1 set-2 :test #'equal))
     (t (error "Can't operate on ~A and ~B" set-1 set-2))))
 
 (defun finite-set-difference (set-1 set-2)
   "Return the difference of set-1 and set-2."
   (cond
     ((and (listp set-1) (listp set-2))
-     (set-difference set-1 set-2 :test #'equalp))
+     (set-difference set-1 set-2 :test #'equal))
     (t (error "Can't operate on ~A and ~B" set-1 set-2))))
 
 (defun finite-set-add (set item)
@@ -232,7 +232,7 @@ RESULT: a finite set"
 (defun finite-set-enumerate (set)
   "Return a function mapping from members of set to integers.
 RESULT: (lambda (item)) => integer"
-  (let ((hash (make-hash-table :test #'equalp))
+  (let ((hash (make-hash-table :test #'equal))
         (i -1))
     (do-finite-set (x set)
       (setf (gethash x hash) (incf i)))

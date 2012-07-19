@@ -106,7 +106,14 @@ RESULT: (list edges start final)"
            ((:union :concatenation)
             (if (null (cdr rest))
                 (regex-simplify (car rest))
-                (cons op (map 'list #'regex-simplify rest))))
+                (cons op
+                      (loop
+                         for e in rest
+                         for f = (regex-simplify e)
+                         appending (if (and (listp f)
+                                            (eq (car f) op))
+                                       (cdr f)
+                                       (list f))))))
            (:closure
             (assert (null (cdr rest)))
             (list op (regex-simplify (car rest)))))))))
@@ -191,25 +198,66 @@ RESULT: (list edges start final)"
   (with-dfa (dfa fa)
     (gnfa->regex (dfa->gnfa dfa))))
 
-(defun regex-sweeten (regex symbols)
+
+(defparameter *regex-lower*
+  `(:union ,@(loop for c from (char-code #\a) to (char-code #\z) collect (code-char c))))
+
+(defparameter *regex-upper*
+  `(:union ,@(loop for c from (char-code #\A) to (char-code #\Z) collect (code-char c))))
+
+(defparameter *regex-digit*
+  `(:union ,@(loop for c from (char-code #\0) to (char-code #\9)
+                collect (code-char c))))
+
+(defparameter *regex-alpha*
+  (regex-simplify `(:union ,*regex-lower* ,*regex-upper*)))
+
+(defparameter *regex-alnum*
+  (regex-simplify `(:union ,*regex-alpha* ,*regex-digit*)))
+
+(defparameter *regex-blank* '(:union #\Space #\Tab))
+
+(defun regex-sweeten (regex symbols &key
+                      concatenate-strings)
   "Apply some regex sugar operators.
-:NOT : match complement
+:complement : match complement
+:not : any symbol except this
+:+ : A A*
 :. : match anything"
   ;; FIXME: what if :NOT produces an empty match?
   (let ((dot (cons :union symbols)))
     (labels ((rec (regex)
                (etypecase regex
                  (atom
-                  (if (eq regex :.)
-                      dot
-                      regex))
+                  (case regex
+                    (:. dot)
+                    (:lower-class *regex-lower*)
+                    (:upper-class *regex-upper*)
+                    (:digit-class *regex-digit*)
+                    (:alpha-class *regex-alpha*)
+                    (:alnum-class *regex-alnum*)
+                    (:blank-class *regex-blank*)
+                    (otherwise
+                     (cond
+                       ((and (stringp regex)
+                             concatenate-strings)
+                        (cons :concatenation (map 'list #'identity regex)))
+                       (t regex)))))
                  (list
                   (destructuring-bind (op &rest rest) regex
                     (case op
                       ((:union :concatenation :closure)
                        (cons op (map 'list #'rec rest)))
+                      (:+
+                       (assert (null (cdr rest)))
+                       (let ((a (rec (car rest))))
+                         (list :concatenation a (list :closure a))))
+                      (:complement
+                       (assert (null (cdr rest)))
+                       (fa->regex (fa-canonicalize (fa-complement (regex->dfa (rec (car rest))) symbols))))
                       (:not
                        (assert (null (cdr rest)))
-                       (fa->regex (fa-complement (regex->dfa (rec (car rest))) symbols)))
+                       (assert (finite-set-inp (car rest) symbols))
+                       (cons :union (finite-set-list (finite-set-remove symbols (car rest)))))
                       (otherwise regex)))))))
       (rec regex))))
