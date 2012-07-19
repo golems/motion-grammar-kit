@@ -107,6 +107,55 @@
 (defun gsymbol-gen (gsym &optional (unique (gensym)))
   (cons gsym unique))
 
+(defun gsymbol-compare-atom (a b)
+  (etypecase a
+    (number
+     (etypecase b
+       (number (cond ((< a b) -1)
+                     ((> a b) 1)
+                     (t 0)))
+       (character 1)
+       (string 1)
+       (symbol 1)))
+    (character
+     (etypecase b
+       (number 0)
+       (character (gsymbol-compare (char-code a) (char-code b)))
+       (string 1)
+       (symbol 1)))
+    (string
+     (etypecase b
+       (number 0)
+       (character 0)
+       (string (cond ((string< a b) -1)
+                     ((string> a b) 1)
+                     (t 0)))
+       (symbol 1)))
+    (symbol
+     (etypecase b
+       (number 0)
+       (character 0)
+       (string 0)
+       (symbol (cond ((string< a b) -1)
+                     ((string> a b) 1)
+                     (t 0)))))))
+
+;; (defun gsymbol-compare (a b)
+;;   (etypecase a
+;;     (null (if b 1 0))
+;;     (atom (etypecase b
+;;             (null 1)
+;;             (atom (gsymbol-compare-atom a b))
+;;             (list -1)))
+;;     (list
+;;      (etypecase b
+;;        (atom 1)
+;;        (list (let ((c (gsymbol-compare (car a) (car b))))
+;;                (if (zerop c)
+;;                    (gsymbol-compare (cdr a) (cdr b))
+;;                    c)))))))
+
+
 (defun gsymbol-compare (a b)
   (declare (type (or character list symbol string number)
                  a b))
@@ -134,6 +183,10 @@
 
 (defun gsymbol-predicate (a b)
   (< (gsymbol-compare a b) 0))
+
+
+(defun gsymbol-sort (list)
+  (sort (copy-list list) #'gsymbol-predicate))
 
 ;;;;;;;;;
 ;; I/O ;;

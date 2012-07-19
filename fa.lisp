@@ -75,21 +75,17 @@ FUNCTION: (lambda (q-0 z q-1))"
 
 (defun make-fa (edges start accept)
   (declare (type finite-set accept))
-  (%make-fa :states (fold (lambda (set edge)
-                            (destructuring-bind (q0 z q1) edge
-                              (declare (ignore z))
-                              (finite-set-add (finite-set-add set q0) q1)))
-                          nil edges)
-            :terminals (sort (fold (lambda (set edge)
-                                     (destructuring-bind (q0 z q1) edge
-                                       (declare (ignore  q0 q1))
-                                       (finite-set-add set z)))
-                                   nil edges)
-                             #'gsymbol-predicate)
-            :edges edges
-            :start start
-            :accept (finite-set-list accept)))
-
+  (let ((state-set (make-finite-set :mutable t))
+        (terminal-set (make-finite-set :mutable t)))
+    (loop for (q0 z q1) in edges
+       do (setf (gethash q0 state-set) t
+                (gethash q1 state-set) t
+                (gethash z terminal-set) t))
+    (%make-fa :states (finite-set-list state-set)
+              :terminals (finite-set-list terminal-set)
+              :edges edges
+              :start start
+              :accept (finite-set-list accept))))
 
 ;;;;;;;;;;;;;;
 ;; INDEXING ;;
@@ -164,27 +160,27 @@ RESULT: (lambda (state)) => (finite-set terminals)"
                                  (finite-set-inp k set))
                        (rec (finite-set-nadd set k) edges))))
                  t)))
-    (rec nil (fa-edges fa))))
+    (rec (make-finite-set :mutable t) (fa-edges fa))))
 
 
 
 (defun dfa-canonicalize (dfa)
-  (let ((mover (dfa-mover dfa))
-        (hash (make-hash-table :test #'equal)))
+  (let ((hash (make-hash-table :test #'equal))
+        (succ (fa-successors dfa)))
     ;; label states
-    (let ((count (labels ((visit (i q)
-                            (if (or (null q) (gethash q hash))
-                                i
-                                (progn
-                                  (setf (gethash q hash) i)
-                                  (fold-finite-set (lambda (i z)
-                                                     (visit i (funcall mover q z)))
-                                                   (1+ i)
-                                                   (fa-terminals dfa))))))
-                   (visit 0 (fa-start dfa)))))
+    (let ((count -1))
+      (declare (type fixnum count))
+      (labels ((visit (q)
+                 (unless (gethash q hash)
+                   (setf (gethash q hash) (incf count))
+                   (do-finite-set (rest (gsymbol-sort (funcall succ q)))
+                     (destructuring-bind (z q1) rest
+                       (declare (ignore z))
+                       (visit q1))))))
+        (visit (fa-start dfa)))
       ;; build
-      (%make-fa :states (loop for i below count collect i)
-                :terminals (fa-terminals dfa)
+      (%make-fa :states (loop for i from 0 to count collect i)
+                :terminals (sort (copy-list (fa-terminals dfa)) #'gsymbol-predicate)
                 :edges (sort (loop for (q0 z q1) in (fa-edges dfa)
                                 collect (list (gethash q0 hash) z (gethash q1 hash)))
                              #'gsymbol-predicate)
@@ -201,60 +197,67 @@ RESULT: (lambda (state)) => (finite-set terminals)"
 
 
 (defun fa-canonicalize (fa)
+  ;; Hoprcroft's actually does go faster
+  (dfa-canonicalize (fa-minimize-hopcroft fa)))
+  ;;(dfa-canonicalize (fa-minimize-brzozowski fa)))
+
+
+(defun fa-canonicalize-brzozowski (fa)
   (dfa-canonicalize (fa-minimize-brzozowski fa)))
+
+(defun fa-canonicalize-hopcroft (fa)
+  (dfa-canonicalize (fa-minimize-hopcroft fa)))
 
 ;;; See Aho, 2nd p. 153-154. These closure computations are a
 ;;; functional variation thereof.
 
 (defun nfa-e-closure (states mover
-                      &optional (closure nil))
+                      &optional closure); (closure (make-finite-set :mutable t)))
   "epsilon-closure of list STATES.
 STATES: list of states
 MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
-  (fold (lambda (closure state)
-          (if (find state closure)
-              ;; already checked this state
-              closure
-              ;; new state
-              (nfa-e-closure (funcall mover state :epsilon)
-                             mover
-                             (cons state closure))))
-        closure states))
+  (do-finite-set (q states)
+    (unless (finite-set-inp q closure)
+      (setq closure
+            (nfa-e-closure (funcall mover q :epsilon)
+                           mover
+                           (finite-set-nadd closure q)))))
+  closure)
 
 (defun nfa-move-e-closure (states z mover)
   "epsilon-closure of list STATES transitioned by token Z.
 STATES: list of states
 Z: token
 MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
-  (fold (lambda (closure state)
-          (nfa-e-closure (funcall mover state z) mover closure))
-        nil
-        states))
+  (let ((closure (make-finite-set :mutable t)))
+    (do-finite-set (q0 states)
+      (nfa-e-closure (funcall mover q0 z) mover closure))
+    closure))
 
 ;; See Aho, 2nd p. 152
 (defun nfa->dfa (nfa)
   "Convert an NFA to a DFA"
   (let* ((mover (nfa-mover nfa))
          (hash (make-hash-table :test #'equal))
-         (start-0 (nfa-e-closure (list (fa-start nfa)) mover))
+         (start-0 (finite-set-list (nfa-e-closure (list (fa-start nfa)) mover)))
          ;; eliminate useless NFA start states
          (start (sort (if (or (null (cdr start-0))
                               (some (lambda (e) (equal (fa-start nfa) (third e))) (fa-edges nfa)))
                           start-0
                           (finite-set-remove start-0 (fa-start nfa)))
                       #'gsymbol-predicate))
+         (terminals (finite-set-remove (fa-terminals nfa) :epsilon))
          edges)
     ;; subset construction
     (labels ((subset (q)
                (unless (gethash q hash)
                  (setf (gethash q hash) t)
-                 (do-finite-set (z (fa-terminals nfa))
-                   (unless (eq :epsilon z)
-                     (let ((u (sort (nfa-move-e-closure q z mover) #'gsymbol-predicate)))
-                       (when u
-                         (assert (null (set-difference u (nfa-e-closure u mover))))
-                         (push (list q z u) edges)
-                         (subset u))))))))
+                 (do-finite-set (z terminals)
+                   (let ((u (sort (finite-set-list (nfa-move-e-closure q z mover)) #'gsymbol-predicate)))
+                     (when u
+                       ;;(assert (null (finite-set-difference u (nfa-e-closure u mover))))
+                       (push (list q z u) edges)
+                       (subset u)))))))
       (subset start))
     ;; result
     (let ((fa (make-fa edges
@@ -262,7 +265,7 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                        (loop for q being the hash-keys of hash
                           when (finite-set-intersection (fa-accept nfa) q)
                           collect q))))
-      (assert (dfap fa))
+      ;(assert (dfap fa))
       fa)))
 
 (defmacro with-dfa ((var fa) &body body)
@@ -284,7 +287,6 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
 
 (defun fa-prune (fa)
   "Remove unreachable and dead states from the FA."
-  (declare (optimize (debug 3)))
   ;; index reachable states
   (let ((succ (fold-fa-edges (lambda (hash q0 v q1)
                                (declare (ignore v))
@@ -371,16 +373,16 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
       (do-finite-set (c (fa-terminals dfa))
         ;; x: predecessors of a for token c
         (let ((x (fold (lambda (x q)
-                         (union x (funcall imover q c)))
+                         (finite-set-union x (funcall imover q c)))
                        nil a)))
           (when x
             (loop for yy on p
                for y = (car yy)
                ;; subset of y transitioning to a on c
                for i = (and (cdr y)
-                            (intersection y x))
+                            (finite-set-intersection y x))
                ;; subset of y transitioning to (not a) on c
-               for j = (and i (set-difference y x))
+               for j = (and i (finite-set-difference y x))
                when (and i j)
                do (when (< (length j) (length i))
                     (rotatef i j))  ; i is smaller

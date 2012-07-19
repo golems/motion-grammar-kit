@@ -212,11 +212,8 @@
 
 (lisp-unit:define-test regex-dfa-matcher
   (labels ((equiv-hop-brz (regex)
-             (let* ((nfa (regex->nfa regex))
-                    (dfa (nfa->dfa nfa))
-                    (hop (fa-minimize-hopcroft dfa)))
-               (and (dfa-equal (fa-minimize-brzozowski dfa) hop)
-                    (dfa-equal (fa-minimize-brzozowski nfa) hop))))
+             (let* ((nfa (regex->nfa regex)))
+               (dfa-equal (fa-canonicalize-brzozowski nfa) (fa-canonicalize-hopcroft nfa))))
            (match-dfa (regex string)
              (funcall (chain regex
                              #'regex->nfa
