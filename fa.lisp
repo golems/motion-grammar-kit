@@ -613,15 +613,18 @@ output: output file, type determined by suffix (png,pdf,eps)"
                   (format s "~&  start[shape=none,fontsize=~D];" font-size)
                   (format s "~&  start -> ~A;" (funcall state-numbers (fa-start fa)))
                   ;; accept state
-                  (format s "~{~&  ~A [ shape=doublecircle ];~}"
-                          (finite-set-map 'list state-numbers  (fa-accept fa)))
+                  (format s "~:{~&  ~A [ shape=~A ];~}"
+                          (finite-set-map 'list (lambda (q)
+                                                  (list (funcall state-numbers q) accept-shape))
+                                          (fa-accept fa)))
+
                   ;; edges
                   (fa-map-edges nil
                                 (lambda (q0 z q1)
                                   (format s "~&  ~A -> ~A [fontsize=~D,label=\"~A\"];~%"
                                           (funcall state-numbers q0)
                                           (funcall state-numbers q1)
-                                          font-size z))
+                                          font-size (object->string z)))
                                 fa)
                   (format s "~&}~%")))))
 

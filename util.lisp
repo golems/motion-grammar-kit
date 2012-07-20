@@ -193,6 +193,19 @@
 ;;;;;;;;;
 
 
+
+(defun object->string (object)
+  (let ((str (princ-to-string object))
+        (vec (make-array 0 :adjustable t :fill-pointer t)))
+    (dotimes (i (length str))
+      (if (eql (aref str i) #\Newline)
+          (progn (vector-push-extend #\\ vec)
+                 (vector-push-extend #\n vec))
+          (vector-push-extend (aref str i) vec)))
+    (coerce vec 'string)))
+
+
+
 (defun output-function (function &optional output)
   (cond
     ((streamp output)
