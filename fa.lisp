@@ -503,9 +503,6 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                start
                accept))))
 
-(defun fa->right-regular-grammar (fa)
-  (fa-edges fa))
-
 ;;;;;;;;;;;;;;;;;;;;
 ;; SET OPERATIONS ;;
 ;;;;;;;;;;;;;;;;;;;;

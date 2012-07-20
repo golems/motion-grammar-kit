@@ -382,6 +382,31 @@ RESULT: a finite automaton"
                  grammar)
     (make-fa edges start (finite-set-add accept new-accept))))
 
+(defun fa->right-regular-grammar (fa)
+  (with-dfa (dfa fa)
+    (let ((succs (fa-successors dfa))
+          (accept (fa-accept dfa))
+          (grammar))
+      (do-finite-set (q0 (fa-states dfa))
+        (loop for (z q1) in (funcall succs q0)
+           do
+             (when (funcall succs q1)
+               (push (list q0 z q1) grammar))
+             (when (finite-set-inp q1 accept)
+               (push (list q0 z) grammar))))
+      (push (list (gensym "START") (fa-start dfa)) grammar)
+      grammar)))
+
+
+      ;; (rewrite-grammar (lambda (q0 body)
+      ;;                    (destructuring-bind (z q1) body
+      ;;                      (fa-edges fa)
+      ;;                      `(,(list q0 z q1)
+      ;;                         ,@(when (finite-set-inp q1 accept)
+      ;;                                 (list (list
+      ;;                      :recursive nil)
+
+
 (defun grammar-from-adjacency (adj &key
                                directed)
   (let ((incoming (make-hash-table :test #'equal))
@@ -587,7 +612,7 @@ FUNCTION: (lambda (head body)) => (list new-productions...)"
 
 
 (defun grammar-print (grammar &optional (output *standard-output*))
-  (grammar-map nil (curry-list #'format output  "~&~A => ~{~A~^ ~}~%") grammar))
+  (grammar-map nil (curry-list #'format output  "~&~A ::= ~{~A~^ ~}~%") grammar))
 
 
 (defun grammar->cnf (grammar)
