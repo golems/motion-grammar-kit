@@ -234,18 +234,29 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
       (nfa-e-closure (funcall mover q0 z) mover closure))
     closure))
 
+(defun nfa-start-closure (nfa &optional (mover (nfa-mover nfa)))
+  (let ((start-0 (nfa-e-closure (list (fa-start nfa)) mover)))
+    (sort (if (or (null (cdr start-0))
+                  (some (lambda (e)
+                          (destructuring-bind (q0 z q1) e
+                            (or (and (equal q0 (fa-start nfa))
+                                     (not (eq :epsilon z)))
+                                (and (equal q1 (fa-start nfa))
+                                     (not (finite-set-inp q0 start-0))))))
+                        (fa-edges nfa)))
+              (finite-set-list start-0)
+              (finite-set-remove start-0 (fa-start nfa)))
+          #'gsymbol-predicate)))
+
+
+
 ;; See Aho, 2nd p. 152
 (defun nfa->dfa (nfa)
   "Convert an NFA to a DFA"
   (let* ((mover (nfa-mover nfa))
          (hash (make-hash-table :test #'equal))
-         (start-0 (finite-set-list (nfa-e-closure (list (fa-start nfa)) mover)))
          ;; eliminate useless NFA start states
-         (start (sort (if (or (null (cdr start-0))
-                              (some (lambda (e) (equal (fa-start nfa) (third e))) (fa-edges nfa)))
-                          start-0
-                          (finite-set-remove start-0 (fa-start nfa)))
-                      #'gsymbol-predicate))
+         (start (nfa-start-closure nfa mover))
          (terminals (finite-set-remove (fa-terminals nfa) :epsilon))
          edges)
     ;; subset construction
