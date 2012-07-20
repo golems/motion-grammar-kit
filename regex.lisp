@@ -196,7 +196,11 @@ RESULT: (list edges start final)"
 
 (defun fa->regex (fa)
   (with-dfa (dfa fa)
-    (gnfa->regex (dfa->gnfa dfa))))
+    ;; kludge this
+    (let ((regex (gnfa->regex (dfa->gnfa dfa))))
+      (if (finite-set-inp (fa-start dfa) (fa-accept dfa))
+          `(:union :epsilon ,regex)
+          regex))))
 
 
 (defparameter *regex-lower*
