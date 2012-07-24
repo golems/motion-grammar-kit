@@ -37,7 +37,26 @@
 (in-package :motion-grammar)
 
 
-(defun adjacency-dot (edges &key output (font-size 12))
+
+(defun csv->graph (file &optional symbols)
+  (let ((csv (read-csv file)))
+    (let ((edges)
+          (symbols (if symbols
+                       symbols
+                       (loop for i below (length csv) collect i))))
+      (loop
+         for i in symbols
+         for row in csv
+         do (loop
+               for j in symbols
+               for x in row
+               do (cond
+                    ((string= x "0"))
+                    ((string= x "1") (push (list i j) edges))
+                    (t (error "Uknown element: ~A" x)))))
+      edges)))
+
+(defun graph-dot (edges &key output (font-size 12) directed)
   "Graphviz output of dfa.
 fa: finite automaton
 output: output file, type determined by suffix (png,pdf,eps)"
@@ -48,20 +67,32 @@ output: output file, type determined by suffix (png,pdf,eps)"
          (numbers (finite-set-enumerate nodes)))
     (output-dot output
                 (lambda (s)
-                  (format s "~&graph {~%")
+                  (if directed
+                      (format s "~&digraph {~%")
+                      (format s "~&graph {~%"))
                   ;; attributes
-                  (format s "  overlap=\"false\";~&")
-                  (format s "  epsilon=\".00000001\";~&")
-                  (format s "  splines=\"true\";~&")
+                  ;(format s "  overlap=\"false\";~&")
+                  ;(format s "  overlap=\"ipsep\";~&")
+                  ;(format s "  mode=\"ipsep\";~&")
+                  ;(format s "  epsilon=\".00000001\";~&")
+                  ;(format s "  splines=\"true\";~&")
+                  ;(format s "  ratio=\"compress\";~&")
+                  ;(format s "~&  edges[weight=1.8];~&")
+                  ;(format s "~&  node[nodesep=0.1,ranksep=0.1];~&")
+                  ;(format s "~&  node[width=1];~&")
+                  ;(format s "~&  edge[width=2];~&")
+                 ; (format s "  concentrate=\"true\";~&")
                   ;(format s "node=\"true\";")
                   ;; state labels
-                  (format s "~:{~&  ~A[label=\"~A\",fontsize=~D];~}"
+                  (format s "~:{~&  ~A[label=\"~A\",fontsize=~D,shape=\"oval\"];~}"
                           (loop for n in nodes
                              collect (list (funcall numbers n) n font-size)))
                   ;; edges
-                  (format s "~:{~&  ~A -- ~A~&~}"
+                  (format s (if directed
+                                "~:{~&  ~A -> ~A~&~}"
+                                "~:{~&  ~A -- ~A~&~}")
                           (loop for (a b) in edges
                              collect (list (funcall numbers a) (funcall numbers b))))
                   (format s "~&}~%"))
-                :program "neato"
+                ;:program "neato"
                 )))

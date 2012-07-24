@@ -482,7 +482,7 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                (gethash (fa-start fa) incoming)
                (finite-set-map 'list (curry-right #'gethash outgoing) (fa-accept fa))))))
 
-(defun fa-from-adjacency (adj &key (start (car adj))  directed)
+(defun graph->fa (adj &key (start (car adj))  directed)
   (let ((incoming (make-hash-table :test #'equal))
         (outgoing (make-hash-table :test #'equal))
         (places (make-hash-table :test #'equal))
@@ -667,7 +667,7 @@ output: output file, type determined by suffix (png,pdf,eps)"
                                   (format s "~&  ~A -> ~A [fontsize=~D,label=\"~A\"];~%"
                                           (funcall state-numbers q0)
                                           (funcall state-numbers q1)
-                                          font-size (object->string z)))
+                                          font-size (dot-gsymbol z)))
                                 fa)
                   (format s "~&}~%")))))
 
