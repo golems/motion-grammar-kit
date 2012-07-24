@@ -588,7 +588,22 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                (finite-set-add (finite-set-difference (fa-states dfa) (fa-accept dfa))
                                dead-accept)))))
 
-
+(defun fa-union (fa1 fa2 &optional (unique (gensym)))
+  "Union of finite automata FA1 and FA2."
+  (if (< (finite-set-length (fa-states fa2))
+         (finite-set-length (fa-states fa1)))
+      (fa-union fa2 fa1)
+      (progn
+        (labels ((fixup (q) (cons q unique)))
+          (make-fa (append
+                    `((,unique :epsilon ,(fixup (fa-start fa1)))
+                      (,unique :epsilon ,(fa-start fa2)))
+                    (loop for (q0 z q1) in (fa-edges fa1)
+                       collect (list (fixup q0) z (fixup q1)))
+                    (fa-edges fa2))
+                   unique
+                   (finite-set-union (fa-accept fa2)
+                                     (finite-set-map 'list #'fixup (fa-accept fa1))))))))
 
 
 ;;;;;;;;;;;;;;
