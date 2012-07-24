@@ -47,8 +47,18 @@
                                      (make-fa '((x a y) (y b x)) 'y (finite-set 'x)))))
 
 (defmacro test-fa (fa)
-  `(lisp-unit:assert-equalp (fa-canonicalize-brzozowski ,fa)
-                            (fa-canonicalize-hopcroft ,fa)))
+  `(progn
+     (lisp-unit:assert-equalp (fa-canonicalize-brzozowski ,fa)
+                              (fa-canonicalize-hopcroft ,fa))
+     ;; check some identities
+     (let ((universal (make-universal-fa (fa-terminals ,fa))))
+       ;; f = u \cap f
+       (lisp-unit:assert-equalp (fa-canonicalize ,fa)
+                                (fa-canonicalize (fa-intersection universal ,fa)))
+       ;; u = f \cup \not f
+       (lisp-unit:assert-true (fa-universal-p (fa-union ,fa (fa-complement ,fa))))
+       ;; \emptyset = f \cap \not f
+       (lisp-unit:assert-true (fa-empty-p (fa-intersection ,fa (fa-complement ,fa)))))))
 
 (defmacro test-regex (regex)
   `(progn
@@ -62,7 +72,7 @@
   `(progn
      (test-regex ,regex)
      (test-fa ,min-fa)
-     (lisp-unit:assert-equalp (dfa-canonicalize ,min-fa)
+     (lisp-unit:assert-equalp (dfa-renumber ,min-fa)
                               (regex->dfa ,regex))))
 
 (defmacro test-regex-fa (regex fa)
@@ -73,9 +83,9 @@
 
 (defmacro test-fa-min-fa (fa min-fa)
   `(progn
-     (lisp-unit:assert-equalp (dfa-canonicalize ,min-fa)
+     (lisp-unit:assert-equalp (dfa-renumber ,min-fa)
                               (fa-canonicalize-hopcroft ,fa))
-     (lisp-unit:assert-equalp (dfa-canonicalize ,min-fa)
+     (lisp-unit:assert-equalp (dfa-renumber ,min-fa)
                               (fa-canonicalize-brzozowski ,fa))))
 
 (lisp-unit:define-test dfa-minimize

@@ -164,7 +164,7 @@ RESULT: (lambda (state)) => (finite-set terminals)"
 
 
 
-(defun dfa-canonicalize (dfa)
+(defun dfa-renumber (dfa)
   (let ((hash (make-hash-table :test #'equal))
         (succ (fa-successors dfa)))
     ;; label states
@@ -198,15 +198,15 @@ RESULT: (lambda (state)) => (finite-set terminals)"
 
 (defun fa-canonicalize (fa)
   ;; Hoprcroft's actually does go faster
-  (dfa-canonicalize (fa-minimize-hopcroft fa)))
-  ;;(dfa-canonicalize (fa-minimize-brzozowski fa)))
+  (dfa-renumber (fa-minimize-hopcroft fa)))
+  ;;(dfa-renumber (fa-minimize-brzozowski fa)))
 
 
 (defun fa-canonicalize-brzozowski (fa)
-  (dfa-canonicalize (fa-minimize-brzozowski fa)))
+  (dfa-renumber (fa-minimize-brzozowski fa)))
 
 (defun fa-canonicalize-hopcroft (fa)
-  (dfa-canonicalize (fa-minimize-hopcroft fa)))
+  (dfa-renumber (fa-minimize-hopcroft fa)))
 
 ;;; See Aho, 2nd p. 153-154. These closure computations are a
 ;;; functional variation thereof.
@@ -333,13 +333,18 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                                        (finite-set-add live q)
                                        live))
                                  nil (fa-states fa))))
-      (when (finite-set-inp (fa-start fa) live)
-        (make-fa (loop for (q0 z q1) in (fa-edges fa)
-                    when (and (finite-set-inp q0 live)
-                              (finite-set-inp q1 live))
-                    collect (list q0 z q1))
-                 (fa-start fa)
-                 (finite-set-intersection live (fa-accept fa)))))))
+      (if (finite-set-inp (fa-start fa) live)
+          (make-fa (loop for (q0 z q1) in (fa-edges fa)
+                      when (and (finite-set-inp q0 live)
+                                (finite-set-inp q1 live))
+                      collect (list q0 z q1))
+                   (fa-start fa)
+                   (finite-set-intersection live (fa-accept fa)))
+          (%make-fa :terminals (fa-terminals fa)
+                    :states '(0)
+                    :edges nil
+                    :start 0
+                    :accept nil)))))
 
 (defun dfa-add-reject (dfa &optional (reject (gensym "reject")))
   "Add explicit reject state to the dfa."
@@ -427,7 +432,7 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                               hash)
                             (make-hash-table :test #'equal)
                             (fa-edges dfa))))
-      (fa-prune (make-fa (loop for k being the hash-keys of edge-hash collect k)
+      (fa-prune (make-fa (finite-set-list edge-hash)
                          (find-if (lambda (x) (finite-set-inp (fa-start dfa) x)) p)
                          (loop for x in p
                             when (finite-set-intersection x (fa-accept dfa))
@@ -511,12 +516,12 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
   "Check equivalence up to state names of DFAs"
   (assert (dfap a))
   (assert (dfap b))
-  (equalp (dfa-canonicalize a) (dfa-canonicalize b)))
+  (equalp (dfa-renumber a) (dfa-renumber b)))
 
 (defun fa-equiv (a b)
   "Check if two FAs recognize the same language."
-  (dfa-equal (fa-minimize-brzozowski a)
-             (fa-minimize-brzozowski b)))
+  (equalp (fa-canonicalize a)
+          (fa-canonicalize b)))
 
 (defun fa-empty-p (fa)
   (with-dfa (dfa fa)
@@ -530,6 +535,17 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                        (progn (setq visited (finite-set-nadd visited q))
                               (some (lambda (z-q1) (visit (second z-q1))) (funcall succ q)))))))
         (not (visit (fa-start dfa)))))))
+
+(defun make-universal-fa (terminals)
+  (%make-fa :states (finite-set 0)
+            :terminals terminals
+            :edges (finite-set-map 'list (lambda (z) (list 0 z 0)) terminals)
+            :start 0
+            :accept (finite-set 0)))
+
+(defun fa-universal-p (fa &optional (terminals (fa-terminals fa)))
+  (equalp (fa-canonicalize fa)
+          (dfa-renumber (make-universal-fa (finite-set-remove terminals :epsilon)))))
 
 (defun fa-intersection (fa1 fa2)
   "Intersection of two FA"
