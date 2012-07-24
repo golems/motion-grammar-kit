@@ -193,18 +193,13 @@
 ;;;;;;;;;
 
 
-
-(defun object->string (object)
-  (let ((str (princ-to-string object))
-        (vec (make-array 0 :adjustable t :fill-pointer t)))
-    (dotimes (i (length str))
-      (if (eql (aref str i) #\Newline)
-          (progn (vector-push-extend #\\ vec)
-                 (vector-push-extend #\n vec))
-          (vector-push-extend (aref str i) vec)))
-    (coerce vec 'string)))
-
-
+(defun read-csv (file)
+  (with-open-file (s file :direction :input)
+    (loop
+       with scanner = (ppcre:create-scanner " *, *")
+       for line = (read-line s nil nil)
+       while line
+       collect (ppcre:split scanner line))))
 
 (defun output-function (function &optional output)
   (cond
@@ -236,6 +231,16 @@ LANG: language output for dot, (or pdf ps eps png)"
       (sb-ext:process-close p))))
 
 
+(defun object->string (object)
+  (let ((str (princ-to-string object))
+        (vec (make-array 0 :adjustable t :fill-pointer t)))
+    (dotimes (i (length str))
+      (if (eql (aref str i) #\Newline)
+          (progn (vector-push-extend #\\ vec)
+                 (vector-push-extend #\n vec))
+          (vector-push-extend (aref str i) vec)))
+    (coerce vec 'string)))
+
 (defun dot-gsymbol (gsymbol)
   (case gsymbol
     (:alpha "&alpha;")
@@ -261,7 +266,9 @@ LANG: language output for dot, (or pdf ps eps png)"
     (:phi "&phi;")
     (:chi "&chi;")
     (:omega "&omega;")
-    (t gsymbol)))
+    (t (object->string gsymbol))))
+
+
 
 (defun output-dot (output function &key
                    (program "dot")

@@ -135,6 +135,18 @@ RESULT: (lambda (state)) => (finite-set terminals)"
                   fa)
     (lambda (q) (gethash q hash))))
 
+(defun fa-incoming-terminal-function (fa)
+  "Index fa state to terminals leaving that state.
+RESULT: (lambda (state)) => (finite-set terminals)"
+  (let ((hash (make-hash-table :test #'equal)))
+    (fa-map-edges nil (lambda (q z p)
+                        (declare (ignore q))
+                        (setf (gethash p hash)
+                              (finite-set-add (gethash p hash) z)))
+                  fa)
+    (lambda (q) (gethash q hash))))
+
+
 (defun fa-successors (fa)
   "Map from original-state to (list (list nonterminal resultant-state))."
   (let ((hash (make-hash-table :test #'equal)))
