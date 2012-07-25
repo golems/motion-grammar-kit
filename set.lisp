@@ -48,14 +48,15 @@
 
 (in-package :motion-grammar)
 
-(deftype finite-set () '(or list hash-table))
+(deftype finite-set () '(or list hash-table tree-set))
 
-(defun make-finite-set (&key mutable)
+(defun make-finite-set (&key mutable compare)
   "Create a finite set.
 MUTABLE: Should this be a mutable set?
          This changes the performance characteristics."
   (cond
     (mutable (make-hash-table :test #'equal))
+    (compare (make-tree-set compare))
     (t nil)))
 
 (defun finite-set (&rest items)
@@ -65,14 +66,17 @@ MUTABLE: Should this be a mutable set?
   "Apply FUNCTION to all members of SET."
   (etypecase set
     (sequence (map result-type function set))
+    (tree-set (map-tree-set result-type function set))
     (hash-table (maphash (lambda (k v)
                            (declare (ignore v))
                            (funcall function k))
                          set))))
 
 (defun fold-finite-set (function initial-value set)
+  "Fold FUNCTION over SET beginning with first argument INITIAL-VALUE."
   (etypecase set
     (sequence (reduce function set :initial-value initial-value))
+    (tree-set (fold-tree-set function initial-value set))
     (hash-table
      (let ((value initial-value))
        (maphash (lambda (k v)
@@ -81,7 +85,10 @@ MUTABLE: Should this be a mutable set?
                 set)
        value))))
 
-
+(defun sort-finite-set (set)
+  (etypecase set
+    (tree-set set)
+    (list (gsymbol-sort set))))
 
 (defun finite-set-map-cross (function set-1 &rest sets)
   (cond
@@ -96,23 +103,16 @@ MUTABLE: Should this be a mutable set?
 
 (defmacro do-finite-set ((var set &optional result-form) &body body)
   "Iterate over members of the set."
-  (alexandria:with-gensyms (set-var)
+  (alexandria:with-gensyms (set-var fun)
     `(let ((,set-var ,set))
-       (etypecase ,set-var
-         (list (dolist (,var ,set-var ,result-form)
-                 ,@body))))))
-
-(defun finite-set-fold (function initial-value set)
-  "Fold FUNCTION over SET beginning with first argument INITIAL-VALUE."
-  (etypecase set
-    (sequence (reduce function set :initial-value initial-value))
-    (hash-table
-     (let ((value initial-value))
-       (maphash (lambda (k v)
-                  (declare (ignore v))
-                  (setq value (funcall function value k)))
-                set)
-       value))))
+       (labels ((,fun (,var) ,@body))
+         (etypecase ,set-var
+           (tree-set (map-tree-set nil #',fun ,set))
+           (list (dolist (,var ,set-var ,result-form)
+                   (,fun ,var)))
+           (hash-table
+            (loop for ,var being the hash-keys of ,set
+               do (,fun ,var))))))))
 
 (defun finite-set-fold-range (function initial-value set)
   "Fold FUNCTION over range of SET with first argument INITIAL-VALUE."
@@ -141,6 +141,7 @@ RESULT: a finite set"
   "Return the number of elements in set."
   (etypecase set
     (sequence (length set))
+    (tree-set (tree-set-count set))
     (hash-table (hash-table-count set))))
 
 (defun finite-set-equal (a b)
@@ -149,6 +150,8 @@ RESULT: a finite set"
     ((and (listp a) (listp b))
      (and (null (set-difference a b :test #'equal))
           (null (set-difference b a :test #'equal))))
+    ((and (tree-set-p a) (tree-set-p b))
+     (tree-set-equal-p a b))
     ((hash-table-p a)
      (and (= (finite-set-length a)
              (finite-set-length b))
@@ -167,18 +170,45 @@ RESULT: a finite set"
 (defun finite-set-list (set)
   (etypecase set
     (list set)
+    (tree-set (map-tree-set 'list #'identity set))
     (hash-table (loop for k being the hash-keys of set collect k))))
+
+(defun finite-set-tree (set)
+  (etypecase set
+    (list (fold #'tree-set-insert (make-tree-set #'gsymbol-compare) set))
+    (tree-set set)
+    (hash-table
+     (let ((tree (make-tree-set #'gsymbol-compare)))
+       (loop for k being the hash-keys of set
+          do (setq tree (tree-set-insert tree k)))
+       tree))))
+
 
 (defun finite-set-inp (item set)
   "Is ITEM in SET?"
   (etypecase set
       (sequence
        (find item set :test #'equal))
+      (tree-set (tree-set-member-p set item))
       (hash-table
        (multiple-value-bind (val present)
            (gethash item set)
          (declare (ignore val))
          present))))
+
+(defun finite-set-empty-p (set)
+  (etypecase set
+    (null t)
+    (list set)
+    (tree-set (zerop (tree-set-count set)))
+    (hash-table (zerop (hash-table-count set)))))
+
+(defun finite-set-single-p (set)
+  (etypecase set
+    (list (and set
+               (null (cdr set))))
+    (tree-set (= 1 (tree-set-count set)))
+    (hash-table (= 1 (hash-table-count set)))))
 
 (defun finite-set-member (set item)
   "Is ITEM a member of SET?"
@@ -189,37 +219,54 @@ RESULT: a finite set"
   (cond
     ((and (listp set-1) (listp set-2))
      (subsetp set-1 set-2 :test #'equal))
-    (t (error "Can't operate on ~A and ~B" set-1 set-2))))
+    ((and (tree-set-p set-1)
+          (tree-set-p set-2))
+     (tree-set-subset-p set-1 set-2))
+    (t (error "Can't subset on ~A and ~B" set-1 set-2))))
 
 (defun finite-set-union (set-1 set-2)
   "Return the union of set-1 and set-2."
   (cond
+    ((null set-1) set-2)
+    ((null set-2) set-1)
     ((and (listp set-1) (listp set-2))
      (union set-1 set-2 :test #'equal))
-    (t (error "Can't operate on ~A and ~B" set-1 set-2))))
+    ((and (tree-set-p set-1)
+          (tree-set-p set-2))
+     (tree-set-union set-1 set-2))
+    (t (error "Can't union on ~A and ~B" set-1 set-2))))
 
 (defun finite-set-intersection (set-1 set-2)
   (cond
     ((and (listp set-1) (listp set-2))
      (intersection set-1 set-2 :test #'equal))
-    (t (error "Can't operate on ~A and ~B" set-1 set-2))))
+    ((and (tree-set-p set-1)
+          (tree-set-p set-2))
+     (tree-set-intersection set-1 set-2))
+    (t (error "Can't intersect on ~A and ~B" set-1 set-2))))
 
 (defun finite-set-difference (set-1 set-2)
   "Return the difference of set-1 and set-2."
   (cond
     ((and (listp set-1) (listp set-2))
      (set-difference set-1 set-2 :test #'equal))
-    (t (error "Can't operate on ~A and ~B" set-1 set-2))))
+    ((and (tree-set-p set-1)
+          (tree-set-p set-2))
+     (tree-set-difference set-1 set-2))
+    ((null set-2) set-1)
+    (t (error "Can't difference on ~A and ~B" set-1 set-2))))
 
 (defun finite-set-add (set item)
   "Return a new set containing ITEM and all members of SET."
   (etypecase set
-    (list (finite-set-union set (list item)))))
+    (list (finite-set-union set (list item)))
+    (tree-set (tree-set-insert set item))))
 
 (defun finite-set-nadd (set item)
   "Destructively return a new set containing ITEM and all members of SET."
   (etypecase set
     (list (finite-set-add set item))
+    (tree-set (tree-set-insert set item))
     (hash-table (setf (gethash item set)
                       t)
                 set)))
@@ -227,7 +274,8 @@ RESULT: a finite set"
 (defun finite-set-remove (set item)
   "Return a new set  all members of SET except item."
   (etypecase set
-    (list (finite-set-difference set (list item)))))
+    (list (finite-set-difference set (list item)))
+    (tree-set (tree-set-remove set item))))
 
 (defun finite-set-enumerate (set)
   "Return a function mapping from members of set to integers.

@@ -119,74 +119,76 @@
        (symbol 1)))
     (character
      (etypecase b
-       (number 0)
+       (number -1)
        (character (gsymbol-compare (char-code a) (char-code b)))
        (string 1)
        (symbol 1)))
     (string
      (etypecase b
-       (number 0)
-       (character 0)
+       (number -1)
+       (character -1)
        (string (cond ((string< a b) -1)
                      ((string> a b) 1)
                      (t 0)))
        (symbol 1)))
     (symbol
      (etypecase b
-       (number 0)
-       (character 0)
-       (string 0)
+       (number -1)
+       (character -1)
+       (string -1)
        (symbol (cond ((string< a b) -1)
                      ((string> a b) 1)
                      (t 0)))))))
 
-;; (defun gsymbol-compare (a b)
-;;   (etypecase a
-;;     (null (if b 1 0))
-;;     (atom (etypecase b
-;;             (null 1)
-;;             (atom (gsymbol-compare-atom a b))
-;;             (list -1)))
-;;     (list
-;;      (etypecase b
-;;        (atom 1)
-;;        (list (let ((c (gsymbol-compare (car a) (car b))))
-;;                (if (zerop c)
-;;                    (gsymbol-compare (cdr a) (cdr b))
-;;                    c)))))))
-
-
 (defun gsymbol-compare (a b)
-  (declare (type (or character list symbol string number)
-                 a b))
   (cond
-    ((equalp a b) 0)
-    ((and a (null b))
-     1)
-    ((and (null a) b)
-     -1)
-    ((and (listp a)
-          (listp b))
-     (let ((c (gsymbol-compare (car a) (car b))))
-       (if (zerop c)
-           (gsymbol-compare (cdr a) (cdr b))
-           c)))
-    ((listp a) 1)
-    ((listp b) -1)
-    ((and (numberp a) (numberp b))
-     (- a b))
-    ((numberp a) -1)
-    ((numberp b) 1)
-    ((string< (string a) (string b))
-     -1)
-    (t 1)))
+    ((null a) (if b -1 0))
+    ((atom a) (etypecase b
+                 (null 1)
+                 (atom (gsymbol-compare-atom a b))
+                 (list -1)))
+    ((listp a)
+     (etypecase b
+       (atom 1)
+       (list (let ((c (gsymbol-compare (car a) (car b))))
+               (if (zerop c)
+                   (gsymbol-compare (cdr a) (cdr b))
+                   c)))))))
+
+
+;; (defun gsymbol-compare (a b)
+;;   (declare (type (or character list symbol string number)
+;;                  a b))
+;;   (cond
+;;     ((equalp a b) 0)
+;;     ((and a (null b))
+;;      1)
+;;     ((and (null a) b)
+;;      -1)
+;;     ((and (listp a)
+;;           (listp b))
+;;      (let ((c (gsymbol-compare (car a) (car b))))
+;;        (if (zerop c)
+;;            (gsymbol-compare (cdr a) (cdr b))
+;;            c)))
+;;     ((listp a) 1)
+;;     ((listp b) -1)
+;;     ((and (numberp a) (numberp b))
+;;      (- a b))
+;;     ((numberp a) -1)
+;;     ((numberp b) 1)
+;;     ((string< (string a) (string b))
+;;      -1)
+;;     (t 1)))
 
 (defun gsymbol-predicate (a b)
   (< (gsymbol-compare a b) 0))
 
+(defun gsymbol-nsort (list)
+  (sort list #'gsymbol-predicate))
 
 (defun gsymbol-sort (list)
-  (sort (copy-list list) #'gsymbol-predicate))
+  (gsymbol-nsort (copy-list list)))
 
 ;;;;;;;;;
 ;; I/O ;;

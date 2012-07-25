@@ -36,6 +36,6 @@
 
 
 (defpackage :motion-grammar
-  (:use :cl)
+  (:use :cl :sycamore)
   (:nicknames :mg)
   (:export))

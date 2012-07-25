@@ -154,11 +154,13 @@ RESULT: (list edges start final)"
 
 (defun gnfa-rip (gnfa)
   (let ((start (fa-start gnfa))
-        (accept (fa-accept gnfa)))
-    (assert (= 1 (finite-set-length accept)))
+        (accept))
+    (assert (= 1 (finite-set-length (fa-accept gnfa))))
+    (do-finite-set (q (fa-accept gnfa))
+      (setq accept q))
     (do-finite-set (q (fa-states gnfa))
       (when (and (not (equal start q))
-                 (not (equal (car accept) q)))
+                 (not (equal accept q)))
         (return-from gnfa-rip q)))
     (error "couldn't find rip state")))
 

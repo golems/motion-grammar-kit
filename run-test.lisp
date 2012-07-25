@@ -48,6 +48,12 @@
       ((probe-file ql1)
        (load ql1)))))
 
+;; Try to add standard asdf place
+(pushnew (merge-pathnames ".asdf/systems/"
+           (user-homedir-pathname))
+         asdf:*central-registry*
+         :test #'equal)
+
 ;; Try to ASDF load this Package
 (require :asdf)
 

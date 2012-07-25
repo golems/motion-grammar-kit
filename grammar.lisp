@@ -662,7 +662,7 @@ RESULT: reduced grammar"
         (start (grammar-start-nonterminal grammar)))
     (labels ((visit (visited A)
                ;; fold over expansion bodies of A
-               (finite-set-fold (lambda (visited body)
+               (fold-finite-set (lambda (visited body)
                                   ;; fold over symbols of body
                                   (fold (lambda (visited x)
                                           (if (and (grammar-nonterminalp terminals nonterminals x)

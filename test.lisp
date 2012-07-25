@@ -48,13 +48,13 @@
 
 (defmacro test-fa (fa)
   `(progn
-     (lisp-unit:assert-equalp (fa-canonicalize-brzozowski ,fa)
-                              (fa-canonicalize-hopcroft ,fa))
+     (lisp-unit:assert-true (dfa-eq (fa-canonicalize-brzozowski ,fa)
+                                    (fa-canonicalize-hopcroft ,fa)))
      ;; check some identities
      (let ((universal (make-universal-fa (fa-terminals ,fa))))
        ;; f = u \cap f
-       (lisp-unit:assert-equalp (fa-canonicalize ,fa)
-                                (fa-canonicalize (fa-intersection universal ,fa)))
+       (lisp-unit:assert-true (dfa-eq (fa-canonicalize ,fa)
+                                      (fa-canonicalize (fa-intersection universal ,fa))))
        ;; u = f \cup \not f
        (lisp-unit:assert-true (fa-universal-p (fa-union ,fa (fa-complement ,fa))))
        ;; \emptyset = f \cap \not f
@@ -65,15 +65,15 @@
      ;; check minimization matches
      (test-fa (regex->nfa ,regex))
      ;; check equivalent regexes
-     (lisp-unit:assert-equalp (regex->dfa ,regex)
-                              (regex->dfa (fa->regex (regex->dfa ,regex))))))
+     (lisp-unit:assert-true (dfa-eq (regex->dfa ,regex)
+                                    (regex->dfa (fa->regex (regex->dfa ,regex)))))))
 
 (defmacro test-regex-min-fa (regex min-fa)
   `(progn
      (test-regex ,regex)
      (test-fa ,min-fa)
-     (lisp-unit:assert-equalp (dfa-renumber ,min-fa)
-                              (regex->dfa ,regex))))
+     (lisp-unit:assert-true (dfa-eq (dfa-renumber ,min-fa)
+                                    (regex->dfa ,regex)))))
 
 (defmacro test-regex-fa (regex fa)
   `(progn
@@ -83,10 +83,10 @@
 
 (defmacro test-fa-min-fa (fa min-fa)
   `(progn
-     (lisp-unit:assert-equalp (dfa-renumber ,min-fa)
-                              (fa-canonicalize-hopcroft ,fa))
-     (lisp-unit:assert-equalp (dfa-renumber ,min-fa)
-                              (fa-canonicalize-brzozowski ,fa))))
+     (lisp-unit:assert-true (dfa-eq (dfa-renumber ,min-fa)
+                                    (fa-canonicalize-hopcroft ,fa)))
+     (lisp-unit:assert-true (dfa-eq (dfa-renumber ,min-fa)
+                                    (fa-canonicalize-brzozowski ,fa)))))
 
 (lisp-unit:define-test dfa-minimize
   (test-fa-min-fa (make-fa '((0 a 1) (1 b 2) (2 a 1)) 0 (finite-set 1))
