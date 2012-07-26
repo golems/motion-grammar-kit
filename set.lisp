@@ -205,9 +205,9 @@ RESULT: a finite set"
 
 (defun finite-set-single-p (set)
   (etypecase set
+    (tree-set (= 1 (the fixnum (tree-set-count set))))
     (list (and set
                (null (cdr set))))
-    (tree-set (= 1 (tree-set-count set)))
     (hash-table (= 1 (hash-table-count set)))))
 
 (defun finite-set-member (set item)

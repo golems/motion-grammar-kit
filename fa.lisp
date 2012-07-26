@@ -405,9 +405,11 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                                   fa
                                   (nfa->dfa fa))
                               reject))
-         (p (list (fa-accept dfa)
-                  (finite-set-difference (fa-states dfa)
-                                         (fa-accept dfa)))))
+         (p (list  nil
+                   (fa-accept dfa)
+                   (finite-set-difference (fa-states dfa)
+                                          (fa-accept dfa))))
+         (p-single))
     ;; build minimal states
     ;; Note: CLISP 2.48 seemingly can't handle LOOP here
     (do ((q (finite-set (fa-accept dfa)))
@@ -421,30 +423,35 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                                     (finite-set-union x (funcall imover q c)))
                                   nil a)))
           (when x
-            ;;(format t "~&x: ~A~&" x)
-            (loop for yy on p
-               for y = (car yy)
-               ;; subset of y transitioning to a on c
-               for i = (and (not (finite-set-single-p y)) ;; can't split singletons, big speedup
-                            (finite-set-intersection y x))
-               ;; subset of y transitioning to (not a) on c
-               for j = (and i (finite-set-difference y x))
-               when (and (not (finite-set-empty-p i))
-                         (not (finite-set-empty-p j)))
-               do
-                 ;;(format t "~&i: ~A~&j: ~A~&" i j)
-                 (when (< (finite-set-length j) (finite-set-length i))
-                   (rotatef i j))  ; i is smaller
-                 (assert (<= (finite-set-length i) (finite-set-length j)))
-                 ;; insert into q
-                 (loop for zz on q
-                    when (finite-set-equal y (car zz))
-                    do (rplaca zz j))
-                 (push i q)
-                 ;; insert into p
-                 (rplaca yy i)
-                 (rplacd yy (cons j (cdr yy))))))))
-    ;;(format t "~&~A" p)
+            (do* ((yyy p)
+                  (yy (cdr yyy) (cdr yyy)))
+                 ((null yy))
+              (let ((y (car yy)))
+                (if (finite-set-single-p y)
+                    (progn ;; optmization: stop checking singleton partitions
+                      (push y p-single)
+                      (rplacd yyy (cdr yy)))
+                    (let ((i (finite-set-intersection y x)))
+                      (unless (finite-set-empty-p i)
+                        (let ((j (finite-set-difference y x)))
+                          (unless (finite-set-empty-p j) ;; two new partitions
+                            ;; ensure i is the smaller partition
+                            (when (< (finite-set-length j) (finite-set-length i))
+                              (rotatef i j))
+                            (assert (<= (finite-set-length i) (finite-set-length j)))
+                            ;; insert partitions into q
+                            (loop for zz on q
+                               when (finite-set-equal y (car zz))
+                               do (rplaca zz j))
+                            (push i q)
+                            ;; insert partitions into p, right here
+                            (rplaca yy i)
+                            (rplacd yy (cons j (cdr yy))))))
+                      ;; Increment loop
+                      (setq yyy (cdr yyy))))))))))
+    (dolist (p0 p-single)
+      (assert (finite-set-single-p p0)))
+    (setq p (nconc p-single (cdr p)))
     (assert (= (finite-set-length (fa-states dfa))
                (loop for part in p summing (finite-set-length part))))
     (assert (finite-set-equal  (fold #'finite-set-union nil p)
