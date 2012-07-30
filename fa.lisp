@@ -412,9 +412,10 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
          (p-single))
     ;; build minimal states
     ;; Note: CLISP 2.48 seemingly can't handle LOOP here
-    (do ((q (finite-set (fa-accept dfa)))
+    (do ((q (make-finite-set :compare #'gsymbol-compare))
          (imover (nfa-reverse-mover dfa))
-         (a (fa-accept dfa) (pop q)))
+         (a (fa-accept dfa) (multiple-value-bind (q1 a1) (tree-set-remove-min q)
+                              (setq q q1) a1)))
         ((null a))
          ;;(format t "~&p: ~A~&" p)
       (do-finite-set (c (fa-terminals dfa))
@@ -439,11 +440,11 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                             (when (< (finite-set-length j) (finite-set-length i))
                               (rotatef i j))
                             (assert (<= (finite-set-length i) (finite-set-length j)))
+
                             ;; insert partitions into q
-                            (loop for zz on q
-                               when (finite-set-equal y (car zz))
-                               do (rplaca zz j))
-                            (push i q)
+                            (multiple-value-bind (q1 y1) (tree-set-remove q y)
+                              (when y1 (setq q (tree-set-insert q1 j))))
+                            (setq q (tree-set-insert q i))
                             ;; insert partitions into p, right here
                             (rplaca yy i)
                             (rplacd yy (cons j (cdr yy))))))

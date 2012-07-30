@@ -116,13 +116,15 @@
                      (t 0)))
        (character 1)
        (string 1)
-       (symbol 1)))
+       (symbol 1)
+       (tree-set 1)))
     (character
      (etypecase b
        (number -1)
        (character (gsymbol-compare (char-code a) (char-code b)))
        (string 1)
-       (symbol 1)))
+       (symbol 1)
+       (tree-set 1)))
     (string
      (etypecase b
        (number -1)
@@ -130,7 +132,8 @@
        (string (cond ((string< a b) -1)
                      ((string> a b) 1)
                      (t 0)))
-       (symbol 1)))
+       (symbol 1)
+       (tree-set 1)))
     (symbol
      (etypecase b
        (number -1)
@@ -138,16 +141,24 @@
        (string -1)
        (symbol (cond ((string< a b) -1)
                      ((string> a b) 1)
-                     (t 0)))))))
+                     (t 0)))
+       (tree-set 1)))
+    (tree-set
+     (etypecase b
+       (number -1)
+       (character -1)
+       (string -1)
+       (symbol -1)
+       (tree-set (tree-set-compare a b))))))
 
 (defun gsymbol-compare (a b)
-  (cond
-    ((null a) (if b -1 0))
-    ((atom a) (etypecase b
-                 (null 1)
-                 (atom (gsymbol-compare-atom a b))
-                 (list -1)))
-    ((listp a)
+  (etypecase a
+    (null (if b -1 0))
+    (atom (etypecase b
+            (null 1)
+            (atom (gsymbol-compare-atom a b))
+            (list -1)))
+    (cons
      (etypecase b
        (atom 1)
        (list (let ((c (gsymbol-compare (car a) (car b))))
