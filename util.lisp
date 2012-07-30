@@ -38,6 +38,7 @@
 
 (in-package :motion-grammar)
 
+;;(declaim (optimize (speed 3) (safety 0)))
 
 (defun intersectionp (a b &optional (test #'eql))
   (map nil (lambda (a)
@@ -66,14 +67,17 @@
 
 (defun curry (function arg0)
   "Return a new unary function which applies arg0 as leftmost argument of FUNCTION."
+  (declare (type function function))
   (lambda (arg1) (funcall function arg0 arg1)))
 
 (defun curry-right (function arg1)
   "Return a new unary function which applies arg0 as rightmost argument of FUNCTION."
+  (declare (type function function))
   (lambda (arg0) (funcall function arg0 arg1)))
 
 (defun curry-list (function arg0 &rest more-args)
   "Return a new vararg function which applies ARG0 and MORE-ARGS as leftmost arguments of FUNCTION."
+  (declare (type function function))
   (let ((helper (lambda (&rest final-args)
                    (apply function arg0 final-args))))
     (if more-args
@@ -85,11 +89,12 @@
 (defun chain (value &rest functions)
   (if functions
       (apply #'chain
-             (funcall (car functions) value)
+             (funcall (the function (car functions)) value)
              (cdr functions))
       value))
 
 (defun fold (function initial-value &rest lists)
+  (declare (type function function))
   (let ((value initial-value))
     (apply #'map nil
            (lambda (&rest args)
@@ -109,9 +114,9 @@
 
 (defun gsymbol-compare-atom (a b)
   (etypecase a
-    (number
+    (fixnum
      (etypecase b
-       (number (cond ((< a b) -1)
+       (fixnum (cond ((< a b) -1)
                      ((> a b) 1)
                      (t 0)))
        (character 1)
@@ -120,14 +125,14 @@
        (tree-set 1)))
     (character
      (etypecase b
-       (number -1)
+       (fixnum -1)
        (character (gsymbol-compare (char-code a) (char-code b)))
        (string 1)
        (symbol 1)
        (tree-set 1)))
     (string
      (etypecase b
-       (number -1)
+       (fixnum -1)
        (character -1)
        (string (cond ((string< a b) -1)
                      ((string> a b) 1)
@@ -136,7 +141,7 @@
        (tree-set 1)))
     (symbol
      (etypecase b
-       (number -1)
+       (fixnum -1)
        (character -1)
        (string -1)
        (symbol (cond ((string< a b) -1)
@@ -145,7 +150,7 @@
        (tree-set 1)))
     (tree-set
      (etypecase b
-       (number -1)
+       (fixnum -1)
        (character -1)
        (string -1)
        (symbol -1)
@@ -162,6 +167,7 @@
      (etypecase b
        (atom 1)
        (list (let ((c (gsymbol-compare (car a) (car b))))
+               (declare (type fixnum c))
                (if (zerop c)
                    (gsymbol-compare (cdr a) (cdr b))
                    c)))))))
@@ -193,7 +199,7 @@
 ;;     (t 1)))
 
 (defun gsymbol-predicate (a b)
-  (< (gsymbol-compare a b) 0))
+  (< (the fixnum (gsymbol-compare a b)) 0))
 
 (defun gsymbol-nsort (list)
   (sort list #'gsymbol-predicate))
@@ -215,6 +221,7 @@
        collect (ppcre:split scanner line))))
 
 (defun output-function (function &optional output)
+  (declare (type function function))
   (cond
     ((streamp output)
      (funcall function output))

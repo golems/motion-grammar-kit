@@ -75,15 +75,15 @@ FUNCTION: (lambda (q-0 z q-1))"
 
 (defun make-fa (edges start accept)
   (declare (type finite-set accept))
-  (let ((state-set (make-finite-set :compare #'gsymbol-compare))
-        (terminal-set (make-finite-set :compare #'gsymbol-compare)))
+  (let ((state-set (make-finite-set :mutable t))     ; faster to build up the hash-table first
+        (terminal-set (make-finite-set :mutable t))) ; then convert to the tree-set
     (loop for (q0 z q1) in edges
        do
          (setq state-set (finite-set-nadd state-set q0))
          (setq state-set (finite-set-nadd state-set q1))
          (setq terminal-set (finite-set-nadd terminal-set z)))
-    (%make-fa :states state-set
-              :terminals terminal-set
+    (%make-fa :states (finite-set-tree state-set)
+              :terminals (finite-set-tree terminal-set)
               :edges edges
               :start start
               :accept (finite-set-tree accept))))
@@ -245,15 +245,15 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                            (finite-set-nadd closure q)))))
   closure)
 
-(defun nfa-move-e-closure (states z mover)
+(defun nfa-move-e-closure (states z mover &optional
+                           (closure (make-finite-set :mutable t)))
   "epsilon-closure of list STATES transitioned by token Z.
 STATES: list of states
 Z: token
 MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
-  (let ((closure (make-finite-set :mutable t)))
-    (do-finite-set (q0 states)
-      (nfa-e-closure (funcall mover q0 z) mover closure))
-    closure))
+  (do-finite-set (q0 states)
+    (nfa-e-closure (funcall mover q0 z) mover closure))
+  closure)
 
 (defun nfa-start-closure (nfa &optional (mover (nfa-mover nfa)))
   (let ((start-0 (nfa-e-closure (list (fa-start nfa)) mover)))
@@ -276,6 +276,7 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
   "Convert an NFA to a DFA"
   (let* ((mover (nfa-mover nfa))
          (hash (make-hash-table :test #'equal))
+         (closure-set (make-finite-set :mutable t)) ;; reuse this object
          ;; eliminate useless NFA start states
          (start (nfa-start-closure nfa mover))
          (terminals (finite-set-remove (fa-terminals nfa) :epsilon))
@@ -285,7 +286,9 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                (unless (gethash q hash)
                  (setf (gethash q hash) t)
                  (do-finite-set (z terminals)
-                   (let ((u (gsymbol-sort (finite-set-list (nfa-move-e-closure q z mover)))))
+                   (let ((u (gsymbol-sort (finite-set-list (nfa-move-e-closure q z
+                                                                               mover
+                                                                               (clrhash closure-set))))))
                      (when u
                        ;;(assert (null (finite-set-difference u (nfa-e-closure u mover))))
                        (push (list q z u) edges)
@@ -410,6 +413,7 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                    (finite-set-difference (fa-states dfa)
                                           (fa-accept dfa))))
          (p-single))
+    ;;(format t "~&Hopcroft start: ~D~&" (finite-set-length (fa-states dfa)))
     ;; build minimal states
     ;; Note: CLISP 2.48 seemingly can't handle LOOP here
     (do ((q (make-finite-set :compare #'gsymbol-compare))
@@ -453,6 +457,7 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
     (dolist (p0 p-single)
       (assert (finite-set-single-p p0)))
     (setq p (nconc p-single (cdr p)))
+    ;;(format t "~&Hopcroft end: ~D~&" (length p))
     (assert (= (finite-set-length (fa-states dfa))
                (loop for part in p summing (finite-set-length part))))
     (assert (finite-set-equal  (fold #'finite-set-union nil p)
@@ -617,7 +622,7 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                    (let ((qq (list q1 q2))
                          (zz-1 (funcall out-1 q1))
                          (zz-2 (funcall out-2 q2)))
-                     (setf visited (finite-set-nadd visited (list q1 q2))) ;; mark state visited
+                     (setf visited (finite-set-nadd visited qq)) ;; mark state visited
                      ;; map over outgoing terminals from the compound state
                      (finite-set-map 'nil
                                      (lambda (z)
@@ -680,6 +685,16 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                                                       (fa-accept fa1))))))))
 
 
+(defun random-fa (state-count terminal-count &optional
+                  (edge-count  (truncate (/ (* state-count terminal-count) 4)))
+                  (accept-count (1+ (truncate (/ state-count 100)))))
+  (%make-fa :states  (finite-set-tree (loop for i below state-count collect i))
+            :terminals  (finite-set-tree (loop for i below terminal-count collect i))
+            :edges (loop for i below edge-count
+                      collect (list (random state-count) (random terminal-count) (random state-count)))
+            :start 0
+            :accept (finite-set-tree (loop for i below accept-count
+                                              collect (random state-count)))))
 
 ;;;;;;;;;;;;;;
 ;;; OUTPUT ;;;
