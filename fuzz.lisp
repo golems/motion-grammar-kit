@@ -41,6 +41,11 @@
 (defvar *fuzz-counts*)
 
 (defun fuzz-test (name test-function)
+"Call TEST-FUNCTION with no arguments.  If result is true, mark
+successful test.  If result is false, print an error message.
+NAME: name of thest test
+TEST-FUNCTION: (lambda ()) => (or nil RESULT)
+RESULT: the result of TEST-FUNCTION"
   (declare (type function test-function)
            (type symbol name))
   (let ((result (handler-case (funcall test-function)
@@ -51,7 +56,8 @@
     (if result
         (when *fuzz-counts*
           (incf (gethash name *fuzz-counts* 0)))
-        (pprint `(:fail ,name :input ,*fuzz-input*) *fuzz-log*))))
+        (pprint `(:fail ,name :input ,*fuzz-input*) *fuzz-log*))
+    result))
 
 ;; TODO: catch assertions and conditions
 (defun perform-fuzz (generator tester &key
@@ -68,30 +74,49 @@
              ,(loop for k being the hash-keys of *fuzz-counts*
                  collect (list k (gethash k *fuzz-counts*)))))))
 
+
 (defun fa-fuzz-generator ()
-  (random-fa (+ 1 (random 8))
-             (+ 1 (random 8))))
+  (random-fa (+ 1 (random 6))
+             3))
+
+(defun curry0 (function arg)
+  (lambda () (funcall function arg)))
 
 (defun fa-fuzz-tester (fa)
-  (fuzz-test 'hopcroft-dfa
-             (lambda () (dfap (fa-canonicalize-hopcroft fa))))
-  (fuzz-test 'brzozowski-dfa
-             (lambda () (dfap (fa-canonicalize-brzozowski fa))))
+  ;; first, get the minimal forms
+  (let ((hop (fuzz-test 'hopcroft (curry-list #'fa-canonicalize-hopcroft fa)))
+        (brz (fuzz-test 'brzozowski (curry-list #'fa-canonicalize-brzozowski fa))))
+    ;; check hopcroft
+    (when hop
+      (fuzz-test 'hopcroft-dfa
+                 (curry-list #'dfap hop))
 
-  (fuzz-test 'hopcroft-terminals
-             (lambda () (finite-set-equal (fa-terminals fa)
-                                     (fa-terminals (fa-canonicalize-hopcroft fa)))))
-  (fuzz-test 'brzozowski-terminals
-             (lambda () (finite-set-equal (fa-terminals fa)
-                                     (fa-terminals (fa-canonicalize-brzozowski fa)))))
+      (fuzz-test 'hopcroft-terminals
+                 (lambda () (finite-set-equal (fa-terminals fa) (fa-terminals hop)))))
+    ;; check brzozowski
+    (when brz
+      (fuzz-test 'brzozowski-dfa
+                 (curry-list #'dfap brz))
+      (fuzz-test 'brzozowski-terminals
+                 (lambda () (finite-set-equal (fa-terminals fa) (fa-terminals brz)))))
+    ;; check that they match
+    (when (and hop brz)
+      (fuzz-test 'hopcroft-brzozowski-equal
+                 (curry-list #'dfa-eq hop brz)))
 
-  (fuzz-test 'hopcroft-brzozowski-equal
-             (lambda () (dfa-eq (fa-canonicalize-brzozowski fa)
-                           (fa-canonicalize-hopcroft  fa))))
-
-)
-
-
+    ;; check some other properties
+    (when hop
+      (let ((universal (make-universal-fa (fa-terminals fa))))
+        ;; f = u \cap f
+        (fuzz-test 'union-universal
+                   (lambda () (dfa-eq hop
+                                 (fa-canonicalize (fa-intersection universal hop)))))
+        ;; u = f \cup \not f
+        (fuzz-test 'union-complement
+                   (lambda () (fa-universal-p (fa-union hop (fa-complement fa)))))
+        ;; \emptyset = f \cap \not f
+        (fuzz-test 'intersection-complement
+                   (lambda () (fa-empty-p (fa-intersection hop (fa-complement fa)))))))))
 
 
 (defun fa-fuzz-formatter (fa)
@@ -106,7 +131,15 @@
     (assert (eq :fa fa))
     (make-fa-1 states terminals edges start accept)))
 
-(defun fa-fuzz (&optional (count 1))
-  (perform-fuzz #'fa-fuzz-generator #'fa-fuzz-tester
+(defun fa-fuzz (&key
+                (count 1)
+                (state-count 8)
+                (terminal-count 4)
+                (randomize-counts t))
+  (perform-fuzz (if randomize-counts
+                    (lambda () (random-fa state-count terminal-count))
+                    (lambda () (random-fa (1+ (random (1- state-count)))
+                                     (1+ (random (1- terminal-count))))))
+                #'fa-fuzz-tester
                 :formatter #'fa-fuzz-formatter
                 :count count))

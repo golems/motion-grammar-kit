@@ -48,6 +48,7 @@
 
 (defmacro test-fa (fa)
   `(progn
+     (lisp-unit:assert-true (dfap (fa-minimize-hopcroft ,fa)))
      (lisp-unit:assert-true (dfa-eq (fa-canonicalize-brzozowski ,fa)
                                     (fa-canonicalize-hopcroft ,fa)))
      ;; check some identities
@@ -108,6 +109,34 @@
   (test-fa (make-fa '((1 1 1)) 0 '(1)))
   (test-fa  (make-fa '((0 0 1) (1 1 2) (2 0 1) (2 2 3) (3 0 4) (4 1 2) (4 0 5))
                                             0 '(1 4)))
+
+  ;;;;
+ (test-fa (fa-fuzz-deformatter  '(:fa :states (0 1 2 3 4) :terminals (0 1 2) :edges
+                                  ((3 0 2) (3 1 3) (2 0 4) (3 2 2) (0 0 1) (0 1 1) (3 1 3) (1 1 2) (2 1 0)
+                                   (0 1 2) (0 0 4) (1 0 3) (4 2 1))
+                                  :start 0 :accept (0 4))))
+
+  (test-fa (fa-fuzz-deformatter
+            '(:fa :states (0 1 2 3 4 5 6) :terminals (0 1 2 3) :edges
+              ((1 3 4) (0 1 3) (1 2 1) (5 1 4) (0 2 2) (1 1 0) (4 2 6) (3 1 0) (6 0 0)
+               (0 0 3) (0 0 1) (5 2 2) (6 1 1) (5 2 5) (3 0 6) (1 1 5) (0 1 2) (6 3 6)
+               (4 1 5) (0 2 4) (2 1 4) (2 3 0) (6 2 3) (4 2 1) (5 3 4) (0 3 0)
+               (2 0 4))
+              :start 0 :accept (0 1))))
+
+  (test-fa (fa-fuzz-deformatter
+            '(:fa :states (0 1 2 3 4 5 6) :terminals (0 1 2 3) :edges
+              ((1 3 4) (0 1 3) (1 2 1) (5 1 4) (0 2 2) (1 1 0) (4 2 6) (3 1 0) (6 0 0)
+               (0 0 3) (0 0 1) (5 2 2) (6 1 1) (5 2 5) (3 0 6) (1 1 5) (0 1 2) (6 3 6)
+               (4 1 5) (0 2 4) (2 1 4) (2 3 0) (6 2 3) (4 2 1) (5 3 4) (0 3 0)
+               (2 0 4))
+              :start 0 :accept (0 1))))
+
+  (test-fa (fa-fuzz-deformatter '(:fa :states (0 1 2 3 4) :terminals (0 1 2) :edges
+                                  ((2 1 1) (2 0 3) (2 1 2) (1 1 4) (4 1 0) (3 1 1) (4 2 4) (3 2 2) (0 1 1)
+                                   (4 0 0) (1 2 3) (0 1 3) (0 0 2))
+                                  :start 0 :accept (1 4))))
+
 
   )
 

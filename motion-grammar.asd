@@ -50,4 +50,5 @@
                (:file "grammar" :depends-on ("package" "set" "util"))
                (:file "parse" :depends-on ("package" "set" "util" "grammar"))
                (:file "graph" :depends-on ("package"))
+               (:file "fuzz" :depends-on ("fa" "set" "util"))
                ))

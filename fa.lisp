@@ -430,8 +430,7 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
           () "Partition states don't sum to initial states")
   (assert (finite-set-equal  (fold #'finite-set-union nil p)
                              (fa-states dfa)))
-  (let* ((p (loop for x in p
-               collect (finite-set-list x)))
+  (let* ((p (map 'list #'finite-set-list p))
          (state-hash (let ((hash (make-hash-table :test #'equal)))
                        (dolist (e p)
                          (dolist (q0 e)
@@ -457,23 +456,21 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                                                  (make-finite-set :compare #'gsymbol-compare)
                                                  (fa-accept dfa))))))
 
-
 (defun fa-hopcroft-partition (dfa)
+  (assert (dfap dfa))
   (let ((p (list  nil
                   (fa-accept dfa)
                   (finite-set-difference (fa-states dfa)
                                          (fa-accept dfa))))
         (p-single))
-    ;;(print dfa)
-    ;;(format t "~&Hopcroft start: ~D~&" (finite-set-length (fa-states dfa)))
     ;; build minimal states
     ;; Note: CLISP 2.48 seemingly can't handle LOOP here
     (do ((q (make-finite-set :compare #'gsymbol-compare))
          (imover (nfa-reverse-mover dfa))
-         (a (fa-accept dfa) (multiple-value-bind (q1 a1) (tree-set-remove-min q)
-                              (setq q q1) a1)))
+         (a (finite-set-min-set (second p) (third p))
+            (multiple-value-bind (q1 a1) (tree-set-remove-min q)
+              (setq q q1) a1)))
         ((null a))
-                                        ;(format t "~&p: ~A~&" p)
       (do-finite-set (c (fa-terminals dfa))
         ;; x: predecessors of a for token c
         (let ((x (fold-finite-set (lambda (x q)
@@ -493,16 +490,14 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                         (let ((j (finite-set-difference y x)))
                           (unless (finite-set-empty-p j) ;; two new partitions
                             ;;(format t "~&~%i: ~A~&j: ~A~&" i j)
-                            ;; ensure i is the smaller partition
-                            (when (< (finite-set-length j) (finite-set-length i))
-                              (rotatef i j))
-                            (assert (<= (finite-set-length i) (finite-set-length j)))
-
                             ;; insert partitions into q
-                            (multiple-value-bind (q1 y1) (tree-set-remove q y)
-                              (when y1 (setq q (tree-set-insert q1 j))))
-                            (setq q (tree-set-insert q i))
-                            ;; insert partitions into p, right here
+                            (if (finite-set-inp y q)
+                                ;; add both
+                                (setq q
+                                      (tree-set-insert (tree-set-insert (tree-set-remove q y) i) j))
+                                ;; add smaller
+                                (setq q (tree-set-insert q (finite-set-min-set i j))))
+                            ;; insert partitions into p, right here, destructively
                             (rplaca yy i)
                             (rplacd yy (cons j (cdr yy))))))
                       ;; Increment loop
@@ -519,9 +514,9 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
   ;;       make implicit somehow
   ;(declare (optimize (speed 3) (safety 0)))
   (let* ((reject (gensym "reject"))
-         (dfa (dfa-add-reject (if (dfap fa)
-                                  fa
-                                  (nfa->dfa fa))
+         (dfa (dfa-add-reject (fa-prune (if (dfap fa)
+                                            fa
+                                            (nfa->dfa fa)))
                               reject)))
     (let ((p (fa-hopcroft-partition dfa)))
       (fa-hopcroft-create dfa p reject))))
@@ -727,16 +722,16 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                                                       (fa-accept fa1))))))))
 
 
-(defun random-fa (state-count terminal-count &optional
-                  (edge-count  (truncate (/ (* state-count terminal-count) 4)))
-                  (accept-count (1+ (truncate (/ state-count 100)))))
-  (%make-fa :states  (finite-set-tree (loop for i below state-count collect i))
-            :terminals  (finite-set-tree (loop for i below terminal-count collect i))
-            :edges (loop for i below edge-count
-                      collect (list (random state-count) (random terminal-count) (random state-count)))
-            :start 0
-            :accept (finite-set-tree (loop for i below accept-count
-                                              collect (random state-count)))))
+(defun random-fa (state-count terminal-count &key
+                  (edge-count  (random (* state-count terminal-count)))
+                  (accept-count (random state-count)))
+  (make-fa-1 (loop for i below state-count collect i)
+             (loop for i below terminal-count collect i)
+             (loop for i below edge-count
+                collect (list (random state-count) (random terminal-count) (random state-count)))
+             0
+             (loop for i below accept-count
+                collect (random state-count))))
 
 ;;;;;;;;;;;;;;
 ;;; OUTPUT ;;;

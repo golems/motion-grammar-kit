@@ -144,6 +144,12 @@ RESULT: a finite set"
     (tree-set (tree-set-count set))
     (hash-table (hash-table-count set))))
 
+(defun finite-set-min-set (set1 set2)
+  (if (< (finite-set-length set1)
+         (finite-set-length set2))
+      set1
+      set2))
+
 (defun finite-set-equal (a b)
   "Are sets A and B equal?"
   (cond
