@@ -88,6 +88,29 @@
      (lisp-unit:assert-true (dfa-eq (dfa-renumber ,min-fa)
                                     (fa-canonicalize-brzozowski ,fa)))))
 
+
+(lisp-unit:define-test fa-regression
+  ;; no edges to start state, start in accept
+  (lisp-unit:assert-true (dfap (fa-canonicalize-hopcroft (make-fa '((1 0 0) (1 0 2)) 0 '(0)))))
+  (lisp-unit:assert-true (dfa-eq (fa-canonicalize-brzozowski (make-fa-1 '(0) '(0)
+                                                                       nil 0 '(0)))
+                                 (fa-canonicalize-hopcroft (make-fa '((1 0 0) (1 0 2)) 0 '(0)))))
+
+  (lisp-unit:assert-true (let ((fa (make-fa '((3 0 0)) 0  '(0))))
+                           (dfa-eq (fa-canonicalize-hopcroft fa)
+                                   (fa-canonicalize-brzozowski fa))))
+
+  ;; token sets for empty fa
+  (lisp-unit:assert-true (fa-empty-p (fa-canonicalize-brzozowski (make-fa '((1 1 1)) 0 '(1)))))
+  (lisp-unit:assert-true (fa-empty-p (fa-canonicalize-hopcroft (make-fa '((1 1 1)) 0 '(1)))))
+
+  ;;
+  (test-fa (make-fa '((1 1 1)) 0 '(1)))
+  (test-fa  (make-fa '((0 0 1) (1 1 2) (2 0 1) (2 2 3) (3 0 4) (4 1 2) (4 0 5))
+                                            0 '(1 4)))
+
+  )
+
 (lisp-unit:define-test dfa-minimize
   (test-fa-min-fa (make-fa '((0 a 1) (1 b 2) (2 a 1)) 0 (finite-set 1))
                   (make-fa '((0 a 1) (1 b 0)) 0 (finite-set 1)))

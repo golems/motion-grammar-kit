@@ -73,20 +73,34 @@ FUNCTION: (lambda (q-0 z q-1))"
       do ,@body))
 
 
+(defun make-fa-1 (states terminals edges start accept)
+  (%make-fa :states (finite-set-tree states)
+            :terminals (finite-set-tree terminals)
+            :edges edges
+            :start start
+            :accept (finite-set-tree accept)))
+
+
 (defun make-fa (edges start accept)
   (declare (type finite-set accept))
   (let ((state-set (make-finite-set :mutable t))     ; faster to build up the hash-table first
         (terminal-set (make-finite-set :mutable t))) ; then convert to the tree-set
+    ;; edge states
     (loop for (q0 z q1) in edges
        do
          (setq state-set (finite-set-nadd state-set q0))
          (setq state-set (finite-set-nadd state-set q1))
          (setq terminal-set (finite-set-nadd terminal-set z)))
-    (%make-fa :states (finite-set-tree state-set)
-              :terminals (finite-set-tree terminal-set)
-              :edges edges
-              :start start
-              :accept (finite-set-tree accept))))
+    ;; start state
+    (setq state-set (finite-set-nadd state-set start))
+    (make-fa-1 state-set terminal-set edges start accept)))
+
+    ;; (%make-fa :states (finite-set-tree state-set)
+    ;;           :terminals (finite-set-tree terminal-set)
+    ;;           :edges edges
+    ;;           :start start
+    ;;           :accept (finite-set-tree accept))))
+
 
 ;;;;;;;;;;;;;;
 ;; INDEXING ;;
@@ -211,10 +225,12 @@ RESULT: (lambda (state)) => (finite-set terminals)"
 
 (defun fa-reverse (fa &optional (unique (gensym)))
   (let ((new-start (gsymbol-gen "start" unique)))
-    (make-fa (append (finite-set-map 'list (lambda (a) (list new-start :epsilon a)) (fa-accept fa))
-                     (map 'list #'reverse (fa-edges fa)))
-             new-start
-             (finite-set (fa-start fa)))))
+    (make-fa-1 (finite-set-add (fa-states fa) new-start)
+               (finite-set-add (fa-terminals fa) :epsilon)
+               (append (finite-set-map 'list (lambda (a) (list new-start :epsilon a)) (fa-accept fa))
+                       (map 'list #'reverse (fa-edges fa)))
+               new-start
+               (finite-set (fa-start fa)))))
 
 
 (defun fa-canonicalize (fa)
@@ -295,13 +311,16 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                        (subset u)))))))
       (subset start))
     ;; result
-    (let ((fa (make-fa edges
-                       start
-                       (loop
-                          with a-list = (finite-set-list (fa-accept nfa))
-                          for q being the hash-keys of hash
-                          when (finite-set-intersection a-list q)
-                          collect (finite-set-list q)))))
+    (let ((fa (%make-fa :states (finite-set-tree hash)
+                        :terminals (finite-set-remove (finite-set-tree (fa-terminals nfa)) :epsilon)
+                        :edges edges
+                        :start start
+                        :accept (finite-set-tree
+                                 (loop
+                                    with a-list = (finite-set-list (fa-accept nfa))
+                                    for q being the hash-keys of hash
+                                    when (finite-set-intersection a-list q)
+                                    collect (finite-set-list q))))))
       ;(assert (dfap fa))
       fa)))
 
@@ -365,12 +384,18 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                                  (make-finite-set :compare #'gsymbol-compare)
                                  (fa-states fa))))
       (if (finite-set-inp (fa-start fa) live)
-          (make-fa (loop for (q0 z q1) in (fa-edges fa)
-                      when (and (finite-set-inp q0 live)
-                                (finite-set-inp q1 live))
-                      collect (list q0 z q1))
-                   (fa-start fa)
-                   (finite-set-intersection live (fa-accept fa)))
+          (%make-fa :states (fold-finite-set (lambda (set x)
+                                               (if (finite-set-inp x live-rev)
+                                                   (finite-set-add set x)
+                                                   set))
+                                             (make-finite-set :compare #'gsymbol-compare) live-fwd)
+                    :terminals (fa-terminals fa)
+                    :edges (loop for (q0 z q1) in (fa-edges fa)
+                              when (and (finite-set-inp q0 live)
+                                        (finite-set-inp q1 live))
+                              collect (list q0 z q1))
+                    :start (fa-start fa)
+                    :accept (finite-set-intersection live (fa-accept fa)))
           (%make-fa :terminals (fa-terminals fa)
                     :states '(0)
                     :edges nil
@@ -381,8 +406,9 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
   "Add explicit reject state to the dfa."
   (let ((mover (dfa-mover dfa))
         (edges (fa-edges dfa)))
-    (do-finite-set (q (fa-states dfa))
-      (do-finite-set (z (fa-terminals dfa))
+    (do-finite-set (z (fa-terminals dfa))
+      (push (list reject z reject) edges)
+      (do-finite-set (q (fa-states dfa))
         (unless (funcall mover q z)
           (push (list q z reject)
                 edges))))
@@ -396,23 +422,49 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
 ;;;    - :closure        --- a*
 ;;;    - :union          --- a|b
 
+(defun fa-hopcroft-create (dfa p q-reject)
+  ;;(print p)
+  ;;(print (fa-terminals dfa))
+  (assert (= (finite-set-length (fa-states dfa))
+             (loop for part in p summing (finite-set-length part)))
+          () "Partition states don't sum to initial states")
+  (assert (finite-set-equal  (fold #'finite-set-union nil p)
+                             (fa-states dfa)))
+  (let* ((p (loop for x in p
+               collect (finite-set-list x)))
+         (state-hash (let ((hash (make-hash-table :test #'equal)))
+                       (dolist (e p)
+                         (dolist (q0 e)
+                           (setf (gethash q0 hash) e)))
+                       hash))
+         (edge-hash (fold (lambda (hash edge)
+                            (destructuring-bind (q0 z q1) edge
+                              (unless (eq q1 q-reject)
+                                (setf (gethash (list (gethash q0 state-hash)
+                                                     z
+                                                     (gethash q1 state-hash))
+                                               hash)
+                                      t)))
+                            hash)
+                          (make-hash-table :test #'equal)
+                          (fa-edges dfa))))
+    (fa-prune (%make-fa :states (finite-set-tree p)
+                        :terminals (fa-terminals dfa)
+                        :edges (finite-set-list edge-hash)
+                        :start (gethash (fa-start dfa) state-hash)
+                        :accept (fold-finite-set (lambda (accept q)
+                                                   (finite-set-add accept (gethash q state-hash)))
+                                                 (make-finite-set :compare #'gsymbol-compare)
+                                                 (fa-accept dfa))))))
 
-;; Hopcroft's Algorithm
-(defun fa-minimize-hopcroft (fa)
-  "Minimize a DFA via Hopcroft's's Algorithm."
-  ;; TODO: more efficient representation of rejecting state
-  ;;       make implicit somehow
-  ;(declare (optimize (speed 3) (safety 0)))
-  (let* ((reject (gensym "reject"))
-         (dfa (dfa-add-reject (if (dfap fa)
-                                  fa
-                                  (nfa->dfa fa))
-                              reject))
-         (p (list  nil
-                   (fa-accept dfa)
-                   (finite-set-difference (fa-states dfa)
-                                          (fa-accept dfa))))
-         (p-single))
+
+(defun fa-hopcroft-partition (dfa)
+  (let ((p (list  nil
+                  (fa-accept dfa)
+                  (finite-set-difference (fa-states dfa)
+                                         (fa-accept dfa))))
+        (p-single))
+    ;;(print dfa)
     ;;(format t "~&Hopcroft start: ~D~&" (finite-set-length (fa-states dfa)))
     ;; build minimal states
     ;; Note: CLISP 2.48 seemingly can't handle LOOP here
@@ -421,7 +473,7 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
          (a (fa-accept dfa) (multiple-value-bind (q1 a1) (tree-set-remove-min q)
                               (setq q q1) a1)))
         ((null a))
-         ;;(format t "~&p: ~A~&" p)
+                                        ;(format t "~&p: ~A~&" p)
       (do-finite-set (c (fa-terminals dfa))
         ;; x: predecessors of a for token c
         (let ((x (fold-finite-set (lambda (x q)
@@ -440,6 +492,7 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                       (unless (finite-set-empty-p i)
                         (let ((j (finite-set-difference y x)))
                           (unless (finite-set-empty-p j) ;; two new partitions
+                            ;;(format t "~&~%i: ~A~&j: ~A~&" i j)
                             ;; ensure i is the smaller partition
                             (when (< (finite-set-length j) (finite-set-length i))
                               (rotatef i j))
@@ -457,34 +510,21 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
     (dolist (p0 p-single)
       (assert (finite-set-single-p p0)))
     (setq p (nconc p-single (cdr p)))
-    ;;(format t "~&Hopcroft end: ~D~&" (length p))
-    (assert (= (finite-set-length (fa-states dfa))
-               (loop for part in p summing (finite-set-length part))))
-    (assert (finite-set-equal  (fold #'finite-set-union nil p)
-                               (fa-states dfa)))
-    (let* ((state-hash (fold (lambda (hash e)
-                               (let ((e (finite-set-list e)))
-                                 (do-finite-set (q0 e)
-                                   (setf (gethash q0 hash) e)))
-                               hash)
-                             (make-hash-table :test #'equal) p))
-           (edge-hash (fold (lambda (hash edge)
-                              (destructuring-bind (q0 z q1) edge
-                                (unless (eq q1 reject)
-                                  (setf (gethash (list (gethash q0 state-hash)
-                                                       z
-                                                       (gethash q1 state-hash))
-                                                 hash)
-                                        t)))
-                              hash)
-                            (make-hash-table :test #'equal)
-                            (fa-edges dfa))))
-      (fa-prune (make-fa (finite-set-list edge-hash)
-                         (gethash (fa-start dfa) state-hash) ;;(find-if (lambda (x) (finite-set-inp (fa-start dfa) x)) p)
-                         (fold-finite-set (lambda (accept q)
-                                            (finite-set-add accept (gethash q state-hash)))
-                                          (make-finite-set :compare #'gsymbol-compare)
-                                          (fa-accept dfa)))))))
+    p))
+
+;; Hopcroft's Algorithm
+(defun fa-minimize-hopcroft (fa)
+  "Minimize a DFA via Hopcroft's's Algorithm."
+  ;; TODO: more efficient representation of rejecting state
+  ;;       make implicit somehow
+  ;(declare (optimize (speed 3) (safety 0)))
+  (let* ((reject (gensym "reject"))
+         (dfa (dfa-add-reject (if (dfap fa)
+                                  fa
+                                  (nfa->dfa fa))
+                              reject)))
+    (let ((p (fa-hopcroft-partition dfa)))
+      (fa-hopcroft-create dfa p reject))))
 
 
 (defun dfa->string-matcher (dfa)
@@ -597,11 +637,11 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
         (not (visit (fa-start dfa)))))))
 
 (defun make-universal-fa (terminals)
-  (%make-fa :states (finite-set 0)
-            :terminals terminals
-            :edges (finite-set-map 'list (lambda (z) (list 0 z 0)) terminals)
-            :start 0
-            :accept (finite-set 0)))
+  (make-fa-1 (finite-set 0)
+            terminals
+            (finite-set-map 'list (lambda (z) (list 0 z 0)) terminals)
+            0
+            (finite-set 0)))
 
 (defun fa-universal-p (fa &optional (terminals (fa-terminals fa)))
   (dfa-eq (fa-canonicalize fa)
@@ -636,13 +676,15 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                                      zz-1))))
           (visit (fa-start dfa1) (fa-start dfa2)))
         ;; now build the fa structure
-        (make-fa edges
-                 (list (fa-start dfa1) (fa-start dfa2)) ;; start of both fa
-                 ;; accept when both FAs accept
-                 (loop for k being the hash-keys of visited
-                    when (and (finite-set-inp (first k) (fa-accept dfa1))
-                              (finite-set-inp (second k) (fa-accept dfa2)))
-                    collect k))))))
+        (make-fa-1 visited
+                   (finite-set-union (fa-terminals dfa1) (fa-terminals dfa2)) ;; does this make sense?
+                   edges
+                   (list (fa-start dfa1) (fa-start dfa2)) ;; start of both fa
+                   ;; accept when both FAs accept
+                   (loop for k being the hash-keys of visited
+                      when (and (finite-set-inp (first k) (fa-accept dfa1))
+                                (finite-set-inp (second k) (fa-accept dfa2)))
+                      collect k))))))
 
 
 (defun fa-complement (nfa &optional (terminals (finite-set-remove (fa-terminals nfa) :epsilon)))
