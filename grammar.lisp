@@ -386,25 +386,54 @@ RESULT: a finite automaton"
   (with-dfa (dfa fa)
     (let ((succs (fa-successors dfa))
           (accept (fa-accept dfa))
+          (start (fa-start fa))
+          (grammar-start)
           (grammar))
-      (do-finite-set (q0 (fa-states dfa))
-        (loop for (z q1) in (funcall succs q0)
-           do
-             (when (funcall succs q1)
-               (push (list q0 z q1) grammar))
-             (when (finite-set-inp q1 accept)
-               (push (list q0 z) grammar))))
-      (push (list (gensym "START") (fa-start dfa)) grammar)
-      grammar)))
+      (labels ((production (head &rest body)
+                 (if (equal head start)
+                     (push (cons head body) grammar-start)
+                     (push (cons head body) grammar))))
+        (do-finite-set (q0 (fa-states dfa))
+          (loop for (z q1) in (funcall succs q0)
+             do
+               (when (funcall succs q1)
+                 (production q0 z q1))
+               (when (finite-set-inp q1 accept)
+                 (production q0 z))))
+        (append grammar-start grammar)))))
 
 
-      ;; (rewrite-grammar (lambda (q0 body)
-      ;;                    (destructuring-bind (z q1) body
-      ;;                      (fa-edges fa)
-      ;;                      `(,(list q0 z q1)
-      ;;                         ,@(when (finite-set-inp q1 accept)
-      ;;                                 (list (list
-      ;;                      :recursive nil)
+(defun grammar-right-regular-minimize (grammar)
+  (fa->right-regular-grammar (fa-canonicalize (grammar->fa grammar))))
+
+(defun grammar-regular-expand-rule-first (rule regular-grammar &optional (unique (gensym)))
+  "Expand first body symbol of RULE with REGULAR-GRAMMAR.
+Assume no unit or epsilon rules in regular-grammar."
+  (destructuring-bind (head regsym &rest rule-rest) rule
+    (declare (ignore regsym))
+    (let ((regstart (grammar-start-nonterminal regular-grammar)))
+      (labels ((make-unique (symbol) (gsymbol-gen symbol unique)))
+        (rewrite-grammar-list
+         (lambda (regrule)
+           (destructuring-bind (q0 z &optional q1) regrule
+             (let ((uq0 (make-unique q0))
+                   (uq1 (when q1 (make-unique q1))))
+               (cond
+                 ;; rule for start symbol
+                 ((eq q0 regstart)
+                  (if q1
+                      ;; normal rule
+                      (list (list head z uq1)
+                            (list uq0 z uq1))
+                      ;; accept on start
+                      (list `(,head ,z ,@rule-rest)
+                            `(,uq0 ,z ,@rule-rest))))
+                 ;; normal rule
+                 (q1 (list (list uq0 z uq1)))
+                 ;; accept rule
+                 (t `((,uq0 ,z ,@rule-rest)))))))
+         regular-grammar :recursive nil)))))
+
 
 
 (defun grammar-from-adjacency (adj &key
@@ -611,8 +640,20 @@ FUNCTION: (lambda (head body)) => (list new-productions...)"
      grammar :recursive nil)))
 
 
-(defun grammar-print (grammar &optional (output *standard-output*))
-  (grammar-map nil (curry-list #'format output  "~&~A ::= ~{~A~^ ~}~%") grammar))
+(defun grammar-print (grammar &key (output *standard-output*) (head-columns 12))
+  (let ((terminals (grammar-terminals grammar)))
+    (grammar-map nil (lambda (head body)
+                       (let ((head-string (write-to-string head)))
+                         (format output "~&<~A>~A ::=  ~{~A~^ ~}~%"
+                                 head-string
+                                 (make-string (max 0 (- head-columns (length head-string)))
+                                              :initial-element #\Space)
+                                 (map 'list (lambda (symbol)
+                                              (if (finite-set-inp symbol terminals)
+                                                  (format nil "\"~A\"" symbol)
+                                                  (format nil "<~A>" symbol)))
+                                      body))))
+                 grammar)))
 
 
 (defun grammar->cnf (grammar)
