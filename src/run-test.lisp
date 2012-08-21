@@ -48,20 +48,24 @@
       ((probe-file ql1)
        (load ql1)))))
 
+;; Try to load ASDF load
+(require :asdf)
+
 ;; Try to add standard asdf place
 (pushnew (merge-pathnames ".asdf/systems/"
            (user-homedir-pathname))
          asdf:*central-registry*
          :test #'equal)
+(pushnew (make-pathname :directory '(:relative "."))
+         asdf:*central-registry*
+         :test #'equal)
 
-;; Try to ASDF load this Package
-(require :asdf)
-
+;; Load necessary packages
 (asdf:operate 'asdf:load-op :motion-grammar)
 (asdf:operate 'asdf:load-op :lisp-unit)
 
+;; Load tests
 (load "test.lisp")
-
 
 ;; Run the tests
 (in-package :motion-grammar)
