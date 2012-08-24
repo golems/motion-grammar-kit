@@ -387,12 +387,13 @@ RESULT: a finite automaton"
     (let ((succs (fa-successors dfa))
           (accept (fa-accept dfa))
           (start (fa-start fa))
-          (grammar-start)
-          (grammar))
+          (grammar (make-amortized-queue)))
       (labels ((production (head &rest body)
-                 (if (equal head start)
-                     (push (cons head body) grammar-start)
-                     (push (cons head body) grammar))))
+                   (setq grammar
+                         (let ((production (cons head body)))
+                           (if (equal head start)
+                               (amortized-queue-push grammar production)
+                               (amortized-enqueue grammar production))))))
         (do-finite-set (q0 (fa-states dfa))
           (loop for (z q1) in (funcall succs q0)
              do
@@ -400,7 +401,7 @@ RESULT: a finite automaton"
                  (production q0 z q1))
                (when (finite-set-inp q1 accept)
                  (production q0 z))))
-        (append grammar-start grammar)))))
+        (amortized-queue-list grammar)))))
 
 
 (defun grammar-right-regular-minimize (grammar)
