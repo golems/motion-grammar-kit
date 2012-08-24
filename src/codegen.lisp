@@ -49,7 +49,7 @@
 
 (defun c-indent-format (fmt &rest args)
   (format *c-stream* "~&~A"
-          (make-string *c-indent* :initial-element #\Tab))
+          (make-string (max 0 *c-indent*) :initial-element #\Tab))
   (apply #'c-format fmt args))
 
 (defmacro with-c-indent (&body body)
@@ -109,47 +109,53 @@
   (with-c-output nil
     (if (atom c)
         (c-format "~A" c)
-        (destructuring-bind (head &rest body) c
-          (ecase head
-            ((:== :!= :+ :* :/ :& :&& :. :->)
-             (destructuring-bind (a b) body
-               (c-format "((~A) ~A (~A))"
-                         (c-exp a) head (c-exp b))))
-            (:call (destructuring-bind (name &rest args) body
-                     (c-format "~A(~{~A~^, ~})"
-                               (c-exp name)
-                               (map 'list #'c-exp args)))))))))
+        (spec-case c
+          (((binop is (or :== :!= :+ :* :/ :& :&&)) a b)
+           (c-format "(~A ~A ~A)"
+                     (c-exp a) binop (c-exp b)))
+          (((binop is (or  :. :->)) a b)
+           (c-format "(~A~A~A)"
+                     (c-exp a) binop b))
+          ((:call name &rest args)
+           (c-format "(~A(~{~A~^, ~}))"
+                     (c-exp name)
+                     (map 'list #'c-exp args)))
+          (((unop is (or :~ :!)) a)
+           (c-format "(~A ~A)" unop
+                     (c-exp a)))
+          (a
+           (error "Unknown c-expression: ~A" a))))))
 
 (defun c-gen (c)
-  (destructuring-bind (head &rest body) c
-    (ecase head
-      ((:== :!= :call)
-       (c-exp c))
-      (:seq (destructuring-bind (&rest rest) body
-              (map nil #'c-gen rest)))
-      (:stmt (destructuring-bind (name) body
-               (c-gen name)
-               (c-format ";~&")))
-      (:goto (destructuring-bind (label) body
-               (c-format-goto label)))
-      (:return (destructuring-bind (value) body
-                 (c-format-return (c-exp value))))
-      (:label (destructuring-bind (label) body
-                (c-format-label label)))
-      (:case (destructuring-bind (label) body
-               (c-format-case label)))
-      (:block
-          (with-c-block
-            (map nil #'c-gen body)))
-      (:if (destructuring-bind (test then-clause &optional else-clause) body
-             (with-c-nest ((c-indent-format "if ( ~A )" (c-exp test)))
-               (map nil #'c-gen then-clause))
-             (when else-clause
-               (with-c-nest ((c-indent-format "else"))
-                 (map nil #'c-gen else-clause)))))
-      (:comment (destructuring-bind (str) body
-                  (c-indent-format "// ~A" str)))
-      )))
+  (spec-case c
+    ((&ignore (op is (or :== :!= :call :! :->)) &rest rest)
+     (c-exp c))
+    ((:seq &rest rest)
+     (map nil #'c-gen rest))
+    ((:stmt name)
+     (c-gen name)
+     (c-format ";~&"))
+    ((:goto label)
+     (c-format-goto label))
+    ((:return value)
+     (c-format-return (c-exp value)))
+    ((:label label)
+     (c-format-label label))
+    ((:case label)
+     (c-format-case label))
+    ((:block &rest body)
+     (with-c-block
+       (map nil #'c-gen body)))
+    ((:if test then-clause &optional else-clause)
+     (with-c-nest ((c-indent-format "if ( ~A )" (c-exp test)))
+       (map nil #'c-gen then-clause))
+     (when else-clause
+       (with-c-nest ((c-indent-format "else"))
+         (map nil #'c-gen else-clause))))
+    ((:comment str)
+     (c-indent-format "// ~A" str))
+    (a
+     (error "Unknown c-code: ~A" a))))
 
 
 (defun csymbol (gsymbol &optional prefix)
@@ -186,6 +192,15 @@
       (print-c-parser-predicate stream (cadr symbol) context)
       (format stream "~A( ~A )" (csymbol symbol) context)))
 
+(defun c-parser-test (symbol context)
+  (spec-case symbol
+    ((:predicate (:not x))
+     (list :! (c-parser-test `(:predicate ,x) context)))
+    ((:predicate x)
+     (list :-> context (csymbol x)))
+    (x `(:== 0 (:call ,(csymbol x) ,context)))))
+
+
 (defun print-c-parser-stub (stream symbol context-type context)
   (if (and (listp symbol)
            (eq :predicate (car symbol)))
@@ -220,25 +235,25 @@
                      (context-type "void*"))
   (let* ((fa (fa-canonicalize fa))
          (mover (dfa-mover fa)))
-    (output-function (lambda (s)
-                       (format s "~&/*****************/~&")
-                       (format s "~&/* MOTION PARSER */~&")
-                       (format s "~&/*****************/~&")
-                       (when header (princ header s))
-                       (format s "~&int ~A( ~A context ) {~&" function-name context-type)
-                       (format s "~&	goto state~A;~&" (fa-start fa))
-                       (do-finite-set (q0 (fa-states fa))
-                         (format s "	state~A:~&" q0)
-                         (do-finite-set (z (fa-terminals fa))
-                           (let ((q1 (funcall mover q0 z)))
-                             (when q1
-                               (format s "~&		if( 0 == ~A ) goto state~A;~&"
-                                       (print-c-parser-funcall nil z "context") q1))))
-                         (when (finite-set-inp q0 (fa-accept fa))
-                           (format s "~&		if( 0 == ~A( context ) ) return 0;~&" halt-function))
-                         (format s "~&		return -1;~&"))
-                       (format s "~&}~&"))
-                     output)))
+    (with-c-output output
+      (c-indent-format "/*****************/~&")
+      (c-indent-format "/* MOTION PARSER */~&")
+      (c-indent-format "/*****************/~&")
+      (when header (c-indent-format "~A" header))
+      (with-c-nest ((c-indent-format "int ~A( ~A context )" function-name context-type))
+        (labels ((state-label (X) (csymbol X "state")))
+          (c-gen `(:goto ,(state-label (fa-start fa))))
+          (do-finite-set (q0 (fa-states fa))
+            (c-gen `(:label ,(state-label q0)))
+            (do-finite-set (z (fa-terminals fa))
+              (let ((q1 (funcall mover q0 z)))
+                (when q1
+                  (c-gen `(:if ,(c-parser-test z "context")
+                               ((:goto ,(state-label q1))))))))
+            (when (finite-set-inp q0 (fa-accept fa))
+              (c-gen `(:if ,(c-parser-test halt-function "context")
+                           ((:return 0)))))
+            (c-gen '(:return -1))))))))
 
 
 (defun fa->c-file (fa pathname &key
@@ -258,6 +273,7 @@
                 :halt-function halt-function
                 :context-type context-type
                 ))
+
 
 
 ;; Generate a predictive parser for LL(1) grammars
@@ -284,13 +300,12 @@
     (dotimes (i (length nonterm-array))
       (setf (gethash (aref nonterm-array i) hash) i))
     ;; output stuff
-    (labels ((nonterm-label (X) (csymbol X "nonterm_"))
-             (term-check (a) `(:== 0 (:call ,(csymbol a) "context"))))
+    (labels ((nonterm-label (X) (csymbol X "nonterm_")))
       (with-c-output output
+        (when header (c-indent-format "~A" header))
         (c-indent-format "/*****************/~&")
         (c-indent-format "/* MOTION PARSER */~&")
         (c-indent-format "/*****************/~&")
-        (when header (c-indent-format "~A" header))
         (with-c-nest ((c-indent-format "int ~A( ~A context, int i )" function-name context-type))
           ;; nonterms
           (with-c-nest ((c-indent-format "switch( i )"))
@@ -307,8 +322,8 @@
                        (c-gen `(:comment ,production))
                        (c-gen (destructuring-bind (head term0 &rest rest) production
                                 (assert (equal X head))
-                                (assert (equal term0 a))
-                                `(:if ,(term-check a)
+                                (assert (equal term0 a) () "Bad production: ~A" production)
+                                `(:if ,(c-parser-test a "context")
                                       ,(if rest
                                            (loop for tail on rest
                                               for a = (car tail)
@@ -322,7 +337,7 @@
                                                        `(:if (:!= 0 (:call ,function-name "context" ,(gethash a hash)))
                                                              ((:return -1))))
                                                       ((finite-set-inp a terminals)
-                                                       `(:if (:!= 0 (:call ,(csymbol a) "context"))
+                                                       `(:if ,(c-parser-test a "context")
                                                              ((:return -1))))
                                                       (t (error "Unknown symbol type ~A" a))))
                                            (list '(:return 0)))))))))
@@ -331,3 +346,20 @@
             ;; default
             (c-gen '(:seq (:label "default")
                      (:return -1)))))))))
+
+
+
+(defun grammar->c-file (grammar pathname &key
+                        (function-name "mgparse")
+                        (context-type "void*")
+                        ;(print-stub #'print-c-parser-stub)
+                        (stub-pathname (make-pathname :directory (pathname-directory pathname)
+                                                      :name (concatenate 'string (pathname-name pathname) "-terminal-stub")
+                                                      :type "c")))
+  ;(fa->c-stub fa
+              ;:output stub-pathname :halt-function halt-function :context-type context-type
+              ;:print-stub print-stub)
+  (grammar->c-predictive-parser grammar :output pathname
+                                :header (format nil "#include \"~A.c\" ~&" (pathname-name stub-pathname))
+                                :function-name function-name
+                                :context-type context-type))
