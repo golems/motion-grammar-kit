@@ -1,3 +1,15 @@
-*******
-* MGK *
-*******
+Motion Grammar Kit
+==================
+Formal Language Tools for Robots
+
+Features
+========
+* Automata Manipulation
+  * Automata Operations: union, intersection, complement
+  * Regular Expressions
+  * Automata Minimization
+* Supervisory Control
+* Code Generation
+  * Generate C code for Regular and Context-Free LL(1) parsers.
+* Visualization
+  * Generate automata diagrams with Graphviz
