@@ -122,7 +122,7 @@ FUNCTION: (lambda ( (list q-0 z g-0) (list q-1 g-1))"
                   (pda-map-transtions nil
                                       (lambda (x y)
                                         (destructuring-bind ((q-0 z g-0) (q-1 &rest g-1)) (list x y)
-                                          (format s "~&  ~A -> ~A [fontsize=~D,label=\"~A,~A&rarr;~{~A~}\"];~%"
+                                          (format s "~&  ~A -> ~A [fontsize=~D,label=\"~A, ~A&rarr;~{~A~^,~}\"];~%"
                                                   (funcall state-numbers q-0)
                                                   (funcall state-numbers q-1)
                                                   font-size
@@ -133,78 +133,82 @@ FUNCTION: (lambda ( (list q-0 z g-0) (list q-1 g-1))"
 
 ;; Sipser p116
 (defun grammar->pda-sipser (grammar &key (gensym (gensym "pda")))
-  (let ((counter -1))
-    (labels ((make-state (&optional (val (incf counter)))
-               (cons gensym val)))
-      (let* ((q-start (make-state :start))
-             (q-accept (make-state :accept))
-             (q-loop (make-state :loop))
-             (edges (list (pda-edge q-start :epsilon :epsilon q-loop (grammar-start-nonterminal grammar) :$)
-                          (pda-edge q-loop :epsilon :$ q-accept :epsilon))))
-        ;; production edges
-        (grammar-map nil
-                     (lambda (head body)
-                       (push (pda-edge-extended q-loop :epsilon head q-loop body)
-                             edges))
-                     grammar)
-        ;; token edges
-        (finite-set-map nil
-                        (lambda (z)
-                          (push (pda-edge q-loop z z q-loop :epsilon)
-                                edges))
-                        (grammar-terminals grammar))
-        ;; construct
-        (make-pda edges q-start (finite-set q-accept))))))
+  (let* ((q-start (gsymbol-gen :start gensym))
+         (q-accept (gsymbol-gen :accept gensym))
+         (q-loop (gsymbol-gen :loop gensym))
+         (edges (list (pda-edge q-start :epsilon :epsilon q-loop (grammar-start-nonterminal grammar) :$)
+                      (pda-edge q-loop :epsilon :$ q-accept :epsilon))))
+    ;; production edges
+    (grammar-map nil
+                 (lambda (head body)
+                   (push (pda-edge-extended q-loop :epsilon head q-loop body)
+                         edges))
+                 grammar)
+    ;; token edges
+    (finite-set-map nil
+                    (lambda (z)
+                      (push (pda-edge q-loop z z q-loop :epsilon)
+                            edges))
+                    (grammar-terminals grammar))
+    ;; construct
+    (make-pda edges q-start (finite-set q-accept))))
+
+
 
 
 ;; Hopcroft p135
 (defun pda-fa-intersection (pda fa &optional (gensym (gensym)))
   "Compute the intersection of PDA and DFA.
 RESULT: a pda"
-  (labels ((new-state (q-pda q-fa)
-             (gsymbol-gen (list q-pda (fa-state-name fa q-fa))
-                          gensym)))
-    (let ((edges nil))
+  (let ((edges nil))
+    (labels ((new-state (q-pda q-fa)
+               (gsymbol-gen (list q-pda q-fa)
+                            gensym))
+             (append-edge (q0-pda q0-fa
+                                  z g0
+                                  q1-pda q1-fa g1)
+               (push (pda-edge-extended (new-state q0-pda q0-fa)
+                                        z g0
+                                        (new-state q1-pda q1-fa)
+                                        g1)
+                     edges)))
       (pda-map-transtions nil
                           (lambda (x y)
                             (destructuring-bind ((q0-pda z-pda g0-pda) (q1-pda &rest g1-pda)) (list x y)
-                              (fa-map-edges nil
-                                            (lambda (q0-fa z-fa q1-fa)
-                                              (let ((z-fa (fa-token-name fa z-fa)))
-                                                ;;(format t "~A and (~A ~A ~A)~&" x q0-fa z-fa q1-fa )
-                                                (when (equal z-pda z-fa)
-                                                  (push (pda-edge-extended (new-state q0-pda q0-fa)
-                                                                           z-pda g0-pda
-                                                                           (new-state q1-pda q1-fa)
-                                                                           g1-pda)
-                                                        edges))
-                                                (when (eql z-pda :epsilon)
-                                                  (push (pda-edge-extended (new-state q0-pda q0-fa)
-                                                                           :epsilon g0-pda
-                                                                           (new-state q1-pda q0-fa)
-                                                                           g1-pda)
-                                                        edges))
-                                                (when (equal z-fa :epsilon)
-                                                  (push (pda-edge-extended (new-state q0-pda q0-fa)
-                                                                           :epsilon :epsilon
-                                                                           (new-state q0-pda q1-fa)
-                                                                           :epsilon)
-                                                        edges))))
-                                            fa)))
+                              (if (eq z-pda :epsilon)
+                                  ;; add epsilon for all fa states
+                                  (do-finite-set (q-fa (fa-states fa))
+                                    (append-edge q0-pda q-fa :epsilon g0-pda
+                                                 q1-pda q-fa g1-pda))
+                                  ;; add transition for all fa edges
+                                  (fa-map-edges nil
+                                                (lambda (q0-fa z-fa q1-fa)
+                                                  ;;(format t "~A and (~A ~A ~A)~&" x q0-fa z-fa q1-fa )
+                                                  (when (equal z-pda z-fa)
+                                                    (append-edge q0-pda q0-fa
+                                                                 z-pda g0-pda
+                                                                 q1-pda q1-fa g1-pda))
+                                                  (when (equal z-fa :epsilon)
+                                                    (append-edge q0-pda q0-fa
+                                                                 :epsilon :epsilon
+                                                                 q0-pda q1-fa :epsilon)))
+                                                fa))))
                           pda)
-      (let ((states-i (fold (lambda (set edge)
+
+      (let* ((states-i (fold (lambda (set edge)
                               (destructuring-bind ((q0 z g0 ) (q1 &rest g1)) edge
                                 (declare (ignore z g0 g1))
                                 (finite-set-add (finite-set-add set q0) q1)))
-                            (make-finite-set)
-                            edges)))
-        (let ((accept-i (finite-set-intersection states-i
-                                                 (apply #'finite-set
-                                                        (map-finite-set-product 'list
-                                                                                #'new-state
-                                                                                (pda-accept pda)
-                                                                                (fa-accept fa)))))
-              (start-i (new-state (pda-start pda)
-                                  (car (fa-start fa)))))
+                             (make-finite-set)
+                             edges))
+             (accept-i (finite-set-intersection states-i
+                                                (apply #'finite-set
+                                                       (map-finite-set-product 'list
+                                                                               #'new-state
+                                                                               (pda-accept pda)
+                                                                               (fa-accept fa)))))
+
+             (start-i (new-state (pda-start pda)
+                                 (fa-start fa))))
           ;;(format t "states: ~A~&~&start: ~A~&accept: ~A~&" states-i start-i accept-i)
-          (make-pda edges start-i accept-i))))))
+        (make-pda edges start-i accept-i)))))

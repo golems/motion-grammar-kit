@@ -59,6 +59,24 @@
          sequence)
     (apply #'values result)))
 
+(defun tree-compact (tree)
+  "Replace common subtrees with EQ objects."
+  (let ((hash (make-hash-table :test #'equal)))
+    (labels ((rec (symbol)
+               (etypecase symbol
+                 (atom
+                  (if (gethash symbol hash)
+                      (gethash symbol hash)
+                      (setf (gethash symbol hash) symbol)))
+                 (cons
+                  (map nil #'rec symbol)
+                  (if (gethash symbol hash)
+                      (gethash symbol hash)
+                      (setf (gethash symbol hash)
+                            (cons (rec (car symbol))
+                                  (rec (cdr symbol)))))))))
+      (rec tree))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; HIGHER ORDER FUNCTIONS ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
