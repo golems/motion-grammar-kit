@@ -364,6 +364,13 @@
     (lisp-unit:assert-true (fa-empty-p (fa-intersection fa-1 (fa-complement fa-1))))
     (lisp-unit:assert-true (fa-empty-p (fa-intersection fa-2 (fa-complement fa-2))))
     (lisp-unit:assert-true (fa-empty-p (fa-intersection fa-i (fa-complement fa-i))))
+
+    ;; pop-initial
+    (lisp-unit:assert-true (fa-equiv (fa-pop-initial (regex->dfa '(:concatenation a b a b)) 'a)
+                                     (regex->dfa '(:concatenation b a b))))
+
+    (lisp-unit:assert-true (fa-equiv (fa-pop-initial (regex->dfa '(:concatenation (:closure a) b a b)) 'a)
+                                     (regex->dfa '(:concatenation (:closure a) b a b))))
   )))
 
 (lisp-unit:define-test grammar-basic

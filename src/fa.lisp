@@ -324,14 +324,16 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
       ;(assert (dfap fa))
       fa)))
 
-(defmacro with-dfa ((var fa) &body body)
-  (alexandria:with-gensyms (fa-sym)
 
-    `(let ((,var (let ((,fa-sym ,fa))
-                   (if (dfap ,fa-sym)
-                       ,fa-sym
-                       (nfa->dfa ,fa-sym)))))
-       ,@body)))
+(defun ensure-dfa (fa)
+  "If FA is not a DFA, convert it to a DFA."
+  (if (dfap fa)
+      fa
+      (nfa->dfa fa)))
+
+(defmacro with-dfa ((var fa) &body body)
+  `(let ((,var (ensure-dfa ,fa)))
+     ,@body))
 
 ;; Brzozowski's Algorithm
 (defun fa-minimize-brzozowski (dfa)
@@ -615,8 +617,8 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
 
 (defun fa-equiv (a b)
   "Check if two FAs recognize the same language."
-  (dfa-equal (fa-canonicalize a)
-             (fa-canonicalize b)))
+  (dfa-eq (fa-canonicalize a)
+          (fa-canonicalize b)))
 
 (defun fa-empty-p (fa)
   (with-dfa (dfa fa)
@@ -630,6 +632,23 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                        (progn (setq visited (finite-set-nadd visited q))
                               (some (lambda (z-q1) (visit (second z-q1))) (funcall succ q)))))))
         (not (visit (fa-start dfa)))))))
+
+(defun make-empty-fa (terminals)
+  "Null set."
+  (%make-fa :states (finite-set-tree '(0))
+            :terminals (finite-set-tree terminals)
+            :edges nil
+            :start 0
+            :accept nil))
+
+
+(defun make-epsilon-fa (terminals)
+  "Includes only the empty string."
+  (%make-fa :states (finite-set-tree '(0))
+            :terminals (finite-set-tree terminals)
+            :edges nil
+            :start 0
+            :accept (finite-set-tree '(0))))
 
 (defun make-universal-fa (terminals)
   (make-fa-1 (finite-set 0)
@@ -722,6 +741,31 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                                                       (fa-accept fa1))))))))
 
 
+(defun fa-concatenate (fa1 fa2 &optional (unique (gensym)))
+  "Concatenation language of FA1 and FA2."
+  (let ((edges (fa-edges fa2))
+        (start2 (fa-start fa2))
+        (states (fa-states fa2)))
+    (loop for (q0 z q1) in (fa-edges fa1)
+       for nq0 = (gsymbol-gen q0 unique)
+       for nq1 = (gsymbol-gen q1 unique)
+       do
+         (push (list nq0 z nq1) edges)
+         (setq states (finite-set-add (finite-set-add states nq0)
+                                      nq1)))
+    (do-finite-set (q0 (fa-accept fa1))
+      (push (list (gsymbol-gen q0 unique)
+                  :epsilon start2)
+            edges))
+    (%make-fa :states states
+              :terminals (finite-set-union (fa-terminals fa1)
+                                           (fa-terminals fa2))
+              :edges edges
+              :start (gsymbol-gen (fa-start fa1) unique)
+              :accept (fa-accept fa2))))
+
+
+
 (defun random-fa (state-count terminal-count &key
                   (edge-count  (random (* state-count terminal-count)))
                   (accept-count (random state-count)))
@@ -732,6 +776,37 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
              0
              (loop for i below accept-count
                 collect (random state-count))))
+
+
+(defun fa-pop-initial (fa terminal)
+  "Return new fa for postfix after seeing TERMINAL or NIL if unable."
+  (with-dfa (fa fa)
+    (let* ((start (fa-start fa))
+           (new-start (block new-start
+                        (fa-map-edges nil (lambda (q0 z q1)
+                                            (when (and (equal q0 start)
+                                                       (equal z terminal))
+                                              (return-from new-start q1)))
+                                      fa))))
+      (when new-start
+        (%make-fa :states (fa-states fa)
+                  :terminals (fa-terminals fa)
+                  :edges (fa-edges fa)
+                  :start new-start
+                  :accept (fa-accept fa))))))
+
+(defun fa-initial-terminals (fa)
+  "Return set of terminals the may begin strings in FA."
+  (let* ((start (fa-start fa)))
+    (fold-fa-edges (lambda (set q0 z q1)
+                     (declare (ignore q1))
+                     (if (equal q0 start)
+                         (finite-set-nadd set z)
+                         set))
+                   (make-finite-set :compare #'gsymbol-compare)
+                   (ensure-dfa fa))))
+
+
 
 ;;;;;;;;;;;;;;
 ;;; OUTPUT ;;;
