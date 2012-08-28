@@ -88,12 +88,12 @@ FUNCTION: (lambda (q-0 z q-1))"
     ;; edge states
     (loop for (q0 z q1) in edges
        do
-         (setq state-set (finite-set-nadd state-set q0))
-         (setq state-set (finite-set-nadd state-set q1))
-         (setq terminal-set (finite-set-nadd terminal-set z)))
+         (setq state-set (finite-set-nadd (finite-set-nadd state-set q0)
+                                          q1)
+               terminal-set (finite-set-nadd terminal-set z)))
     ;; start state
-    (setq state-set (finite-set-nadd state-set start))
-    (make-fa-1 state-set terminal-set edges start accept)))
+    (make-fa-1 (finite-set-nadd state-set start) ; start state
+               terminal-set edges start accept)))
 
     ;; (%make-fa :states (finite-set-tree state-set)
     ;;           :terminals (finite-set-tree terminal-set)

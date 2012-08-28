@@ -78,12 +78,9 @@ MUTABLE: Should this be a mutable set?
     (sequence (reduce function set :initial-value initial-value))
     (tree-set (fold-tree-set function initial-value set))
     (hash-table
-     (let ((value initial-value))
-       (maphash (lambda (k v)
-                  (declare (ignore v))
-                  (setq value (funcall function value k)))
-                set)
-       value))))
+     (loop for k being the hash-keys of set
+        for value = (funcall function initial-value k) then (funcall function value k)
+        finally (return value)))))
 
 (defun sort-finite-set (set)
   (etypecase set
@@ -184,10 +181,9 @@ RESULT: a finite set"
     (list (fold #'tree-set-insert (make-tree-set #'gsymbol-compare) set))
     (tree-set set)
     (hash-table
-     (let ((tree (make-tree-set #'gsymbol-compare)))
-       (loop for k being the hash-keys of set
-          do (setq tree (tree-set-insert tree k)))
-       tree))))
+     (loop for k being the hash-keys of set
+        for tree = (tree-set #'gsymbol-compare k) then (tree-set-insert tree k)
+        finally (return tree)))))
 
 
 (defun finite-set-inp (item set)

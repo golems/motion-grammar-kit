@@ -225,6 +225,12 @@
 (defun gsymbol-sort (list)
   (gsymbol-nsort (copy-list list)))
 
+
+(defun epsilon-p (symbol)
+  (or (null symbol)
+      (eq symbol :epsilon)
+      (equal symbol '(:epsilon))))
+
 ;;;;;;;;;
 ;; I/O ;;
 ;;;;;;;;;

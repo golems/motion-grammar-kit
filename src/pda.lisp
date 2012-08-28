@@ -40,7 +40,7 @@
   states
   input-alphabet
   stack-alphabet
-  transition ;; (lambda (states input-alphabet stack-alphabet)) => (set (list states stack-alphabet))
+  transition ;; (tree-map (states input-alphabet stack-alphabet)) => (set (list states stack-alphabet))
   start
   accept)
 
@@ -58,13 +58,10 @@
   "Apply FUNCTION to all transitions of PDA.
 FUNCTION: (lambda ( (list q-0 z g-0) (list q-1 g-1))"
   (assert (null result-type))
-  (do-finite-set (q (pda-states pda))
-    (do-finite-set (sigma (pda-input-alphabet pda))
-      (do-finite-set (gamma (pda-stack-alphabet pda))
-        (do-finite-set (dst (funcall (pda-transition pda) q sigma gamma))
-          ;(format t "edge: ~A => ~A~&" (list q sigma gamma) edge)
-          (funcall function (list q sigma gamma) dst ))))))
-
+  (map-tree-map :inorder result-type
+                (lambda (x yy)
+                  (finite-set-map nil (lambda (y) (funcall function x y)) yy))
+                (pda-transition pda)))
 
 (defun make-pda (edges start accept)
   (let ((tree-map (make-tree-map #'gsymbol-compare))
@@ -78,9 +75,7 @@ FUNCTION: (lambda ( (list q-0 z g-0) (list q-1 g-1))"
            (destructuring-bind ((q-0 sigma gamma-0) (q-1 &rest gamma-1)) edge
              ;(print edge)
              (unless (and (equal q-0 q-1)
-                          (eq sigma :epsilon)
-                          (eq gamma-0 :epsilon)
-                          (equal gamma-1 '(:epsilon))) ;; prune silly transition
+                          (epsilon-p sigma) (epsilon-p gamma-0) (epsilon-p gamma-1)) ;; prune silly transition
                (setq tree-map (tree-map-insert tree-map x
                                                (finite-set-add (tree-map-find tree-map x) y))
                ;(setf (gethash x hash) (finite-set-add (gethash x hash) y)
@@ -95,7 +90,8 @@ FUNCTION: (lambda ( (list q-0 z g-0) (list q-1 g-1))"
                :input-alphabet input-alphabet
                :stack-alphabet stack-alphabet
                ;:transition (lambda (q sigma gamma) (gethash (list q sigma gamma) hash))
-               :transition (lambda (q sigma gamma) (tree-map-find tree-map (list q sigma gamma)))
+               ;:transition (lambda (q sigma gamma) (tree-map-find tree-map (list q sigma gamma)))
+               :transition tree-map
                :start start
                :accept accept)))
 
@@ -175,7 +171,7 @@ RESULT: a pda"
       (pda-map-transtions nil
                           (lambda (x y)
                             (destructuring-bind ((q0-pda z-pda g0-pda) (q1-pda &rest g1-pda)) (list x y)
-                              (if (eq z-pda :epsilon)
+                              (if (epsilon-p z-pda)
                                   ;; add epsilon for all fa states
                                   (do-finite-set (q-fa (fa-states fa))
                                     (append-edge q0-pda q-fa :epsilon g0-pda
@@ -188,13 +184,12 @@ RESULT: a pda"
                                                     (append-edge q0-pda q0-fa
                                                                  z-pda g0-pda
                                                                  q1-pda q1-fa g1-pda))
-                                                  (when (equal z-fa :epsilon)
+                                                  (when (epsilon-p z-fa)
                                                     (append-edge q0-pda q0-fa
                                                                  :epsilon :epsilon
                                                                  q0-pda q1-fa :epsilon)))
                                                 fa))))
                           pda)
-
       (let* ((states-i (fold (lambda (set edge)
                               (destructuring-bind ((q0 z g0 ) (q1 &rest g1)) edge
                                 (declare (ignore z g0 g1))
@@ -207,7 +202,6 @@ RESULT: a pda"
                                                                                #'new-state
                                                                                (pda-accept pda)
                                                                                (fa-accept fa)))))
-
              (start-i (new-state (pda-start pda)
                                  (fa-start fa))))
           ;;(format t "states: ~A~&~&start: ~A~&accept: ~A~&" states-i start-i accept-i)
