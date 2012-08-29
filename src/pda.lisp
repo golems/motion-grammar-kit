@@ -63,6 +63,29 @@ FUNCTION: (lambda ( (list q-0 z g-0) (list q-1 g-1))"
                   (finite-set-map nil (lambda (y) (funcall function x y)) yy))
                 (pda-transition pda)))
 
+(defmacro pda-destructure-transitions (((q0 z g0) (q1 g1)) pda &body body)
+  (alexandria:with-gensyms (x y yy)
+    `(map-tree-map :inorder nil
+                   (lambda (,x ,yy)
+                     (do-finite-set (,y ,yy)
+                       (destructuring-bind ((,q0 ,z ,g0) (,q1 &rest ,g1)) (list ,x ,y)
+                         ,@body)))
+                   (pda-transition ,pda))))
+
+(defun pda-index-successor-state-stack (pda)
+  (let ((hash (make-hash-table :test #'equal)))
+    (pda-map-transtions nil (lambda (x y)
+                              (destructuring-bind (q0 z g0) x
+                                (declare (ignore z))
+                                (let ((key (list q0 g0)))
+                                  (setf (gethash key hash)
+                                        (finite-set-union (gethash key hash nil)
+                                                          (finite-set y))))))
+                        pda)
+    (lambda (q g) (let ((key (list q g)))
+               (declare (dynamic-extent key))
+               (gethash key hash)))))
+
 (defun make-pda (edges start accept)
   (let ((tree-map (make-tree-map #'gsymbol-compare))
         (states (make-finite-set))
@@ -94,6 +117,44 @@ FUNCTION: (lambda ( (list q-0 z g-0) (list q-1 g-1))"
                :transition tree-map
                :start start
                :accept accept)))
+
+(defun pda-normalize (pda)
+  "All states pushes and pops at most one symbol."
+  (let ((edges))
+    (pda-map-transtions
+     nil
+     (lambda (x y)
+       (destructuring-bind ((q-0 sigma gamma-0) (q-1 &rest gamma-1)) (list x y)
+         (labels ((new-state (i)
+                    (list x y i))
+                  (push-state (i q0 z g0 gg1)
+                    (cond
+                      ;; stack pop and recurse
+                      ((and (not (epsilon-p g0))
+                            (not (epsilon-p gg1)))
+                       (let ((q1 (new-state i)))
+                         (push (pda-edge q0 z g0 q1 :epsilon) edges)
+                         (push-state (1+ i) q1 :epsilon :epsilon gg1)))
+                      ;; stack pop and done
+                      ((and (not (epsilon-p g0))
+                            (epsilon-p gg1))
+                       (push (pda-edge q0 z g0 q-1 :epsilon) edges))
+                      ;; epsilon push
+                      ((epsilon-p gg1)
+                       (push (pda-edge q0 z g0 q-1 :epsilon) edges))
+                      ;; epsilon tail push
+                      ((epsilon-p (cdr gg1))
+                       (push (pda-edge q0 z g0 q-1 (car gg1)) edges))
+                      ;; normal
+                      (t
+                       (let ((q1 (new-state i)))
+                         (push (pda-edge q0 z g0 q1 (car gg1)) edges)
+                         (push-state (1+ i) q1 :epsilon :epsilon (cdr gg1)))))))
+           (push-state 0 q-0 sigma gamma-0 (reverse gamma-1)))))
+     pda)
+    (make-pda edges (pda-start pda) (pda-accept pda))))
+
+
 
 (defun pda-dot (pda &key output (font-size 12))
   (let ((state-numbers (finite-set-enumerate (pda-states pda))))
@@ -206,3 +267,102 @@ RESULT: a pda"
                                  (fa-start fa))))
           ;;(format t "states: ~A~&~&start: ~A~&accept: ~A~&" states-i start-i accept-i)
         (make-pda edges start-i accept-i)))))
+
+
+
+
+
+;; A. Finkel, B. Willems, and P. Wolper. A direct symbolic approach to model
+;; checking pushdown systems. Electronic Notes in Theoretical Computer Science, 9,
+;; 1997.
+
+
+(defun pda-reachability-automaton (pda)
+  (let ((epsilon-hash (make-hash-table :test #'equal))
+        (edges)) ;; TODO: could do better than a dumb list
+    ;; init epsilon hash
+    (let ((empty-set (make-finite-set :compare #'gsymbol-compare)))
+      (do-finite-set (q (pda-states pda))
+        (setf (gethash q epsilon-hash) (finite-set-add empty-set q))))
+    (labels ((epsilon-closure (q)
+               (gethash q epsilon-hash))
+             (new-edge (q0 g q1)
+               ;; update epsilon closure
+               (when (eq :epsilon g)
+                 (setf (gethash q0 epsilon-hash)
+                       (finite-set-union (epsilon-closure q0)
+                                         (epsilon-closure q1))))
+               ;; add edge
+               ;(print (list q0 g q1))
+               (let ((e (list q0 g q1)))
+                 ;(print (not (finite-set-inp e edges)))
+                 (prog1 (not (finite-set-inp e edges))
+                   (setq edges (finite-set-add edges e)))))
+             )
+      ;; add initial transitions
+      (pda-destructure-transitions ((q0 z g0) (q1 g1)) pda
+        (declare (ignore z))
+        (destructuring-bind (g1) g1
+          (when (epsilon-p g0) ;; pop nothing
+          ;  (print (list :push q0 g1 q1))
+            (new-edge q0 g1 q1))))
+      ;; saturate
+      (do ((modified t))
+          ((not modified))
+        ;(print 'loop)
+        (setq modified nil)
+        (pda-destructure-transitions ((q z g0) (qp g1)) pda
+          (declare (ignore z))
+          (unless (epsilon-p g0)  ;; pop g0
+            (assert (epsilon-p g1))
+            (loop for (eqpp eg eq) in edges
+               when (and (equal g0 eg) ;; push g0
+                         (finite-set-inp q (epsilon-closure eq))) ;; eq -> q on :epsilon (get from pushed to popped)
+               do
+                 ;(print (list :pop eg g0 q0 eq1))
+                 (setq modified (or modified (new-edge eqpp :epsilon qp))))))
+        ;(print `(modified ,modified))
+        ))
+    ;; make FA
+    (%make-fa :states (pda-states pda)
+              :edges edges
+              :terminals (pda-stack-alphabet pda)
+              :start (pda-start pda)
+              :accept (pda-accept pda))))
+
+
+
+
+
+;;
+
+;; (defun pda-accepting-p (pda)
+;;   "Test if PDA is empty."
+;;   (let ((hash (make-hash-table :test #'equal))
+;;         (empty-fa (make-epsilon-fa (pda-stack-alphabet pda)))
+;;         (accept (pda-accept pda))
+;;         (succ (pda-index-successor-state-stack pda))) ;; state => stack langauge FA
+;;     (labels ((state-fa (q) (gethash q hash empty-fa))
+;;              (visit (q)
+;;                (print q)
+;;                (print (state-fa q))
+;;                (if (finite-set-inp q accept)
+;;                    (return-from pda-accepting-p q)
+;;                    (let* ((old-fa (state-fa q))
+;;                           (stack-top (fa-initial-terminals old-fa)))
+;;                      (do-finite-set (g (finite-set-add stack-top :epsilon))
+;;                        (let ((pop-fa (if (eq :epsilon g) old-fa
+;;                                          (fa-canonicalize (fa-pop-initial old-fa g)))))
+;;                          (print (list 'pop pop-fa))
+;;                          (do-finite-set (y (funcall succ q g))
+;;                            (destructuring-bind  (q1 &rest g1) y
+;;                              (let* ((succ-fa (state-fa q1))
+;;                                     (new-fa (fa-canonicalize (fa-concatenate (regex->dfa `(:concatenation ,@g1))
+;;                                                                              pop-fa))))
+;;                                (print (list 'new-fa y pop-fa))
+;;                                (unless (dfa-eq new-fa succ-fa)
+;;                                  (setf (gethash q1 hash)
+;;                                        (fa-canonicalize (fa-union new-fa succ-fa)))
+;;                                  (visit q1)))))))))
+;;                nil))
+;;       (visit (pda-start pda)))))
