@@ -89,14 +89,14 @@ RESULT: the result of TEST-FUNCTION"
     ;; check hopcroft
     (when hop
       (fuzz-test 'hopcroft-dfa
-                 (curry-list #'dfap hop))
+                 (curry-list #'dfa-p hop))
 
       (fuzz-test 'hopcroft-terminals
                  (lambda () (finite-set-equal (fa-terminals fa) (fa-terminals hop)))))
     ;; check brzozowski
     (when brz
       (fuzz-test 'brzozowski-dfa
-                 (curry-list #'dfap brz))
+                 (curry-list #'dfa-p brz))
       (fuzz-test 'brzozowski-terminals
                  (lambda () (finite-set-equal (fa-terminals fa) (fa-terminals brz)))))
     ;; check that they match

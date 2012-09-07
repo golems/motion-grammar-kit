@@ -38,4 +38,22 @@
 (defpackage :motion-grammar
   (:use :cl :sycamore)
   (:nicknames :mg)
-  (:export))
+  (:export
+   ;; finite automata
+   finite-automaton make-fa fa-canonicalize nfa->dfa
+   fa-equiv dfa-eq
+   fa-empty-p dfa-p fa-universal-p
+   make-empty-fa make-universal-fa make-empty-fa
+   fa-intersection fa-complement fa-union fa-concatenation
+   fa-dot
+   ;; regular expressions
+   regex->dfa regex->nfa fa->regex
+   regex-sweeten
+   ;; grammars
+   grammar->right-regular grammar->fa fa->right-regular-grammar
+   grammar->cnf grammar-remove-useless
+   ;; pushdown automata
+   pushdown-automaton make-pda grammar->pda
+   pda-fa-intersection pda-reachability-automaton
+   pda-dot
+   ))

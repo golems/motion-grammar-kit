@@ -48,12 +48,17 @@
 ;;; - edge list
 ;;; - successor array
 
-(defstruct (fa (:constructor %make-fa))
+
+(defstruct (finite-automaton)
+  "A Finite Automaton."
   states
   terminals
   edges
   start
   accept)
+
+(defstruct (fa (:constructor %make-fa)
+               (:include finite-automaton)))
 
 (defun fa-map-edge-lists (result-type function fa)
   (map result-type function (fa-edges fa)))
@@ -82,6 +87,10 @@ FUNCTION: (lambda (q-0 z q-1))"
 
 
 (defun make-fa (edges start accept)
+  "Create a finite-automaton.
+EDGES: List of edges, each (list state-0 terminal state-1).
+START: The automaton start state.
+ACCEPT: Set of automaton accept states."
   (declare (type finite-set accept))
   (let ((state-set (make-finite-set :mutable t))     ; faster to build up the hash-table first
         (terminal-set (make-finite-set :mutable t))) ; then convert to the tree-set
@@ -180,7 +189,7 @@ RESULT: (lambda (state)) => (finite-set terminals)"
 ;; CONVERSIONS ;;
 ;;;;;;;;;;;;;;;;;
 
-(defun dfap (fa)
+(defun dfa-p (fa)
   "True if FA is deterministic"
   (labels ((rec (set edges)
              (if edges
@@ -234,6 +243,9 @@ RESULT: (lambda (state)) => (finite-set terminals)"
 
 
 (defun fa-canonicalize (fa)
+  "Return a canonical representation of FA.
+
+Minimize the state of FA and rename state variables."
   ;; Hoprcroft's actually does go faster
   (dfa-renumber (fa-minimize-hopcroft fa)))
   ;;(dfa-renumber (fa-minimize-brzozowski fa)))
@@ -321,13 +333,13 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                                     for q being the hash-keys of hash
                                     when (finite-set-intersection a-list q)
                                     collect (finite-set-list q))))))
-      ;(assert (dfap fa))
+      ;(assert (dfa-p fa))
       fa)))
 
 
 (defun ensure-dfa (fa)
   "If FA is not a DFA, convert it to a DFA."
-  (if (dfap fa)
+  (if (dfa-p fa)
       fa
       (nfa->dfa fa)))
 
@@ -459,7 +471,7 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                                                  (fa-accept dfa))))))
 
 (defun fa-hopcroft-partition (dfa)
-  (assert (dfap dfa))
+  (assert (dfa-p dfa))
   (let ((p (list  nil
                   (fa-accept dfa)
                   (finite-set-difference (fa-states dfa)
@@ -516,7 +528,7 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
   ;;       make implicit somehow
   ;(declare (optimize (speed 3) (safety 0)))
   (let* ((reject (gensym "reject"))
-         (dfa (dfa-add-reject (fa-prune (if (dfap fa)
+         (dfa (dfa-add-reject (fa-prune (if (dfa-p fa)
                                             fa
                                             (nfa->dfa fa)))
                               reject)))
@@ -609,8 +621,8 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
 
 (defun dfa-equal (a b)
   "Check equivalence up to state names of DFAs"
-  (assert (dfap a))
-  (assert (dfap b))
+  (assert (dfa-p a))
+  (assert (dfa-p b))
   (let ((a (dfa-renumber a))
         (b (dfa-renumber b)))
     (dfa-eq a b)))
@@ -621,6 +633,7 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
           (fa-canonicalize b)))
 
 (defun fa-empty-p (fa)
+  "Does FA include no strings?"
   (with-dfa (dfa fa)
     (let ((succ (fa-successors dfa))
           (visited (make-finite-set :mutable t))
@@ -634,7 +647,7 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
         (not (visit (fa-start dfa)))))))
 
 (defun make-empty-fa (terminals)
-  "Null set."
+  "Create an FA including no strings."
   (%make-fa :states (finite-set-tree '(0))
             :terminals (finite-set-tree terminals)
             :edges nil
@@ -643,7 +656,7 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
 
 
 (defun make-epsilon-fa (terminals)
-  "Includes only the empty string."
+  "Create an FA including only the empty string."
   (%make-fa :states (finite-set-tree '(0))
             :terminals (finite-set-tree terminals)
             :edges nil
@@ -651,6 +664,7 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
             :accept (finite-set-tree '(0))))
 
 (defun make-universal-fa (terminals)
+  "Create an FA recognizing all strings over TERMINALS."
   (make-fa-1 (finite-set 0)
             terminals
             (finite-set-map 'list (lambda (z) (list 0 z 0)) terminals)
@@ -658,11 +672,12 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
             (finite-set 0)))
 
 (defun fa-universal-p (fa &optional (terminals (fa-terminals fa)))
+  "Does FA recognize all strings over TERMINALS?"
   (dfa-eq (fa-canonicalize fa)
           (dfa-renumber (make-universal-fa (finite-set-remove terminals :epsilon)))))
 
 (defun fa-intersection (fa1 fa2)
-  "Intersection of two FA"
+  "Intersection of FA1 and FA2"
   (with-dfa (dfa1 fa1)
     (with-dfa (dfa2 fa2)
       ;; Simulate each FA simultaneously.  Accept when both FAs accept.
@@ -701,8 +716,11 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                       collect k))))))
 
 
-(defun fa-complement (nfa &optional (terminals (finite-set-remove (fa-terminals nfa) :epsilon)))
-  (with-dfa (dfa nfa)
+(defun fa-complement (fa &optional (terminals (finite-set-remove (fa-terminals fa) :epsilon)))
+"Return the complement of FA.
+
+This is the finite-automaton that accepts all strings NOT in FA."
+  (with-dfa (dfa fa)
     (let ((dead-accept (gensym "ACCEPT"))
           (edges (fa-edges dfa))
           (outgoing (fa-outgoing-terminal-function dfa)))
@@ -813,9 +831,9 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
 ;;;;;;;;;;;;;;
 
 (defun fa-dot (fa &key output (font-size 12) (accept-shape "doublecircle"))
-  "Graphviz output of dfa.
-fa: finite automaton
-output: output file, type determined by suffix (png,pdf,eps)"
+  "Generate Graphviz output for FA.
+FA: finite automaton.
+OUTPUT: output file, type determined by suffix (png,pdf,eps)."
   (let ((state-numbers (finite-set-enumerate (fa-states fa))))
     (output-dot output
                 (lambda (s)

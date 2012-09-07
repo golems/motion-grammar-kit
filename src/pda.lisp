@@ -36,13 +36,17 @@
 
 (in-package :motion-grammar)
 
-(defstruct (pda (:constructor %make-pda))
+(defstruct (pushdown-automaton)
+  "A Pushdown Automaton."
   states
-  input-alphabet
+  terminals
   stack-alphabet
-  transition ;; (tree-map (states input-alphabet stack-alphabet)) => (set (list states stack-alphabet))
+  transition ;; (tree-map (states terminals stack-alphabet)) => (set (list states stack-alphabet))
   start
   accept)
+
+(defstruct (pda (:constructor %make-pda)
+                (:include pushdown-automaton)))
 
 
 (defun pda-edge-extended (q-0 z g-0 q-1 g-1-list)
@@ -87,9 +91,10 @@ FUNCTION: (lambda ( (list q-0 z g-0) (list q-1 g-1))"
                (gethash key hash)))))
 
 (defun make-pda (edges start accept)
+  "Make a pushdown automaton."
   (let ((tree-map (make-tree-map #'gsymbol-compare))
         (states (make-finite-set))
-        (input-alphabet (make-finite-set))
+        (terminals (make-finite-set))
         (stack-alphabet (make-finite-set)))
     (loop
        for edge in edges
@@ -103,14 +108,14 @@ FUNCTION: (lambda ( (list q-0 z g-0) (list q-1 g-1))"
                                                (finite-set-add (tree-map-find tree-map x) y))
                ;(setf (gethash x hash) (finite-set-add (gethash x hash) y)
                      states (finite-set-union states (finite-set q-0 q-1))
-                     input-alphabet (finite-set-add input-alphabet sigma)
+                     terminals (finite-set-add terminals sigma)
                      stack-alphabet (finite-set-union stack-alphabet
                                                       (fold #'finite-set-add (make-finite-set)
                                                             (cons gamma-0 gamma-1))))))))
     (assert (finite-set-inp start states))
     (assert (finite-set-subsetp accept states))
     (%make-pda :states states
-               :input-alphabet input-alphabet
+               :terminals terminals
                :stack-alphabet stack-alphabet
                ;:transition (lambda (q sigma gamma) (gethash (list q sigma gamma) hash))
                ;:transition (lambda (q sigma gamma) (tree-map-find tree-map (list q sigma gamma)))
@@ -157,6 +162,7 @@ FUNCTION: (lambda ( (list q-0 z g-0) (list q-1 g-1))"
 
 
 (defun pda-dot (pda &key output (font-size 12))
+  "Generate Graphviz output for PDA."
   (let ((state-numbers (finite-set-enumerate (pda-states pda))))
     (output-dot output
                 (lambda (s)
@@ -210,8 +216,9 @@ FUNCTION: (lambda ( (list q-0 z g-0) (list q-1 g-1))"
     ;; construct
     (make-pda edges q-start (finite-set q-accept))))
 
-
-
+(defun grammar->pda (grammar)
+  "Convert GRAMMAR to a PDA."
+  (grammar->pda-sipser grammar))
 
 ;; Hopcroft p135
 (defun pda-fa-intersection (pda fa &optional (gensym (gensym)))
@@ -278,6 +285,10 @@ RESULT: a pda"
 
 
 (defun pda-reachability-automaton (pda)
+  "Compute the reachability automaton for the PDA.
+
+This is an FA with the same control states as PDA and whose language
+defines the set of all stack contents possible at each control state."
   (let ((epsilon-hash (make-hash-table :test #'equal))
         (edges)) ;; TODO: could do better than a dumb list
     ;; init epsilon hash

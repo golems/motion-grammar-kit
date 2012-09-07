@@ -48,7 +48,7 @@
 
 (defmacro test-fa (fa)
   `(progn
-     (lisp-unit:assert-true (dfap (fa-minimize-hopcroft ,fa)))
+     (lisp-unit:assert-true (dfa-p (fa-minimize-hopcroft ,fa)))
      (lisp-unit:assert-true (dfa-eq (fa-canonicalize-brzozowski ,fa)
                                     (fa-canonicalize-hopcroft ,fa)))
      ;; check some identities
@@ -92,7 +92,7 @@
 
 (lisp-unit:define-test fa-regression
   ;; no edges to start state, start in accept
-  (lisp-unit:assert-true (dfap (fa-canonicalize-hopcroft (make-fa '((1 0 0) (1 0 2)) 0 '(0)))))
+  (lisp-unit:assert-true (dfa-p (fa-canonicalize-hopcroft (make-fa '((1 0 0) (1 0 2)) 0 '(0)))))
   (lisp-unit:assert-true (dfa-eq (fa-canonicalize-brzozowski (make-fa-1 '(0) '(0)
                                                                        nil 0 '(0)))
                                  (fa-canonicalize-hopcroft (make-fa '((1 0 0) (1 0 2)) 0 '(0)))))

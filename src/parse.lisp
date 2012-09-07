@@ -109,7 +109,7 @@ RESULT: (lambda (X a)) => (or production nil (finite-set productions))"
 ;;   - Successor array / Edge List / Search Tree / (Perfect) Hash table
 
 ;; (defun dfa->motion-parser (dfa)
-;;   (assert (dfap dfa))
+;;   (assert (dfa-p dfa))
 ;;   (assert (= 1 (length (fa-start dfa))))
 ;;   (let ((mover (fa-mover dfa)))
 ;;     (lambda (predicate-function semantic-function interrupt-function)

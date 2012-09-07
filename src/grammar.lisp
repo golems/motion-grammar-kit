@@ -116,7 +116,7 @@ RESULT: function reduced across grammar"
                   grammar)))
 
 
-(defun grammar-terminalp (terminals nonterminals gsymbol)
+(defun grammar-terminal-p (terminals nonterminals gsymbol)
   "Is GSYMBOL a terminal?"
   (let ((in-terms (finite-set-inp gsymbol terminals))
         (in-nonterms (finite-set-inp gsymbol nonterminals)))
@@ -131,14 +131,14 @@ RESULT: function reduced across grammar"
        (error "Found ~A in neither set" gsymbol))
       (t (error "Godel was here")))))
 
-(defun grammar-nonterminalp (terminals nonterminals gsymbol)
-  (not (grammar-terminalp terminals nonterminals gsymbol)))
+(defun grammar-nonterminal-p (terminals nonterminals gsymbol)
+  (not (grammar-terminal-p terminals nonterminals gsymbol)))
 
 (defun grammar-chain-rule-p (terminals nonterminals production)
   "Is PRODUCTION a chain rule (A -> B)?"
-  (assert (grammar-nonterminalp terminals nonterminals (car production)))
+  (assert (grammar-nonterminal-p terminals nonterminals (car production)))
   (and (= 2 (length production))
-       (grammar-nonterminalp terminals nonterminals (second production))))
+       (grammar-nonterminal-p terminals nonterminals (second production))))
 
 
 
@@ -227,7 +227,7 @@ RESULT: (lambda (nonterminal)) => set of production bodies NONTERMINAL expands t
                                                (car body))))
                     ;; only productions with leading nonterminal
                     (finite-set-filter (lambda (rule)
-                                         (grammar-nonterminalp terminals nonterminals (second rule)))
+                                         (grammar-nonterminal-p terminals nonterminals (second rule)))
                                        grammar)))
 
 
@@ -265,7 +265,7 @@ RESULT: (lambda (symbol)) => FOLLOW set of symbol"
   (grammar-fixpoint (lambda (head body get-set union-set)
                       (mapl (lambda (list)
                               (destructuring-bind (B &rest beta) list
-                                (when (grammar-nonterminalp terminals nonterminals B)
+                                (when (grammar-nonterminal-p terminals nonterminals B)
                                   (funcall union-set B
                                            (if beta
                                                (let ((first-beta (grammar-list-first first-function beta)))
@@ -320,7 +320,8 @@ RESULT: A new grammar with substitution performed"
 
 
 (defun grammar->right-regular (grammar)
-  "Attempt to convert this grammar to right-regular form."
+  "Attempt to convert this grammar to right-regular form.
+Please note that this operation is not always possible."
   ;; TODO: prune epsilons, singletons, and redundant nonterminals
   ;;       do this using same steps an CNF conversion
   (let ((terminals (grammar-terminals grammar)))
@@ -383,6 +384,7 @@ RESULT: a finite automaton"
     (make-fa edges start (finite-set-add accept new-accept))))
 
 (defun fa->right-regular-grammar (fa)
+  "Convert FA to a right-regular grammar."
   (with-dfa (dfa fa)
     (let ((succs (fa-successors dfa))
           (accept (fa-accept dfa))
@@ -707,7 +709,7 @@ RESULT: reduced grammar"
                (fold-finite-set (lambda (visited body)
                                   ;; fold over symbols of body
                                   (fold (lambda (visited x)
-                                          (if (and (grammar-nonterminalp terminals nonterminals x)
+                                          (if (and (grammar-nonterminal-p terminals nonterminals x)
                                                    (not (finite-set-inp x visited)))
                                               (visit (finite-set-add visited x) x)
                                               visited))
@@ -785,15 +787,15 @@ RETURNS: (values S-B {A-B} P-B)"
     (values s-b
             local-nonterms
             (rewrite-grammar (lambda (head body)
-                               (let ((first-terminalp (grammar-terminalp terminals nonterminals
-                                                                         (car body)))
+                               (let ((first-terminal-p (grammar-terminal-p terminals nonterminals
+                                                                           (car body)))
                                      (head-chainable (finite-set-inp head chainable-set))
                                      (head-first-nonterm (finite-set-inp head first-nonterm-set)))
                                  ;;(format t "~&prod ~A => ~A~&" head body)
-                                ; (print first-terminalp)
+                                ; (print first-terminal-p)
                                 ; (print head-chainable)
                                 ; (print head-first-nonterm)
-                                 (append (when (and first-terminalp head-chainable)
+                                 (append (when (and first-terminal-p head-chainable)
                                            ;; start production
                                            ;;(format t "~&start 1: ~A => ~A~&" head body)
                                            (list (cons s-b body)))
@@ -801,12 +803,12 @@ RETURNS: (values S-B {A-B} P-B)"
                                          ;; Only include this start production when HEAD
                                          ;; can appear at the beginning of a leftmost derivation of
                                          ;; B.
-                                         (when (and first-terminalp head-first-nonterm)
+                                         (when (and first-terminal-p head-first-nonterm)
                                            ;;(format t "~&start 2: ~A => ~A~&" head body)
                                            (list (cons s-b (append body
                                                                    (list (gethash head local-nonterms))))))
                                          ;; inner
-                                         (when (and (not first-terminalp)
+                                         (when (and (not first-terminal-p)
                                                     head-first-nonterm ;; MODIFICATION
                                                     (not (equal b head)))
                                            ;;(format t "~&inner: ~A => ~A~&" head body)
@@ -814,7 +816,7 @@ RETURNS: (values S-B {A-B} P-B)"
                                                     ,@(rest body)
                                                     ,(gethash head local-nonterms))))
                                          ;; final
-                                         (when (and (not first-terminalp)
+                                         (when (and (not first-terminal-p)
                                                     (cdr body)
                                                     head-chainable)
                                            ;;(format t "~&final: ~A => ~A~&" head body)

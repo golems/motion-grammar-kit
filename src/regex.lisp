@@ -41,8 +41,7 @@
 ;; Aho 2nd Ed., P 159
 
 (defun regex->nfa (regex)
-  "Convert a regex parse-tree to an NFA
-RESULT: (list edges start final)"
+  "Convert a regular expression to an NFA."
   (let ((state-counter 0)
         (edges nil))
     (labels ((is-op (symbol tree)
@@ -79,6 +78,7 @@ RESULT: (list edges start final)"
         (make-fa edges 0 (finite-set final))))))
 
 (defun regex->dfa (regex)
+  "Convert a regular expression to a DFA."
   (fa-canonicalize (regex->nfa regex)))
 
 
@@ -197,6 +197,7 @@ RESULT: (list edges start final)"
 
 
 (defun fa->regex (fa)
+  "Convert FA to a regular expression."
   (with-dfa (dfa fa)
     ;; kludge this
     (let ((regex (gnfa->regex (dfa->gnfa dfa))))
@@ -223,15 +224,20 @@ RESULT: (list edges start final)"
 
 (defparameter *regex-blank* '(:union #\Space #\Tab))
 
-(defun regex-sweeten (regex symbols &key
+(defun regex-sweeten (regex terminals &key
                       concatenate-strings)
-  "Apply some regex sugar operators.
+  "Apply some syntactic sugar to REGEX.
+Supports the following operators:
 :complement : match complement
 :not : any symbol except this
 :+ : A A*
-:. : match anything"
+:. : match anything
+
+REGEX: An extended regular expression.
+TERMINALS: Set of all terminal symbols in the language.
+"
   ;; FIXME: what if :NOT produces an empty match?
-  (let ((dot (cons :union symbols)))
+  (let ((dot (cons :union terminals)))
     (labels ((rec (regex)
                (etypecase regex
                  (atom
@@ -260,10 +266,10 @@ RESULT: (list edges start final)"
                          (list :concatenation a (list :closure a))))
                       (:complement
                        (assert (null (cdr rest)))
-                       (fa->regex (fa-canonicalize (fa-complement (regex->dfa (rec (car rest))) symbols))))
+                       (fa->regex (fa-canonicalize (fa-complement (regex->dfa (rec (car rest))) terminals))))
                       (:not
                        (assert (null (cdr rest)))
-                       (assert (finite-set-inp (car rest) symbols))
-                       (cons :union (finite-set-list (finite-set-remove symbols (car rest)))))
+                       (assert (finite-set-inp (car rest) terminals))
+                       (cons :union (finite-set-list (finite-set-remove terminals (car rest)))))
                       (otherwise regex)))))))
       (rec regex))))
