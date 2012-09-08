@@ -5,13 +5,14 @@
   <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
   <title>MOTION-GRAMMAR-KIT - Formal Language for Robots</title>
   <style type="text/css">
+  html { font-family: sans-serif; background-color: white; color: black; }
   pre { padding:5px; background-color:#e0e0e0 }
   h3, h4 { text-decoration: underline; }
-  a { text-decoration: none; padding: 1px 2px 1px 2px; }
-  a:visited { text-decoration: none; padding: 1px 2px 1px 2px; }
-  a:hover { text-decoration: none; padding: 1px 1px 1px 1px; border: 1px solid #000000; }
+  a { text-decoration: none; color: blue; padding: 1px 2px 1px 2px; }
+  a:visited { text-decoration: none; color: purple; padding: 1px 2px 1px 2px; }
+  a:hover { text-decoration: underline; padding: 1px 1px 1px 1px; border: 1px solid white; }
   a:focus { text-decoration: none; padding: 1px 2px 1px 2px; border: none; }
-  a.none { text-decoration: none; padding: 0; }
+  a.none { text-decoration: none; color: black; padding: 0; }
   a.none:visited { text-decoration: none; padding: 0; }
   a.none:hover { text-decoration: none; border: none; padding: 0; }
   a.none:focus { text-decoration: none; border: none; padding: 0; }
@@ -20,6 +21,9 @@
   a.noborder:hover { text-decoration: none; border: none; padding: 0; }
   a.noborder:focus { text-decoration: none; border: none; padding: 0; }
   pre.none { padding:5px; background-color:#ffffff }
+  span.download { border: 1px solid black; padding: .2em; }
+  blockquote.docstring { white-space: pre; }
+  span.entry { background-color: #ccffcc; }
   </style>
 </head>
 
@@ -29,13 +33,14 @@
 
 <blockquote>
 <br>&nbsp;<br><h3><a name=abstract class=none>Abstract</a></h3> This
-package provides a variety of functions for symbolic manipulation of
-formal language models.  The code comes with
-a <a href="http://www.opensource.org/licenses/bsd-license.php">BSD-style
-license</a> so you can basically do with it whatever you want.
+ package provides a variety of functions for symbolic manipulation of
+ formal language models.  The code comes with
+ a <a href="http://www.opensource.org/licenses/bsd-license.php">BSD-style
+ license</a> so you can basically do with it whatever you want.
 
 <p>
-<font color=red>Download shortcut:</font> git clone <a href="https://github.com/ndantam/motion-grammar-kit">https://github.com/ndantam/motion-grammar-kit</a>
+<font color="#00aa44"><strong>Repository:</strong></font> <span class="download">git
+  clone <a href="https://github.com/golems/motion-grammar-kit">https://github.com/golems/motion-grammar-kit</a></span>
 </blockquote>
 
 <br>&nbsp;<br><h3><a class=none name="contents">Contents</a></h3>
@@ -80,7 +85,7 @@ license</a> so you can basically do with it whatever you want.
 <br>&nbsp;<br><h3><a class=none name="download">Download</a></h3>
 
 MOTION-GRAMMAR-KIT together with this documentation can be downloaded from <a
-href="http://github.com/ndantam/motion-grammar-kit">http://github.com/ndantam/motion-grammar-kit</a>.
+href="http://github.com/golems/motion-grammar-kit">http://github.com/golems/motion-grammar-kit</a>.
 
 <br>&nbsp;<br><h3><a class=none name="dictionary">The MOTION-GRAMMAR-KIT dictionary</a></h3>
 
@@ -88,374 +93,256 @@ href="http://github.com/ndantam/motion-grammar-kit">http://github.com/ndantam/mo
 
 <!-- Entry for DFA-EQ -->
 
-<p><br>[Function]<br><a class=none name='dfa-eq'><b>dfa-eq</b> <i>a b</i> =&gt; <i>result</i></a>
-<blockquote><br>
-
-Check equivalence up to state names of DFAs
-
-</blockquote>
+<p><br>[Function]<br><a class=none name='dfa-eq'><span class="entry"><b>dfa-eq</b> <i>a b</i> &rarr; <i>result</i></span></a>
+<blockquote class="docstring">Check equivalence up to state names of DFAs</blockquote>
 
 <!-- End of entry for DFA-EQ -->
 
 
 <!-- Entry for DFA-P -->
 
-<p><br>[Function]<br><a class=none name='dfa-p'><b>dfa-p</b> <i>fa</i> =&gt; <i>result</i></a>
-<blockquote><br>
-
-True if FA is deterministic
-
-</blockquote>
+<p><br>[Function]<br><a class=none name='dfa-p'><span class="entry"><b>dfa-p</b> <i>fa</i> &rarr; <i>result</i></span></a>
+<blockquote class="docstring">True if FA is deterministic</blockquote>
 
 <!-- End of entry for DFA-P -->
 
 
 <!-- Entry for FA->REGEX -->
 
-<p><br>[Function]<br><a class=none name='fa->regex'><b>fa->regex</b> <i>fa</i> =&gt; <i>result</i></a>
-<blockquote><br>
-
-Convert FA to a regular expression.
-
-</blockquote>
+<p><br>[Function]<br><a class=none name='fa->regex'><span class="entry"><b>fa->regex</b> <i>fa</i> &rarr; <i>result</i></span></a>
+<blockquote class="docstring">Convert FA to a regular expression.</blockquote>
 
 <!-- End of entry for FA->REGEX -->
 
 
 <!-- Entry for FA->RIGHT-REGULAR-GRAMMAR -->
 
-<p><br>[Function]<br><a class=none name='fa->right-regular-grammar'><b>fa->right-regular-grammar</b> <i>fa</i> =&gt; <i>result</i></a>
-<blockquote><br>
-
-Convert FA to a right-regular grammar.
-
-</blockquote>
+<p><br>[Function]<br><a class=none name='fa->right-regular-grammar'><span class="entry"><b>fa->right-regular-grammar</b> <i>fa</i> &rarr; <i>result</i></span></a>
+<blockquote class="docstring">Convert FA to a right-regular grammar.</blockquote>
 
 <!-- End of entry for FA->RIGHT-REGULAR-GRAMMAR -->
 
 
 <!-- Entry for FA-CANONICALIZE -->
 
-<p><br>[Function]<br><a class=none name='fa-canonicalize'><b>fa-canonicalize</b> <i>fa</i> =&gt; <i>result</i></a>
-<blockquote><br>
+<p><br>[Function]<br><a class=none name='fa-canonicalize'><span class="entry"><b>fa-canonicalize</b> <i>fa</i> &rarr; <i>result</i></span></a>
+<blockquote class="docstring">Return a canonical representation of FA.
 
-Return a canonical representation of FA.
-
-Minimize the state of FA and rename state variables.
-
-</blockquote>
+Minimize the state of FA and rename state variables.</blockquote>
 
 <!-- End of entry for FA-CANONICALIZE -->
 
 
 <!-- Entry for FA-COMPLEMENT -->
 
-<p><br>[Function]<br><a class=none name='fa-complement'><b>fa-complement</b> <i>fa <tt>&amp;optional</tt> terminals</i> =&gt; <i>result</i></a>
-<blockquote><br>
+<p><br>[Function]<br><a class=none name='fa-complement'><span class="entry"><b>fa-complement</b> <i>fa <tt>&amp;optional</tt> terminals</i> &rarr; <i>result</i></span></a>
+<blockquote class="docstring">Return the complement of FA.
 
-Return the complement of FA.
-
-This is the finite-automaton that accepts all strings NOT in FA.
-
-</blockquote>
+This is the finite-automaton that accepts all strings NOT in FA.</blockquote>
 
 <!-- End of entry for FA-COMPLEMENT -->
 
 
 <!-- Entry for FA-DOT -->
 
-<p><br>[Function]<br><a class=none name='fa-dot'><b>fa-dot</b> <i>fa <tt>&amp;key</tt> output font-size accept-shape</i> =&gt; <i>result</i></a>
-<blockquote><br>
-
-Generate Graphviz output for FA.
+<p><br>[Function]<br><a class=none name='fa-dot'><span class="entry"><b>fa-dot</b> <i>fa <tt>&amp;key</tt> output font-size accept-shape</i> &rarr; <i>result</i></span></a>
+<blockquote class="docstring">Generate Graphviz output for FA.
 FA: finite automaton.
-OUTPUT: output file, type determined by suffix (png,pdf,eps).
-
-</blockquote>
+OUTPUT: output file, type determined by suffix (png,pdf,eps).</blockquote>
 
 <!-- End of entry for FA-DOT -->
 
 
 <!-- Entry for FA-EMPTY-P -->
 
-<p><br>[Function]<br><a class=none name='fa-empty-p'><b>fa-empty-p</b> <i>fa</i> =&gt; <i>result</i></a>
-<blockquote><br>
-
-Does FA include no strings?
-
-</blockquote>
+<p><br>[Function]<br><a class=none name='fa-empty-p'><span class="entry"><b>fa-empty-p</b> <i>fa</i> &rarr; <i>result</i></span></a>
+<blockquote class="docstring">Does FA include no strings?</blockquote>
 
 <!-- End of entry for FA-EMPTY-P -->
 
 
 <!-- Entry for FA-EQUIV -->
 
-<p><br>[Function]<br><a class=none name='fa-equiv'><b>fa-equiv</b> <i>a b</i> =&gt; <i>result</i></a>
-<blockquote><br>
-
-Check if two FAs recognize the same language.
-
-</blockquote>
+<p><br>[Function]<br><a class=none name='fa-equiv'><span class="entry"><b>fa-equiv</b> <i>a b</i> &rarr; <i>result</i></span></a>
+<blockquote class="docstring">Check if two FAs recognize the same language.</blockquote>
 
 <!-- End of entry for FA-EQUIV -->
 
 
 <!-- Entry for FA-INTERSECTION -->
 
-<p><br>[Function]<br><a class=none name='fa-intersection'><b>fa-intersection</b> <i>fa1 fa2</i> =&gt; <i>result</i></a>
-<blockquote><br>
-
-Intersection of FA1 and FA2
-
-</blockquote>
+<p><br>[Function]<br><a class=none name='fa-intersection'><span class="entry"><b>fa-intersection</b> <i>fa1 fa2</i> &rarr; <i>result</i></span></a>
+<blockquote class="docstring">Intersection of FA1 and FA2</blockquote>
 
 <!-- End of entry for FA-INTERSECTION -->
 
 
 <!-- Entry for FA-UNION -->
 
-<p><br>[Function]<br><a class=none name='fa-union'><b>fa-union</b> <i>fa1 fa2 <tt>&amp;optional</tt> unique</i> =&gt; <i>result</i></a>
-<blockquote><br>
-
-Union of finite automata FA1 and FA2.
-
-</blockquote>
+<p><br>[Function]<br><a class=none name='fa-union'><span class="entry"><b>fa-union</b> <i>fa1 fa2 <tt>&amp;optional</tt> unique</i> &rarr; <i>result</i></span></a>
+<blockquote class="docstring">Union of finite automata FA1 and FA2.</blockquote>
 
 <!-- End of entry for FA-UNION -->
 
 
 <!-- Entry for FA-UNIVERSAL-P -->
 
-<p><br>[Function]<br><a class=none name='fa-universal-p'><b>fa-universal-p</b> <i>fa <tt>&amp;optional</tt> terminals</i> =&gt; <i>result</i></a>
-<blockquote><br>
-
-Does FA recognize all strings over TERMINALS?
-
-</blockquote>
+<p><br>[Function]<br><a class=none name='fa-universal-p'><span class="entry"><b>fa-universal-p</b> <i>fa <tt>&amp;optional</tt> terminals</i> &rarr; <i>result</i></span></a>
+<blockquote class="docstring">Does FA recognize all strings over TERMINALS?</blockquote>
 
 <!-- End of entry for FA-UNIVERSAL-P -->
 
 
 <!-- Entry for FINITE-AUTOMATON -->
 
-<p><br>[Standard class]<br><a class=none name='finite-automaton'><b>finite-automaton</b></a>
-<blockquote><br>
-
-A Finite Automaton.
-
-</blockquote>
+<p><br>[Standard class]<br><a class=none name='finite-automaton'><span class="entry"><b>finite-automaton</b></span></a>
+<blockquote class="docstring">A Finite Automaton.</blockquote>
 
 <!-- End of entry for FINITE-AUTOMATON -->
 
 
 <!-- Entry for GRAMMAR->CNF -->
 
-<p><br>[Function]<br><a class=none name='grammar->cnf'><b>grammar->cnf</b> <i>grammar</i> =&gt; <i>result</i></a>
-<blockquote><br>
-
-Convert grammar to Chomsky Normal Form
-
-</blockquote>
+<p><br>[Function]<br><a class=none name='grammar->cnf'><span class="entry"><b>grammar->cnf</b> <i>grammar</i> &rarr; <i>result</i></span></a>
+<blockquote class="docstring">Convert grammar to Chomsky Normal Form</blockquote>
 
 <!-- End of entry for GRAMMAR->CNF -->
 
 
 <!-- Entry for GRAMMAR->FA -->
 
-<p><br>[Function]<br><a class=none name='grammar->fa'><b>grammar->fa</b> <i>grammar <tt>&amp;key</tt> accept</i> =&gt; <i>result</i></a>
-<blockquote><br>
-
-Convert grammar to a finite automata.
+<p><br>[Function]<br><a class=none name='grammar->fa'><span class="entry"><b>grammar->fa</b> <i>grammar <tt>&amp;key</tt> accept</i> &rarr; <i>result</i></span></a>
+<blockquote class="docstring">Convert grammar to a finite automata.
 GRAMMAR: a right regular grammar (or something close to right regular)
-RESULT: a finite automaton
-
-</blockquote>
+RESULT: a finite automaton</blockquote>
 
 <!-- End of entry for GRAMMAR->FA -->
 
 
 <!-- Entry for GRAMMAR->PDA -->
 
-<p><br>[Function]<br><a class=none name='grammar->pda'><b>grammar->pda</b> <i>grammar</i> =&gt; <i>result</i></a>
-<blockquote><br>
-
-Convert GRAMMAR to a PDA.
-
-</blockquote>
+<p><br>[Function]<br><a class=none name='grammar->pda'><span class="entry"><b>grammar->pda</b> <i>grammar</i> &rarr; <i>result</i></span></a>
+<blockquote class="docstring">Convert GRAMMAR to a PDA.</blockquote>
 
 <!-- End of entry for GRAMMAR->PDA -->
 
 
 <!-- Entry for GRAMMAR->RIGHT-REGULAR -->
 
-<p><br>[Function]<br><a class=none name='grammar->right-regular'><b>grammar->right-regular</b> <i>grammar</i> =&gt; <i>result</i></a>
-<blockquote><br>
-
-Attempt to convert this grammar to right-regular form.
-Please note that this operation is not always possible.
-
-</blockquote>
+<p><br>[Function]<br><a class=none name='grammar->right-regular'><span class="entry"><b>grammar->right-regular</b> <i>grammar</i> &rarr; <i>result</i></span></a>
+<blockquote class="docstring">Attempt to convert this grammar to right-regular form.
+Please note that this operation is not always possible.</blockquote>
 
 <!-- End of entry for GRAMMAR->RIGHT-REGULAR -->
 
 
 <!-- Entry for GRAMMAR-REMOVE-USELESS -->
 
-<p><br>[Function]<br><a class=none name='grammar-remove-useless'><b>grammar-remove-useless</b> <i>grammar <tt>&amp;optional</tt> terminals nonterminals</i> =&gt; <i>result</i></a>
-<blockquote><br>
-
-Remove &#039;useless&#039; symbols from GRAMMAR.
-
-</blockquote>
+<p><br>[Function]<br><a class=none name='grammar-remove-useless'><span class="entry"><b>grammar-remove-useless</b> <i>grammar <tt>&amp;optional</tt> terminals nonterminals</i> &rarr; <i>result</i></span></a>
+<blockquote class="docstring">Remove &#039;useless&#039; symbols from GRAMMAR.</blockquote>
 
 <!-- End of entry for GRAMMAR-REMOVE-USELESS -->
 
 
 <!-- Entry for MAKE-EMPTY-FA -->
 
-<p><br>[Function]<br><a class=none name='make-empty-fa'><b>make-empty-fa</b> <i>terminals</i> =&gt; <i>result</i></a>
-<blockquote><br>
-
-Create an FA including no strings.
-
-</blockquote>
+<p><br>[Function]<br><a class=none name='make-empty-fa'><span class="entry"><b>make-empty-fa</b> <i>terminals</i> &rarr; <i>result</i></span></a>
+<blockquote class="docstring">Create an FA including no strings.</blockquote>
 
 <!-- End of entry for MAKE-EMPTY-FA -->
 
 
 <!-- Entry for MAKE-FA -->
 
-<p><br>[Function]<br><a class=none name='make-fa'><b>make-fa</b> <i>edges start accept</i> =&gt; <i>result</i></a>
-<blockquote><br>
-
-Create a finite-automaton.
+<p><br>[Function]<br><a class=none name='make-fa'><span class="entry"><b>make-fa</b> <i>edges start accept</i> &rarr; <i>result</i></span></a>
+<blockquote class="docstring">Create a finite-automaton.
 EDGES: List of edges, each (list state-0 terminal state-1).
 START: The automaton start state.
-ACCEPT: Set of automaton accept states.
-
-</blockquote>
+ACCEPT: Set of automaton accept states.</blockquote>
 
 <!-- End of entry for MAKE-FA -->
 
 
 <!-- Entry for MAKE-PDA -->
 
-<p><br>[Function]<br><a class=none name='make-pda'><b>make-pda</b> <i>edges start accept</i> =&gt; <i>result</i></a>
-<blockquote><br>
-
-Make a pushdown automaton.
-
-</blockquote>
+<p><br>[Function]<br><a class=none name='make-pda'><span class="entry"><b>make-pda</b> <i>edges start accept</i> &rarr; <i>result</i></span></a>
+<blockquote class="docstring">Make a pushdown automaton.</blockquote>
 
 <!-- End of entry for MAKE-PDA -->
 
 
 <!-- Entry for MAKE-UNIVERSAL-FA -->
 
-<p><br>[Function]<br><a class=none name='make-universal-fa'><b>make-universal-fa</b> <i>terminals</i> =&gt; <i>result</i></a>
-<blockquote><br>
-
-Create an FA recognizing all strings over TERMINALS.
-
-</blockquote>
+<p><br>[Function]<br><a class=none name='make-universal-fa'><span class="entry"><b>make-universal-fa</b> <i>terminals</i> &rarr; <i>result</i></span></a>
+<blockquote class="docstring">Create an FA recognizing all strings over TERMINALS.</blockquote>
 
 <!-- End of entry for MAKE-UNIVERSAL-FA -->
 
 
 <!-- Entry for NFA->DFA -->
 
-<p><br>[Function]<br><a class=none name='nfa->dfa'><b>nfa->dfa</b> <i>nfa</i> =&gt; <i>result</i></a>
-<blockquote><br>
-
-Convert an NFA to a DFA
-
-</blockquote>
+<p><br>[Function]<br><a class=none name='nfa->dfa'><span class="entry"><b>nfa->dfa</b> <i>nfa</i> &rarr; <i>result</i></span></a>
+<blockquote class="docstring">Convert an NFA to a DFA</blockquote>
 
 <!-- End of entry for NFA->DFA -->
 
 
 <!-- Entry for PDA-DOT -->
 
-<p><br>[Function]<br><a class=none name='pda-dot'><b>pda-dot</b> <i>pda <tt>&amp;key</tt> output font-size</i> =&gt; <i>result</i></a>
-<blockquote><br>
-
-Generate Graphviz output for PDA.
-
-</blockquote>
+<p><br>[Function]<br><a class=none name='pda-dot'><span class="entry"><b>pda-dot</b> <i>pda <tt>&amp;key</tt> output font-size</i> &rarr; <i>result</i></span></a>
+<blockquote class="docstring">Generate Graphviz output for PDA.</blockquote>
 
 <!-- End of entry for PDA-DOT -->
 
 
 <!-- Entry for PDA-FA-INTERSECTION -->
 
-<p><br>[Function]<br><a class=none name='pda-fa-intersection'><b>pda-fa-intersection</b> <i>pda fa <tt>&amp;optional</tt> gensym</i> =&gt; <i>result</i></a>
-<blockquote><br>
-
-Compute the intersection of PDA and DFA.
-RESULT: a pda
-
-</blockquote>
+<p><br>[Function]<br><a class=none name='pda-fa-intersection'><span class="entry"><b>pda-fa-intersection</b> <i>pda fa <tt>&amp;optional</tt> gensym</i> &rarr; <i>result</i></span></a>
+<blockquote class="docstring">Compute the intersection of PDA and DFA.
+RESULT: a pda</blockquote>
 
 <!-- End of entry for PDA-FA-INTERSECTION -->
 
 
 <!-- Entry for PDA-REACHABILITY-AUTOMATON -->
 
-<p><br>[Function]<br><a class=none name='pda-reachability-automaton'><b>pda-reachability-automaton</b> <i>pda</i> =&gt; <i>result</i></a>
-<blockquote><br>
-
-Compute the reachability automaton for the PDA.
+<p><br>[Function]<br><a class=none name='pda-reachability-automaton'><span class="entry"><b>pda-reachability-automaton</b> <i>pda</i> &rarr; <i>result</i></span></a>
+<blockquote class="docstring">Compute the reachability automaton for the PDA.
 
 This is an FA with the same control states as PDA and whose language
-defines the set of all stack contents possible at each control state.
-
-</blockquote>
+defines the set of all stack contents possible at each control state.</blockquote>
 
 <!-- End of entry for PDA-REACHABILITY-AUTOMATON -->
 
 
 <!-- Entry for PUSHDOWN-AUTOMATON -->
 
-<p><br>[Standard class]<br><a class=none name='pushdown-automaton'><b>pushdown-automaton</b></a>
-<blockquote><br>
-
-A Pushdown Automaton.
-
-</blockquote>
+<p><br>[Standard class]<br><a class=none name='pushdown-automaton'><span class="entry"><b>pushdown-automaton</b></span></a>
+<blockquote class="docstring">A Pushdown Automaton.</blockquote>
 
 <!-- End of entry for PUSHDOWN-AUTOMATON -->
 
 
 <!-- Entry for REGEX->DFA -->
 
-<p><br>[Function]<br><a class=none name='regex->dfa'><b>regex->dfa</b> <i>regex</i> =&gt; <i>result</i></a>
-<blockquote><br>
-
-Convert a regular expression to a DFA.
-
-</blockquote>
+<p><br>[Function]<br><a class=none name='regex->dfa'><span class="entry"><b>regex->dfa</b> <i>regex</i> &rarr; <i>result</i></span></a>
+<blockquote class="docstring">Convert a regular expression to a DFA.</blockquote>
 
 <!-- End of entry for REGEX->DFA -->
 
 
 <!-- Entry for REGEX->NFA -->
 
-<p><br>[Function]<br><a class=none name='regex->nfa'><b>regex->nfa</b> <i>regex</i> =&gt; <i>result</i></a>
-<blockquote><br>
-
-Convert a regular expression to an NFA.
-
-</blockquote>
+<p><br>[Function]<br><a class=none name='regex->nfa'><span class="entry"><b>regex->nfa</b> <i>regex</i> &rarr; <i>result</i></span></a>
+<blockquote class="docstring">Convert a regular expression to an NFA.</blockquote>
 
 <!-- End of entry for REGEX->NFA -->
 
 
 <!-- Entry for REGEX-SWEETEN -->
 
-<p><br>[Function]<br><a class=none name='regex-sweeten'><b>regex-sweeten</b> <i>regex terminals <tt>&amp;key</tt> concatenate-strings</i> =&gt; <i>result</i></a>
-<blockquote><br>
-
-Apply some syntactic sugar to REGEX.
+<p><br>[Function]<br><a class=none name='regex-sweeten'><span class="entry"><b>regex-sweeten</b> <i>regex terminals <tt>&amp;key</tt> concatenate-strings</i> &rarr; <i>result</i></span></a>
+<blockquote class="docstring">Apply some syntactic sugar to REGEX.
 Supports the following operators:
 :complement : match complement
 :not : any symbol except this
@@ -464,8 +351,6 @@ Supports the following operators:
 
 REGEX: An extended regular expression.
 TERMINALS: Set of all terminal symbols in the language.
-
-
 </blockquote>
 
 <!-- End of entry for REGEX-SWEETEN -->
