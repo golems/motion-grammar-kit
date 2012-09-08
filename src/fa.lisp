@@ -36,7 +36,7 @@
 
 ;;; Utils
 
-(in-package :motion-grammar)
+(in-package :motion-grammar-kit)
 
 ;;; FA
 ;;;  -(states, tokens, edges, start, accept),

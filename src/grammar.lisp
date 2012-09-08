@@ -54,7 +54,7 @@
 ;;;   - grammar -> ((prod1) (prod2) (prod3)...)
 ;;;   - prod -> (left-hand-side &rest expansion
 
-(in-package :motion-grammar)
+(in-package :motion-grammar-kit)
 
 
 (defun grammar-map-list (result function grammar)

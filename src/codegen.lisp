@@ -34,7 +34,7 @@
 ;;;;   OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
 ;;;;   EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-(in-package :motion-grammar)
+(in-package :motion-grammar-kit)
 
 ;; Convert a FA to C Code
 ;; Each token is given by a C function.

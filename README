@@ -2,6 +2,8 @@ Motion Grammar Kit
 ==================
 Formal Language Tools for Robots
 
+http://golems.github.com/motion-grammar-kit
+
 Features
 ========
 * Automata Manipulation
@@ -13,3 +15,4 @@ Features
   * Generate C code for Regular and Context-Free LL(1) parsers.
 * Visualization
   * Generate automata diagrams with Graphviz
+

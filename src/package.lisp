@@ -35,9 +35,9 @@
 ;;;;   EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-(defpackage :motion-grammar
+(defpackage :motion-grammar-kit
   (:use :cl :sycamore)
-  (:nicknames :mg)
+  (:nicknames :motion-grammar :mg)
   (:export
    ;; finite automata
    finite-automaton make-fa fa-canonicalize nfa->dfa

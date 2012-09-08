@@ -35,7 +35,7 @@
 ;;;;   EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-(in-package :motion-grammar)
+(in-package :motion-grammar-kit)
 
 (defun fa-shortest-string (fa)
   "Generate the shortest string in the language."

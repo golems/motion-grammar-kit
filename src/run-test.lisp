@@ -61,14 +61,14 @@
          :test #'equal)
 
 ;; Load necessary packages
-(asdf:operate 'asdf:load-op :motion-grammar)
+(asdf:operate 'asdf:load-op :motion-grammar-kit)
 (asdf:operate 'asdf:load-op :lisp-unit)
 
 ;; Load tests
 (load "test.lisp")
 
 ;; Run the tests
-(in-package :motion-grammar)
+(in-package :motion-grammar-kit)
 
 (lisp-unit:run-tests)
 

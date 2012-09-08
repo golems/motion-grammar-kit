@@ -36,7 +36,7 @@
 
 ;;; Utils
 
-(in-package :motion-grammar)
+(in-package :motion-grammar-kit)
 
 ;;(declaim (optimize (speed 3) (safety 0)))
 

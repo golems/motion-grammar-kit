@@ -46,7 +46,7 @@
 ;;;; tables, search trees, or bit vectors later.
 
 
-(in-package :motion-grammar)
+(in-package :motion-grammar-kit)
 
 (deftype finite-set () '(or list hash-table tree-set))
 

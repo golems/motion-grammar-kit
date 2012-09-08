@@ -41,7 +41,7 @@
 ;;;;  - Predicate: Synchronous
 ;;;;  - Semantic:  A function call
 
-(in-package :motion-grammar)
+(in-package :motion-grammar-kit)
 
 (defun token-interrupt-p (token)
   (and (listp token)
