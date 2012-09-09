@@ -52,6 +52,7 @@
    ;; grammars
    grammar->right-regular grammar->fa fa->right-regular-grammar
    grammar->cnf grammar-remove-useless
+   load-bnf save-bnf
    ;; pushdown automata
    pushdown-automaton make-pda grammar->pda
    pda-fa-intersection pda-reachability-automaton
