@@ -1,0 +1,132 @@
+Install Instructions for Motion Grammar Kit
+
+Short Instructions
+==================
+
+The Motion-Grammar-Kit is implemented primarily in Common Lisp.  If
+you're already familiar with Common Lisp, here are some quick
+instructions to get you started.  If you haven't used a Common Lisp
+system before, or don't know how to set up things like Slime, ASDF, or
+Quicklisp, please see the "Detailed Instructions" below.
+
+Dependencies
+------------
+
+A few dependencies on some typical lisp libraries, plus the author's
+tree and finite set library.  Most dependencies are installable using
+the Quicklisp library manager (http://www.quicklisp.org/)
+
+* CL-PPCRE -- quicklisp or http://weitz.de/cl-ppcre/
+* ALEXANDRIA -- quicklisp or http://common-lisp.net/project/alexandria/
+* LISP-UNIT -- for tests only, quicklisp or
+  http://www.cs.northwestern.edu/academics/courses/325/readings/lisp-unit.html
+* SYCAMORE -- http://ndantam.github.com/sycamore/
+
+Motion-Grammar-Kit
+------------------
+
+* `git clone https://github.com/golems/motion-grammar-kit`
+*  Set your ASDF symlink, and load it up!
+
+Detailed Instructions
+=====================
+
+These step-by-step instructions describe how to install a Common Lisp
+development environment, install the various dependencies, and load
+the Motion-Grammar-Kit.
+
+Install a Common Lisp System
+----------------------------
+
+First, you will need to install a Common Lisp system, giving you the
+lisp compiler and runtime environment.  The SBCL implementation
+(http://www.sbcl.org/) is a popular Free lisp with a very good
+compiler that run on most popular unix-like systems.  Microsoft
+Windows support on SBCL is present but rather new, so CLISP
+(http://www.clisp.org/) is another option.  Clozure CL is another
+Free, fast lisp that includes an IDE for MacOSX.
+
+* Debian / Ubuntu
+  * `apt-get install sbcl`
+* All Others
+  * SBCL -- http://www.sbcl.org/platform-table.html (or your favorite
+    package manager)
+  * Clozure -- http://ccl.clozure.com/ (or package manager)
+  * CLISP -- http://www.clisp.org/ (or package manager)
+
+Install Quicklisp
+-----------------
+
+Quicklisp is a package manager for lisp, similar to CPAN, RubyGems,
+Python's easy_install, and ELPA.  At the time of writing, it is the
+easiest way to install Lisp packages.  You can install Quicklisp from
+http://www.quicklisp.org/.  Alternatively, Debian Wheezy and Ubuntu
+Precise (or later) contain a package for quicklisp: `apt-get install
+cl-quicklisp`.
+
+Install Development Environment
+-------------------------------
+
+Lisp development is typically done interactively with a running Lisp
+process, similar to systems such as Matlab or Mathematica.  It is very
+convenient to have a text editor which supports communication with a
+running lisp.  The Slime (http://common-lisp.net/project/slime/)
+package for Emacs provides a good lisp interface.
+
+* Debian / Ubuntu:
+  * `apt-get install emacs slime`
+* Install via quicklisp:
+  * `sbcl --eval '(ql:quickload "quicklisp-slime-helper")'`
+* All Others
+  * Emacs -- http://www.gnu.org/software/emacs/#Obtaining (or package
+    manager)
+  * Slime -- http://common-lisp.net/project/slime/ (or package manager)
+
+Then, start emacs and type `M-x slime`.  (If you are new to emacs as
+well, "M-x slime" means push Alt-x, then type "slime").  This will
+give you the "REPL" (read-eval-print-loop), where you can
+interactively run lisp code.  More information is available in the
+Slime manual: http://common-lisp.net/project/slime/doc/html/.
+
+There are some alternatives to Slime as well.  Eclipse users may
+prefer the Cusp environment (http://bitfauna.com/projects/cusp/).  On
+MacOSX, you can use the ClozureCL IDE.  Lispworks
+(http://www.lispworks.com/) and Allegro CL (http://www.franz.com/) are
+two commercial, proprietary lisps that come with IDEs.
+
+ASDF and Other Dependencies
+---------------------------
+
+ASDF is a build system for Common Lisp, similar to make or ant.  To
+load ASDF systems into a lisp, you must define where the system
+definition files (*.asd) are stored.  Generally, one picks a single
+directory to place symlinks to the asd files for each separate system.
+Then, that directory is specified in the startup file for the lisp.
+To store the asd symlinks under ~/.asdf/systems/, add the following
+code to your lisp startup file:
+
+   (pushnew '(merge-pathnames ".asdf/systems/"
+              (user-homedir-pathname))
+            asdf:*central-registry*
+            :test #'equal)
+
+Startup files for various lisps are:
+* SBCL -- ~/.sbclrc
+* CLISP -- ~/.clisprc.lisp
+* Clozure -- ~/.ccl-init.lisp
+
+Next, you need to install the SYCAMORE lisp library, available at
+http://ndantam.github.com/sycamore/.  Once you have obtained the
+source, put a symbolic link to sycamore.asd under ~/.asdf/systems (or
+some other directory you have set).  You can then load SYCAMORE from
+the lisp REPL with `(ql:quickload :sycamore)`.
+
+Install Motion-Grammar-Kit Package
+----------------------------------
+
+Now, download the source for the Motion-Grammar-Kit from
+http://golems.github.com/motion-grammar-kit/ (unless you already have
+it).  Then, put the symlink for src/motion-grammar-kit.asd under
+~/.asdf/systems/ (or your preferred directory).  Finally, run
+`(ql:quickload :motion-grammar-kit)` from the REPL, and the package is
+loaded.
