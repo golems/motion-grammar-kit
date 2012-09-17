@@ -607,3 +607,14 @@
 
 
   )
+
+(lisp-unit:define-test codegen
+    (let ((fa (make-fa '((a 0 b)
+                         (b 1 a)
+                         (b 2 c))
+                       'a '(c)))
+          (vector (vector 1 -1 -1
+                          -1 0 2
+                          -1 -1 -1)))
+      (lisp-unit:assert-equalp (dfa-transition-vector fa)
+                               vector)))
