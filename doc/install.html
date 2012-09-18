@@ -1,0 +1,202 @@
+<p>Install Instructions for Motion Grammar Kit</p>
+
+<h1>Short Instructions</h1>
+
+<p>The Motion-Grammar-Kit is implemented primarily in Common Lisp.  If
+you're already familiar with Common Lisp, here are some quick
+instructions to get you started.  For a step-by-step guide, please see
+the "Detailed Instructions" below.</p>
+
+<h2>Dependencies</h2>
+
+<p>A few dependencies on some typical lisp libraries, plus the author's
+tree and finite set library.  Most dependencies are installable using
+the Quicklisp library manager (<a href="http://www.quicklisp.org/">http://www.quicklisp.org/</a>)</p>
+
+<ul>
+<li>CL-PPCRE -- quicklisp or <a href="http://weitz.de/cl-ppcre/">http://weitz.de/cl-ppcre/</a></li>
+<li>ALEXANDRIA -- quicklisp or <a href="http://common-lisp.net/project/alexandria/">http://common-lisp.net/project/alexandria/</a></li>
+<li>LISP-UNIT -- for tests only, quicklisp or
+<a href="http://www.cs.northwestern.edu/academics/courses/325/readings/lisp-unit.html">http://www.cs.northwestern.edu/academics/courses/325/readings/lisp-unit.html</a></li>
+<li>SYCAMORE -- <a href="http://ndantam.github.com/sycamore/">http://ndantam.github.com/sycamore/</a> or
+          $ git clone https://github.com/ndantam/sycamore</li>
+<li>CL-FUZZ -- for tests only, <a href="http://ndantam.github.com/cl-fuzz/">http://ndantam.github.com/cl-fuzz/</a> or
+          $ git clone https://github.com/ndantam/cl-fuzz</li>
+</ul>
+
+<h2>Motion-Grammar-Kit</h2>
+
+<ul>
+<li><code>git clone https://github.com/golems/motion-grammar-kit</code></li>
+<li>Set your ASDF symlink, and load it up!</li>
+</ul>
+
+<h1>Detailed Instructions</h1>
+
+<p>These step-by-step instructions describe how to install a Common Lisp
+development environment, install the various dependencies, and load
+the Motion-Grammar-Kit.</p>
+
+<h2>Install a Common Lisp System</h2>
+
+<p>First, you will need to install a Common Lisp system, giving you the
+lisp compiler and runtime environment.  The SBCL implementation
+(<a href="http://www.sbcl.org/">http://www.sbcl.org/</a>) is a popular Free lisp with a very good
+compiler that run on most popular unix-like systems.  Microsoft
+Windows support on SBCL is present but rather new, so CLISP
+(<a href="http://www.clisp.org/">http://www.clisp.org/</a>) is another option.  Clozure CL is another
+Free, fast lisp that also includes an IDE for MacOSX.</p>
+
+<ul>
+<li>Debian / Ubuntu
+<ul>
+<li><code>sudo apt-get install sbcl</code></li>
+</ul></li>
+<li>All Others
+<ul>
+<li>SBCL -- <a href="http://www.sbcl.org/platform-table.html">http://www.sbcl.org/platform-table.html</a> (or your favorite
+package manager)</li>
+<li>Clozure -- <a href="http://ccl.clozure.com/">http://ccl.clozure.com/</a> (or package manager)</li>
+<li>CLISP -- <a href="http://www.clisp.org/">http://www.clisp.org/</a> (or package manager)</li>
+</ul></li>
+</ul>
+
+<h2>Install Quicklisp</h2>
+
+<p>Quicklisp is a package manager for lisp, similar to CPAN, RubyGems,
+Python's easy_install, and ELPA.  At the time of writing, it is the
+easiest way to install Lisp packages.  You can install Quicklisp from
+<a href="http://www.quicklisp.org/.">http://www.quicklisp.org/.</a></p>
+
+<p>Alternatively, Debian Wheezy and Ubuntu Precise (or later) contain a
+package for quicklisp:</p>
+
+<pre><code> $ sudo apt-get install cl-quicklisp
+</code></pre>
+
+<p>Then, the following command will setup quicklisp for your user account:</p>
+
+<pre><code>$ sbcl --load /usr/share/cl-quicklisp/quicklisp.lisp \
+       --eval '(quicklisp-quickstart:install)'       \
+       --eval '(ql:add-to-init-file)'                \
+       --eval '(quit)'
+</code></pre>
+
+<h2>Install Development Environment</h2>
+
+<p>Lisp development is typically done interactively with a running Lisp
+process, similar to systems such as Matlab or Mathematica.  It is very
+convenient to have a text editor which supports communication with a
+running lisp.  The Superior Lisp Interacton Mode for Emacs (SLIME,
+<a href="http://common-lisp.net/project/slime/">http://common-lisp.net/project/slime/</a>) provides a good lisp interface.</p>
+
+<ul>
+<li>Debian / Ubuntu:
+<ul>
+<li><code>sudo apt-get install emacs slime</code></li>
+</ul></li>
+<li>Install via quicklisp:
+<ul>
+<li><code>sbcl --eval '(ql:quickload "quicklisp-slime-helper")'</code></li>
+</ul></li>
+<li>All Others
+<ul>
+<li>Emacs -- <a href="http://www.gnu.org/software/emacs/#Obtaining">http://www.gnu.org/software/emacs/#Obtaining</a> (or package
+manager)</li>
+<li>Slime -- <a href="http://common-lisp.net/project/slime/">http://common-lisp.net/project/slime/</a> (or package manager)</li>
+</ul></li>
+</ul>
+
+<p>Then, start emacs and type <code>M-x slime</code>.  (If you are new to emacs as
+well, "M-x slime" means push Alt-x, then type "slime").  This will
+give you the "REPL" (read-eval-print-loop), where you can
+interactively run lisp code.  More information is available in the
+Slime manual: <a href="http://common-lisp.net/project/slime/doc/html/.">http://common-lisp.net/project/slime/doc/html/.</a></p>
+
+<p>There are some alternatives to Slime as well.  Eclipse users may
+prefer the Cusp environment (<a href="http://bitfauna.com/projects/cusp/">http://bitfauna.com/projects/cusp/</a>).  On
+MacOSX, you can use the ClozureCL IDE.  Lispworks
+(<a href="http://www.lispworks.com/">http://www.lispworks.com/</a>) and Allegro CL (http://www.franz.com/) are
+two commercial, proprietary lisps that come with IDEs.</p>
+
+<h2>ASDF and Other Dependencies</h2>
+
+<p>ASDF is a build system for Common Lisp, similar to make or ant.  To
+load ASDF systems into a lisp, you must define where the system
+definition files (*.asd) are stored.  Generally, one picks a single
+directory to place symlinks to the asd files for each separate system.
+Then, that directory is specified in the startup file for the lisp.
+To store the asd symlinks under ~/.asdf/systems/, add the following
+code to your lisp startup file:</p>
+
+<pre><code>(pushnew '(merge-pathnames ".asdf/systems/"
+           (user-homedir-pathname))
+         asdf:*central-registry*
+         :test #'equal)
+</code></pre>
+
+<p>Startup files for various lisps are:</p>
+
+<ul>
+<li>SBCL -- ~/.sbclrc</li>
+<li>CLISP -- ~/.clisprc.lisp</li>
+<li>Clozure -- ~/.ccl-init.lisp</li>
+</ul>
+
+<p>Note that your lisp may not automatically load the ASDF package, so it
+may be necessary to insert the following line at the beginning of the
+startup file:</p>
+
+<pre><code>(require 'asdf)
+</code></pre>
+
+<p>Next, you need to install the SYCAMORE lisp library, available at
+<a href="http://ndantam.github.com/sycamore/">http://ndantam.github.com/sycamore/</a> or with:</p>
+
+<pre><code>$ git clone https://github.com/ndantam/sycamore
+</code></pre>
+
+<p>Once you have obtained the source, put a symbolic link to sycamore.asd
+under ~/.asdf/systems (or some other directory you have set).</p>
+
+<pre><code>$ ln -s /path/to/sycamore/sycamore.asd ~/.asdf/systems/sycamore.asd
+</code></pre>
+
+<p>Similarly, you can install CL-FUZZ from
+<a href="http://ndantam.github.com/cl-fuzz/">http://ndantam.github.com/cl-fuzz/</a> or with:</p>
+
+<pre><code>$ git clone https://github.com/ndantam/cl-fuzz
+</code></pre>
+
+<p>Then, add the appropriate symbolic link:</p>
+
+<pre><code>$ ln -s /path/to/cl-fuzz/cl-fuzz.asd ~/.asdf/systems/cl-fuzz.asd
+</code></pre>
+
+<p>You can then load CL-FUZZ and SYCAMORE from the lisp REPL with:</p>
+
+<pre><code>(ql:quickload :cl-fuzz)
+(ql:quickload :sycamore)
+</code></pre>
+
+<h2>Install Motion-Grammar-Kit Package</h2>
+
+<p>Now, download the source for the Motion-Grammar-Kit from
+<a href="http://golems.github.com/motion-grammar-kit/">http://golems.github.com/motion-grammar-kit/</a> (unless you already have
+it):</p>
+
+<pre><code>$ git clone https://github.com/golems/motion-grammar-kit
+</code></pre>
+
+<p>Then, put the symlink for src/motion-grammar-kit.asd under
+~/.asdf/systems/ (or your preferred directory):</p>
+
+<pre><code>$ ln -s /path/to/motion-grammar-kit/src/motion-grammar-kit.asd ~/.asdf/systems/motion-grammar-kit.asd
+</code></pre>
+
+<p>Finally, load it from the REPL with:</p>
+
+<pre><code>(ql:quickload :motion-grammar-kit)
+</code></pre>
+
+<p>and the package is loaded.</p>
