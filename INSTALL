@@ -123,6 +123,7 @@ code to your lisp startup file:
              :test #'equal)
 
 Startup files for various lisps are:
+
 * SBCL -- ~/.sbclrc
 * CLISP -- ~/.clisprc.lisp
 * Clozure -- ~/.ccl-init.lisp

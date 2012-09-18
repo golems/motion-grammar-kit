@@ -18,3 +18,11 @@ check-ccl:
 check-ecl:
 	@echo "-------- ECL  --------"
 	cd src && ecl -load run-test.lisp -eval '(quit)'
+
+.PHONY: doc
+
+doc/install.html: INSTALL
+	markdown INSTALL > doc/install.html
+	sed -i -e 's!\(http://\([[:alnum:]]\|[./#\-]\)*\)!<a href="\1">\1</a>!' $@
+
+
