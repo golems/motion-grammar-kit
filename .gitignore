@@ -21,3 +21,5 @@
 /ltmain.sh
 /Makefile
 /mg_test
+/examples/example
+/examples/load_parse.c
