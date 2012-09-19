@@ -40,7 +40,7 @@
 ;; The McNaughton-Yamada-Thompson algorithm
 ;; Aho 2nd Ed., P 159
 
-(defun regex->nfa (regex)
+(defun regex->nfa (regex &optional terminals)
   "Convert a regular expression to an NFA."
   (let ((state-counter 0)
         (edges nil))
@@ -75,11 +75,14 @@
                  )))
       ;; visit the start
       (let ((final (visit 0 regex)))
-        (make-fa edges 0 (finite-set final))))))
+        (let ((fa (make-fa edges 0 (finite-set final))))
+          (when terminals
+            (setf (fa-terminals fa) (finite-set-tree terminals)))
+          fa)))))
 
-(defun regex->dfa (regex)
+(defun regex->dfa (regex &optional terminals)
   "Convert a regular expression to a DFA."
-  (fa-canonicalize (regex->nfa regex)))
+  (fa-canonicalize (regex->nfa regex terminals)))
 
 
 (defun regex-apply (operator &rest args)
