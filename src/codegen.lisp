@@ -407,36 +407,3 @@
                                 :header (format nil "#include \"~A.c\" ~&" (pathname-name stub-pathname))
                                 :function-name function-name
                                 :context-type context-type))
-
-(defun dfa-transition-vector (dfa)
-  "Produce the transition matrix for dfa as a simple vector.
-
-In the row major view, rows represent initial state and columns
-represent the terminal.  The value of each element is the successive
-state.  A value of -1 is an invalid transition."
-  (let* ((mover (dfa-mover dfa))
-         (terminals (finite-set-list (fa-terminals dfa)))
-         (states (finite-set-list (fa-states dfa)))
-         (state-hash (make-hash-table :test #'equal))
-         (n-states (length states))
-         (n-terminals (length terminals))
-         (array (make-array (* n-states n-terminals) :element-type 'fixnum)))
-    ;; index symbols
-    (loop for i from 0
-       for q in states
-       do (setf (gethash q state-hash ) i))
-    ;; row major matrix
-    ;; row index is state, col index is terminals
-    (loop for i from 0
-       for q0 in states
-       do (loop
-             for j from 0
-             for z in terminals
-             for q1 = (funcall mover q0 z)
-             do (setf (aref array (+ (* i n-terminals) j))
-                      (if q1
-                          (gethash q1 state-hash)
-                          -1))))
-    array))
-
-

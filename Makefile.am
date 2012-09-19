@@ -9,7 +9,7 @@ include_HEADERS = include/motgram.h
 
 lib_LTLIBRARIES = libmotgram.la
 
-#bin_PROGRAMS = aa_test la_test
+noinst_PROGRAMS = mg_test
 
 libmotgram_la_SOURCES =                \
 	libmotgram/motgram.c
@@ -17,8 +17,8 @@ libmotgram_la_SOURCES =                \
 distclean-local:
 	-rm -rf doxygen-doc
 
-#aa_test_SOURCES = src/test/aa_test.c
-#aa_test_LDADD = libamino.la
+mg_test_SOURCES = libmotgram/mg_test.c
+mg_test_LDADD = libmotgram.la -lach
 
 
 clean-local:

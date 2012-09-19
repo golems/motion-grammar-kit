@@ -49,42 +49,49 @@
 #include <pthread.h>
 #include <pthread.h>
 #include <sys/stat.h>
-#include <assert.h>
-#include <stdlib.h>
 
 #ifdef HAVE_ACH_H
 #include <ach.h>
 #endif // HAVE_ACH_H
 
+#include <stdio.h>
+#include <assert.h>
+#include <inttypes.h>
 #include "motgram.h"
 
 
 
+int main(int argc, char **argv) {
+    printf("Hello World!\n");
+    ach_channel_t chan;
+    ach_status_t r = ach_open(&chan, "super", NULL );
+    assert( ACH_OK == r );
 
-#ifdef HAVE_ACH_H
+    mg_supervisor_table_t table = {
+        .state = 0,
+        .n_data = 0,
+        .data = NULL
+    };
 
-ach_status_t
-mg_supervisor_table_ach_get( mg_supervisor_table_t *table,
-                             ach_channel_t *channel,
-                             const struct timespec *ACH_RESTRICT abstime,
-                             int ach_options ) {
-    size_t frame_size;
-    ach_status_t r = ach_get( channel, table->data, table->n_data,
-                              &frame_size, abstime, ach_options );
-    while( ACH_OVERFLOW == r ) {
-        assert( frame_size > table->n_data );
-        // realloc data buffer
-        if( table->data ) {
-            free(table->data);
-        }
-        table->n_data = frame_size;
-        table->data = (struct mg_supervisor_data*)malloc( table->n_data );
-        // Retry the get
-        r = ach_get( channel, table->data, table->n_data,
-                     &frame_size, abstime, ach_options );
+    r = mg_supervisor_table_ach_get( &table, &chan, NULL, ACH_O_LAST );
+    if( !( ACH_OK == r || ACH_MISSED_FRAME == r ) ) {
+        fprintf(stderr, "Error getting data: %s\n",
+                ach_result_to_string( r ) );
     }
+    uint64_t n_states = table.data->n_states;
+    uint64_t n_terminals = table.data->n_terminals;
+    int32_t *ptr = (int32_t*)table.data->table;
 
-    return r;
+    printf( "states:\t%"PRIu64"\n"
+            "terminals:\t%"PRIu64"\n"
+            "bits:\t%"PRIu8"\n",
+            n_states,
+            n_terminals,
+            table.data->bits );
+    for( size_t i = 0; i < n_states; i ++ ) {
+        for( size_t j = 0; j < n_terminals; j ++ ) {
+            printf("%d\t", ptr[i*n_terminals+j]);
+        }
+        printf("\n");
+    }
 }
-
-#endif // HAVE_ACH_H

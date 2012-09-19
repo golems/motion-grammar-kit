@@ -40,7 +40,7 @@
 (asdf:defsystem motion-grammar-kit
   :version "0.0.20120907"
   :description "Motion-Grammar Kit"
-  :depends-on (:cl-ppcre :alexandria :sycamore)
+  :depends-on (:cl-ppcre :alexandria :sycamore :cffi)
   :weakly-depends-on (:lisp-unit)
   :components ((:file "package")
                (:file "util" :depends-on ("package"))
