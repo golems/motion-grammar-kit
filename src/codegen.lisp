@@ -443,8 +443,7 @@
              (setf (gethash (cons x z) hash) (incf k)))))
     (let ((i -1))
       (dolist (z (finite-set-list terminals))
-        (setf (gethash z term-hash) (incf i))
-        (print (list z i))))
+        (setf (gethash z term-hash) (incf i))))
     ;; output stuff
     (labels ((case-label (X &optional a)
                (if a

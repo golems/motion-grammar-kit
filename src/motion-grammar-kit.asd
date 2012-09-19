@@ -41,7 +41,7 @@
   :version "0.0.20120907"
   :description "Motion-Grammar Kit"
   :depends-on (:cl-ppcre :alexandria :sycamore :cffi)
-  :weakly-depends-on (:lisp-unit)
+  :weakly-depends-on (:lisp-unit :cl-fuzz :ach)
   :components ((:file "package")
                (:file "util" :depends-on ("package"))
                (:file "matcher" :depends-on ("package"))
@@ -53,5 +53,7 @@
                (:file "graph" :depends-on ("package"))
                (:file "pda" :depends-on ("fa" "grammar"))
                (:file "fuzz" :depends-on ("fa" "set" "util"))
+               (:file "search" :depends-on ("fa"))
+               (:file "supervisor" :depends-on ("fa"))
                (:file "codegen" :depends-on ("fa" "grammar" "matcher"))
                ))

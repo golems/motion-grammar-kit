@@ -118,9 +118,10 @@ mg_supervisor_table_fread( mg_supervisor_table_t *table, FILE *fin ) {
 int
 mg_supervisor_table_print( mg_supervisor_table_t *table, FILE *fout ) {
     size_t state = table->state;
-    fprintf(fout, "states:\t%"PRIu64"\n"
+    fprintf(fout,
+            "states:   \t%"PRIu64"\n"
             "terminals:\t%"PRIu64"\n"
-            "bits:\t%"PRIu8"\n",
+            "bits:     \t%"PRIu8"\n",
             table->data->n_states,
             table->data->n_terminals,
             table->data->bits );

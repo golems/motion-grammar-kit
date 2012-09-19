@@ -40,29 +40,31 @@
 ;;; If running from Slime etc, this should not be necessary       ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; Try to load quicklisp
+;; Try to load Quicklisp or ASDF
 (unless (find-package :quicklisp)
-  (let ((ql0 (merge-pathnames "quicklisp/setup.lisp"
-                              (user-homedir-pathname)))
-        (ql1 (merge-pathnames ".quicklisp/setup.lisp"
-                              (user-homedir-pathname))))
+  (let ((ql (find-if #'probe-file
+                     (map 'list (lambda (setup) (merge-pathnames setup (user-homedir-pathname)))
+                          '("quicklisp/setup.lisp" ".quicklisp/setup.lisp" "Quicklisp/setup.lisp")))))
     (cond
-      ((probe-file ql0)
-       (print 1)
-       (load ql0))
-      ((probe-file ql1)
-       (print 2)
-       (load ql1)))))
+      (ql (load ql))
+      ((not (find-package :asdf))
+       (require :asdf)))))
 
 ;; Guess where some ASDF files lives
 (loop for pathname in (list "../src/"
                             (merge-pathnames ".asdf/systems/"
+                                             (user-homedir-pathname))
+                            (merge-pathnames ".sbcl/systems/"
                                              (user-homedir-pathname)))
+
    do (when (probe-file pathname)
-        (pushnew pathname asdf:*central-registry*)))
+        (pushnew pathname asdf:*central-registry* :test #'equal)))
 
 ;; Load Motion-Grammar-Kit
-(ql:quickload :motion-grammar-kit)
+(if (find-package :quicklisp)
+    (funcall (intern "QUICKLOAD" :ql) :motion-grammar-kit)
+    (require :motion-grammar-kit))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; End Environment Setup ;;
@@ -77,9 +79,7 @@
    grammar
    :function-name "load_parse"
    :context-type "context_load_t *"
-   :output "/home/ntd/git/mgk/examples/load_parse.c"))
-
-
+   :output "load_parse.c"))
 
 ;; Supervised C predictive parser
 (let* ((grammar '((s not-done s-p)
@@ -87,17 +87,16 @@
                   (s-p load-a s unload)
                   (s-p load-b s unload)))
        (terminals (mg::grammar-terminals grammar))
-       (super (mg:regex->dfa (mg:regex-sweeten `(:concatenation (:closure (:concatenation not-done load-a not-done load-b))
+       (super (mg:regex->dfa (mg:regex-sweeten `(:concatenation (:closure (:concatenation not-done load-a
+                                                                                          not-done load-b))
                                                                 done
                                                                 (:closure :.))
                                                terminals)
                              terminals)))
-  (fa-pdf super)
   (mg::supervisor-table-output super
-                               "/home/ntd/git/mgk/examples/super.dat")
-  (print (finite-set-list (fa-terminals super)))
+                               "super.dat")
   (mg::grammar->c-supervised-predictive-parser
    grammar
    :function-name "super_load_parse"
    :context-type "context_load_t *"
-   :output "/home/ntd/git/mgk/examples/super_load_parse.c"))
+   :output "super_load_parse.c"))
