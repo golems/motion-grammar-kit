@@ -44,8 +44,8 @@ In the row major view, rows represent initial state and columns
 represent the terminal.  The value of each element is the successive
 state.  A value of -1 is an invalid transition."
   (let* ((mover (dfa-mover dfa))
-         (terminals (finite-set-list (fa-terminals dfa)))
-         (states (finite-set-list (fa-states dfa)))
+         (terminals (finite-set-list (finite-set-tree (fa-terminals dfa))))
+         (states (finite-set-list (finite-set-tree (fa-states dfa))))
          (state-hash (make-hash-table :test #'equal))
          (n-states (length states))
          (n-terminals (length terminals))

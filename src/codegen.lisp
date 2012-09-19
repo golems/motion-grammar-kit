@@ -113,6 +113,10 @@
           (((binop is (or :== :!= :+ :* :/ :& :&&)) a b)
            (c-format "(~A ~A ~A)"
                      (c-exp a) binop (c-exp b)))
+
+          ((:or a b)
+           (c-format "(~A || ~A)"
+                     (c-exp a) (c-exp b)))
           (((binop is (or  :. :->)) a b)
            (c-format "(~A~A~A)"
                      (c-exp a) binop b))
@@ -128,8 +132,11 @@
 
 (defun c-gen (c)
   (spec-case c
-    ((&ignore (op is (or :== :!= :call :! :->)) &rest rest)
+    ((&ignore (op is (or :== :!= :call :! :-> :&& :or)) &rest rest)
      (c-exp c))
+    ((:= lhs rhs)
+     (c-indent-format "~A = ~A;~%"
+                      (c-exp lhs) (c-exp rhs)))
     ((:seq &rest rest)
      (map nil #'c-gen rest))
     ((:stmt name)
@@ -294,6 +301,7 @@
                                     output
                                      (function-name "mgparse")
                                      (header "")
+                                     includes
                                      (context-type "void*"))
   (let* ((table (make-predictive-table grammar :duplicate-error-p t))
          (nonterminals (grammar-nonterminals grammar))
@@ -341,6 +349,8 @@
                   (t (error "Unknown symbol type ~A" (car tail))))))
       (with-c-output output
         (when header (c-indent-format "~A" header))
+        (dolist (i includes)
+          (c-indent-format "#include ~A~%" i))
         (c-indent-format "/*****************/~&")
         (c-indent-format "/* MOTION PARSER */~&")
         (c-indent-format "/*****************/~&")
@@ -407,3 +417,119 @@
                                 :header (format nil "#include \"~A.c\" ~&" (pathname-name stub-pathname))
                                 :function-name function-name
                                 :context-type context-type))
+
+(defun grammar->c-supervised-predictive-parser (grammar &key
+                                                output
+                                                (function-name "mgparse")
+                                                (header "")
+                                                (context-type "void*"))
+  (let* ((table (make-predictive-table grammar :duplicate-error-p t))
+         (nonterminals (grammar-nonterminals grammar))
+         (terminals (finite-set-tree (grammar-terminals grammar)))
+         (start (grammar-start-nonterminal grammar))
+         (nonterm-array (make-array (finite-set-length nonterminals)
+                                    :initial-contents
+                                    (cons (grammar-start-nonterminal grammar)
+                                          (finite-set-list (finite-set-remove nonterminals start)))))
+         (hash (make-hash-table :test #'equal))
+         (term-hash (make-hash-table :test #'equal)))
+    ;; index symbol case numbers
+    (loop
+       with k = -1
+       for x across nonterm-array
+       do (setf (gethash (list x) hash) (incf k))
+         (do-finite-set (z terminals)
+           (when (funcall table x z)
+             (setf (gethash (cons x z) hash) (incf k)))))
+    (let ((i -1))
+      (dolist (z (finite-set-list terminals))
+        (setf (gethash z term-hash) (incf i))
+        (print (list z i))))
+    ;; output stuff
+    (labels ((case-label (X &optional a)
+               (if a
+                   (csymbol (list X a) "prod_")
+                   (csymbol X "nonterm_")))
+             (case-number (x &optional a) (gethash (cons x a) hash))
+             (collect-tails (tail)
+               (cond
+                 ;; no more symbols, return
+                 ((null tail)
+                  '((:return 0)))
+                 ;; tail nonterminal, tail optimize
+                 ((and (null (cdr tail))
+                       (finite-set-inp (car tail) nonterminals))
+                  `((:goto ,(case-label (car tail)))))
+                  ;; non-tail nonterminal, call
+                  ((finite-set-inp (car tail) nonterminals)
+                   `((:if (:!= 0 (:call ,function-name "context" "table"
+                                        ,(case-number (car tail) nil)))
+                          ((:return -1)))
+                     ,@(collect-tails (cdr tail))))
+                  ;; terminal, check it
+                  ((finite-set-inp (car tail) terminals)
+                   `((:if (:or (:! (:call "mg_supervisor_allow" "table"
+                                          ,(gethash (car tail) term-hash)))
+                               (:! ,(c-parser-test (car tail) "context")))
+                          ((:return -1)))
+                     (:= (:-> "table" "state")
+                         (:call "mg_supervisor_next_state" "table"
+                                ,(gethash (car tail) term-hash)))
+                     ,@(collect-tails (cdr tail))))
+                  (t (error "Unknown symbol type ~A" (car tail))))))
+      (with-c-output output
+        (when header (c-indent-format "~A" header))
+        (c-indent-format "/*****************/~&")
+        (c-indent-format "/* MOTION PARSER */~&")
+        (c-indent-format "/*****************/~&")
+        (with-c-nest ((c-indent-format "int ~A( ~A context, mg_supervisor_table_t *table, int i )" function-name context-type))
+          ;; nonterms
+          (with-c-nest ((c-indent-format "switch( i )"))
+            (loop
+               for X across nonterm-array
+               do
+               ;; nonterminal label
+                 (c-gen `(:seq (:case ,(case-number X nil))
+                               (:label ,(case-label X))))
+               ;; test each following production
+                 (do-finite-set (a terminals)
+                   (let ((production (funcall table X a)))
+                     ;; got a live production
+                     (when production
+                       (c-gen `(:comment ,production))
+                       (c-gen (destructuring-bind (head term0 &rest rest) production
+                                (assert (equal X head))
+                                `(:if (:&& (:call "mg_supervisor_allow" "table"
+                                                  ,(gethash a term-hash))
+                                           ,(c-parser-test a "context"))
+                                      ((:= (:-> "table" "state")
+                                           (:call "mg_supervisor_next_state" "table"
+                                                  ,(gethash a term-hash)))
+                                       (:case ,(case-number X a))
+                                       (:label ,(case-label X a))
+                                       ,@(cond
+                                          ;; eat first terminal and continue
+                                          ((and (equal term0 a)
+                                                rest)
+                                           (collect-tails rest))
+                                          ;; eat first terminal and done
+                                          ((and (equal term0 a)
+                                                (null rest))
+                                           (list '(:return 0)))
+                                          ((and (finite-set-inp term0 nonterminals)
+                                                rest)
+                                           ;; Production starts with nonterminal, recurse
+                                           `((:if (:call ,function-name "context", "table"
+                                                         ,(case-number term0 a))
+                                                  ,(collect-tails rest)
+                                                  ((:return -1)))))
+                                          ((and (finite-set-inp term0 nonterminals)
+                                                (null rest))
+                                           ;; Production starts with nonterminal, jump
+                                           `((:goto ,(case-label term0 a))))
+                                          (t (error "Can't handle production ~A" production))))))))))
+               ;; no match, syntax error
+                 (c-gen '(:return -1)))
+            ;; default
+            (c-gen '(:seq (:label "default")
+                     (:return -1)))))))))

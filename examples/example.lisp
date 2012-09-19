@@ -71,9 +71,33 @@
 ;;; Now the actual example code ;;;
 
 ;; Simple C predictive parser
-(let ((grammar '((s load s unload)
+(let ((grammar '((s not-done load s unload)
                  (s done))))
-  (mg::grammar->c-predictive-parser grammar
-                                    :function-name "load_parse"
-                                    :context-type "context_load_t *"
-                                    :output "load_parse.c"))
+  (mg::grammar->c-predictive-parser
+   grammar
+   :function-name "load_parse"
+   :context-type "context_load_t *"
+   :output "/home/ntd/git/mgk/examples/load_parse.c"))
+
+
+
+;; Supervised C predictive parser
+(let* ((grammar '((s not-done s-p)
+                  (s done)
+                  (s-p load-a s unload)
+                  (s-p load-b s unload)))
+       (terminals (mg::grammar-terminals grammar))
+       (super (mg:regex->dfa (mg:regex-sweeten `(:concatenation (:closure (:concatenation not-done load-a not-done load-b))
+                                                                done
+                                                                (:closure :.))
+                                               terminals)
+                             terminals)))
+  (fa-pdf super)
+  (mg::supervisor-table-output super
+                               "/home/ntd/git/mgk/examples/super.dat")
+  (print (finite-set-list (fa-terminals super)))
+  (mg::grammar->c-supervised-predictive-parser
+   grammar
+   :function-name "super_load_parse"
+   :context-type "context_load_t *"
+   :output "/home/ntd/git/mgk/examples/super_load_parse.c"))

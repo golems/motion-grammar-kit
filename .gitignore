@@ -23,3 +23,7 @@
 /mg_test
 /examples/example
 /examples/load_parse.c
+/super_load_parse.c
+/super.dat
+/examples/super.dat
+/examples/super_load_parse.c
