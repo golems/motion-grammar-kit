@@ -64,6 +64,31 @@ struct mg_supervisor_table {
 
 typedef struct mg_supervisor_table mg_supervisor_table_t;
 
+int
+mg_supervisor_table_print( mg_supervisor_table_t *table, FILE *fout );
+
+/** Return 0 on success */
+int
+mg_supervisor_table_fread( mg_supervisor_table_t *table, FILE *fin );
+
+static ssize_t mg_supervisor_next_state( mg_supervisor_table_t *table,
+                                  size_t terminal ) {
+    uint64_t n_z = table->data->n_terminals;
+    switch( table->data->bits ) {
+    case 32:
+        return ( (int32_t*)(table->data->table) )[table->state*n_z + terminal];
+        break;
+    default:
+        assert(0);
+    }
+}
+
+static _Bool mg_supervisor_allow ( mg_supervisor_table_t *table,
+                            size_t terminal ) {
+    return mg_supervisor_next_state(table,terminal) >= 0;
+}
+
+
 /* Optional Ach Support */
 #ifdef ACH_H
 
@@ -73,7 +98,6 @@ mg_supervisor_table_ach_get( mg_supervisor_table_t *table,
                              ach_channel_t *channel,
                              const struct timespec *ACH_RESTRICT abstime,
                              int ach_options );
-
 #endif /* ACH_H */
 
 #endif /*MOTGRAM_H*/

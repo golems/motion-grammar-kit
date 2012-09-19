@@ -76,23 +76,50 @@ state.  A value of -1 is an invalid transition."
   (bits :uint8)
   (table :uint8 :offset 32 :count 1))
 
+(defmacro with-supervisor-cstruct ((pointer-var size-var) fa
+                                &body body)
+  (alexandria:with-gensyms (fa-var states terminals n-states n-terminals bits bytes
+                                   vector i)
+    `(let* ((,fa-var ,fa)
+            (,states (fa-states ,fa))
+            (,terminals (fa-terminals ,fa))
+            (,n-states (finite-set-length ,states))
+            (,n-terminals (finite-set-length ,terminals))
+            (,bits 32)
+            (,bytes (/ ,bits 8)))
+       (assert (< ,n-states (expt 2 ,bits))) ;; assume 32 bit for now
+       (cffi:with-foreign-pointer (,pointer-var
+                                   (+ 32 (* ,bytes ,n-states ,n-terminals))
+                                   ,size-var)
+         (setf (cffi:foreign-slot-value ,pointer-var 'supervisor-data 'n-states)
+               ,n-states
+               (cffi:foreign-slot-value ,pointer-var 'supervisor-data 'n-terminals)
+               ,n-terminals
+               (cffi:foreign-slot-value ,pointer-var 'supervisor-data 'bits) ,bits)
+         (let ((,vector (dfa-transition-vector ,fa-var)))
+           (assert (= (length ,vector) (* ,n-states ,n-terminals)))
+           (dotimes (,i (length ,vector))
+             (setf (cffi:mem-aref (cffi:foreign-slot-pointer ,pointer-var
+                                                             'supervisor-data 'table)
+                                  :int32 ,i)
+                   (aref ,vector ,i))))
+         ,@body))))
 
 (defun supervisor-table-ach-put (fa channel)
-  (let* ((states (fa-states fa))
-         (terminals (fa-terminals fa))
-         (n-states (finite-set-length states))
-         (n-terminals (finite-set-length terminals))
-         (bits 32)
-         (bytes (/ bits 8)))
-    (assert (< n-states (expt 2 bits))) ;; assume 32 bit for now
-    (cffi:with-foreign-pointer (data (+ 32 (* bytes n-states n-terminals)) data-size)
-      (setf (cffi:foreign-slot-value data 'supervisor-data 'n-states) n-states
-            (cffi:foreign-slot-value data 'supervisor-data 'n-terminals) n-terminals
-            (cffi:foreign-slot-value data 'supervisor-data 'bits) bits)
-      (let ((vector (dfa-transition-vector fa)))
-        (assert (= (length vector) (* n-states n-terminals)))
-        (dotimes (i (length vector))
-          (setf (cffi:mem-aref (cffi:foreign-slot-pointer data 'supervisor-data 'table)
-                               :int32 i)
-                (aref vector i))))
-      (ach:put-pointer channel data data-size))))
+  (with-supervisor-cstruct (pointer size) fa
+    (ach:put-pointer channel pointer size)))
+
+(defun supervisor-table-buffer (fa)
+  (with-supervisor-cstruct (pointer size) fa
+    (let ((buffer (make-array size :element-type '(unsigned-byte 8))))
+      (dotimes (i size)
+      (setf (aref buffer i)
+            (cffi:mem-aref pointer :uint8 i)))
+      buffer)))
+
+(defun supervisor-table-output (fa pathname)
+  (with-open-file (s pathname :direction :output
+                     :if-exists :supersede :if-does-not-exist :create
+                     :element-type '(unsigned-byte 8))
+    (write-sequence (supervisor-table-buffer fa) s))
+  nil)

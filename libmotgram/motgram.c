@@ -51,6 +51,9 @@
 #include <sys/stat.h>
 #include <assert.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <inttypes.h>
 
 #ifdef HAVE_ACH_H
 #include <ach.h>
@@ -86,5 +89,48 @@ mg_supervisor_table_ach_get( mg_supervisor_table_t *table,
 
     return r;
 }
-
 #endif // HAVE_ACH_H
+
+int
+mg_supervisor_table_fread( mg_supervisor_table_t *table, FILE *fin ) {
+    struct mg_supervisor_data tmp_data;
+    // read the header
+    size_t r = fread( &tmp_data, 1, 32, fin );
+    if( r != 32 ) return -1;
+
+    // realloc if necessary
+    size_t bytes = tmp_data.bits / 8;
+    size_t needed = 32 + tmp_data.n_terminals * tmp_data.n_states * bytes;
+    if(  needed > table->n_data ) {
+        if( table->data ) free(table->data);
+        table->n_data = needed;
+        table->data = (struct mg_supervisor_data*)malloc( needed );
+    }
+    memcpy( table->data, &tmp_data, 32);
+
+    r = fread( table->data->table, 1, needed - 32, fin );
+    if( r != needed - 32 )
+        return -2;
+    else
+        return 0;
+}
+
+int
+mg_supervisor_table_print( mg_supervisor_table_t *table, FILE *fout ) {
+    size_t state = table->state;
+    fprintf(fout, "states:\t%"PRIu64"\n"
+            "terminals:\t%"PRIu64"\n"
+            "bits:\t%"PRIu8"\n",
+            table->data->n_states,
+            table->data->n_terminals,
+            table->data->bits );
+    for( size_t i = 0; i < table->data->n_states; i ++ ) {
+        table->state = i;
+        for( size_t j = 0; j < table->data->n_terminals; j ++ ) {
+            printf("%ld\t", mg_supervisor_next_state( table, j ) );
+        }
+        printf("\n");
+    }
+    table->state = state;
+    return 0;
+}
