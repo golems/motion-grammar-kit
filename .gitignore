@@ -27,3 +27,4 @@
 /super.dat
 /examples/super.dat
 /examples/super_load_parse.c
+*.mgkcore*

@@ -16,3 +16,8 @@ Features
 * Visualization
   * Generate automata diagrams with Graphviz
 
+Installation
+============
+* Binaries are available at http://code.golems.org/pkg/mgk/core
+* See the INSTALL file for detailed instructions
+

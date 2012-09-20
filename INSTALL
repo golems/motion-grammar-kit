@@ -1,12 +1,21 @@
 Install Instructions for Motion Grammar Kit
 
+The Motion-Grammar-Kit is implemented primarily in Common Lisp.  To
+quickly get started, you can download binaries from
+http://code.golems.org/pkg/mgk/core/.  Installation from source is
+summarized under the "Short Instructions".  For a step-by-step guide,
+please see the "Detailed Instructions" below.
+
+Binaries
+========
+
+Binaries are available at http://code.golems.org/pkg/mgk/core/.  These
+are executable lisp core files containing all dependencies, so
+installation is simply copying the file to your bin directory
+(e.g. /usr/local/bin/).
+
 Short Instructions
 ==================
-
-The Motion-Grammar-Kit is implemented primarily in Common Lisp.  If
-you're already familiar with Common Lisp, here are some quick
-instructions to get you started.  For a step-by-step guide, please see
-the "Detailed Instructions" below.
 
 Dependencies
 ------------
@@ -17,6 +26,7 @@ the Quicklisp library manager (http://www.quicklisp.org/)
 
 * CL-PPCRE -- quicklisp or http://weitz.de/cl-ppcre/
 * ALEXANDRIA -- quicklisp or http://common-lisp.net/project/alexandria/
+* CFFI -- quicklisp or http://common-lisp.net/project/cffi/
 * LISP-UNIT -- for tests only, quicklisp or
   http://www.cs.northwestern.edu/academics/courses/325/readings/lisp-unit.html
 * SYCAMORE -- http://ndantam.github.com/sycamore/ or

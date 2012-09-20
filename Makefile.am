@@ -24,6 +24,10 @@ mg_test_LDADD = libmotgram.la -lach
 clean-local:
 	-rm -rf src/*.fas                   \
 		src/*.fasl                  \
-		src/*.lib
+		src/*.lib                   \
+		*.mgkcore-*
+
+lispcore: scripts/make-core.lisp
+	sbcl --load scripts/make-core.lisp --eval '(sb-ext:quit)'
 
 #include aminclude.am
