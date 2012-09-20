@@ -34,26 +34,9 @@
 ;;;;   OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
 ;;;;   EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-
-
-
-(asdf:defsystem motion-grammar-kit
+(asdf:defsystem motion-grammar-kit-ach
   :version "0.0.20120907"
-  :description "Motion-Grammar Kit"
-  :depends-on (:cl-ppcre :alexandria :sycamore :cffi)
+  :description "Ach support for Motion-Grammar Kit"
+  :depends-on (:motion-grammar-kit :ach)
   :weakly-depends-on (:lisp-unit :cl-fuzz)
-  :components ((:file "package")
-               (:file "util" :depends-on ("package"))
-               (:file "matcher" :depends-on ("package"))
-               (:file "set" :depends-on ("package" "util"))
-               (:file "fa" :depends-on ("package" "set" "util"))
-               (:file "regex" :depends-on ("fa"))
-               (:file "grammar" :depends-on ("package" "fa" "set" "util"))
-               (:file "parse" :depends-on ("package" "set" "util" "grammar"))
-               (:file "graph" :depends-on ("package"))
-               (:file "pda" :depends-on ("fa" "grammar"))
-               (:file "fuzz" :depends-on ("fa" "set" "util"))
-               (:file "search" :depends-on ("fa"))
-               (:file "supervisor" :depends-on ("fa"))
-               (:file "codegen" :depends-on ("fa" "grammar" "matcher"))
-               ))
+  :components ((:file "mgk-ach")))

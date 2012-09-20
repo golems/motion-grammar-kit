@@ -36,24 +36,13 @@
 
 
 
+(defpackage :motion-grammar-kit-ach
+  (:use :cl :sycamore :motion-grammar-kit)
+  (:nicknames :mg-ach)
+  (:export))
 
-(asdf:defsystem motion-grammar-kit
-  :version "0.0.20120907"
-  :description "Motion-Grammar Kit"
-  :depends-on (:cl-ppcre :alexandria :sycamore :cffi)
-  :weakly-depends-on (:lisp-unit :cl-fuzz)
-  :components ((:file "package")
-               (:file "util" :depends-on ("package"))
-               (:file "matcher" :depends-on ("package"))
-               (:file "set" :depends-on ("package" "util"))
-               (:file "fa" :depends-on ("package" "set" "util"))
-               (:file "regex" :depends-on ("fa"))
-               (:file "grammar" :depends-on ("package" "fa" "set" "util"))
-               (:file "parse" :depends-on ("package" "set" "util" "grammar"))
-               (:file "graph" :depends-on ("package"))
-               (:file "pda" :depends-on ("fa" "grammar"))
-               (:file "fuzz" :depends-on ("fa" "set" "util"))
-               (:file "search" :depends-on ("fa"))
-               (:file "supervisor" :depends-on ("fa"))
-               (:file "codegen" :depends-on ("fa" "grammar" "matcher"))
-               ))
+(in-package :motion-grammar-kit-ach)
+
+(defun mg::supervisor-table-ach-put (fa channel)
+  (mg::with-supervisor-cstruct (pointer size) fa
+    (ach:put-pointer channel pointer size)))

@@ -36,7 +36,6 @@
 
 (in-package :motion-grammar-kit)
 
-
 (defun dfa-transition-vector (dfa)
   "Produce the transition matrix for dfa as a simple vector.
 
@@ -104,10 +103,6 @@ state.  A value of -1 is an invalid transition."
                                   :int32 ,i)
                    (aref ,vector ,i))))
          ,@body))))
-
-(defun supervisor-table-ach-put (fa channel)
-  (with-supervisor-cstruct (pointer size) fa
-    (ach:put-pointer channel pointer size)))
 
 (defun supervisor-table-buffer (fa)
   (with-supervisor-cstruct (pointer size) fa
