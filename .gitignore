@@ -1,13 +1,17 @@
 *.fas
 *.lib
 *.fasl
+*.lo
+*.la
+*.o
+*.so
 /doc/install.html
 /Makefile.in
 /aclocal.m4
 /autom4te.cache
 /stamp-h1
 /missing
-/m4
+/m4/*.m4
 /config.guess
 /config.h
 /config.h.in
@@ -27,4 +31,6 @@
 /super.dat
 /examples/super.dat
 /examples/super_load_parse.c
+/.deps
+/.libs
 *.mgkcore*
