@@ -97,7 +97,7 @@ RESULT: function reduced across grammar"
   "Return list of nonterminals in the grammar."
   (let ((a nil))
     (grammar-map nil (lambda (l r) (declare (ignore r))
-                        (pushnew l a))
+                        (pushnew l a :test #'equal))
                  grammar)
     a))
 
@@ -383,19 +383,21 @@ RESULT: a finite automaton"
                  grammar)
     (make-fa edges start (finite-set-add accept new-accept))))
 
-(defun fa->right-regular-grammar (fa)
+(defun fa->right-regular-grammar (fa &optional (unique (gensym)))
   "Convert FA to a right-regular grammar."
   (with-dfa (dfa fa)
     (let ((succs (fa-successors dfa))
           (accept (fa-accept dfa))
           (start (fa-start fa))
           (grammar (make-amortized-queue)))
-      (labels ((production (head &rest body)
-                   (setq grammar
-                         (let ((production (cons head body)))
-                           (if (equal head start)
-                               (amortized-queue-push grammar production)
-                               (amortized-enqueue grammar production))))))
+      (labels ((production (q0 z &optional q1)
+                 (setq grammar
+                       (let ((production `(,(gsymbol-gen q0 unique)
+                                            ,z
+                                            ,@(when q1 (list (gsymbol-gen q1 unique))))))
+                         (if (equal q0 start)
+                             (amortized-queue-push grammar production)
+                             (amortized-enqueue grammar production))))))
         (do-finite-set (q0 (fa-states dfa))
           (loop for (z q1) in (funcall succs q0)
              do

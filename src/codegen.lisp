@@ -181,6 +181,7 @@
         (loop for c across name
            do (case c
                 (#\- (putchars #\_))
+                (#\. (putchars "_dot_"))
                 (#\= (putchars "_equal_"))
                 (#\Space (putchars "_sp_"))
                 (#\( (putchars "_lp_"))
@@ -224,6 +225,23 @@
               (csymbol symbol) context-type context)))
 
 
+(defun terminals->c-stub (terminals &key
+                          output
+                          (halt-function "halt")
+                                        ;(static-functions t)
+                          (context-type "void*")
+                          (print-stub #'print-c-parser-stub))
+  (output-function (lambda (s)
+                     (format s "~&/************************************/~&")
+                     (format s "~&/* STUB FUNCTIONS FOR MOTION PARSER */~&")
+                     (format s "~&/************************************/~&")
+                     (format s "~%/* Each function must return 0 for an occuring terminal and nonzero otherwise */~%~%")
+                     (do-finite-set (z (finite-set-add terminals halt-function))
+                       (format s "~&/* Terminal Symbol function for \"~A\" */~&" z)
+                       (funcall print-stub s z context-type "context")))
+                       ;(format s "~&~:[~;static ~]int ~A( ~A context ) {~%~%~%}~%~%" static-functions (csymbol z) context-type)))
+                   output))
+
 
 (defun fa->c-stub (fa &key
                    output
@@ -231,16 +249,12 @@
                    ;(static-functions t)
                    (context-type "void*")
                    (print-stub #'print-c-parser-stub))
-  (output-function (lambda (s)
-                     (format s "~&/************************************/~&")
-                     (format s "~&/* STUB FUNCTIONS FOR MOTION PARSER */~&")
-                     (format s "~&/************************************/~&")
-                     (format s "~%/* Each function must return 0 for an occuring terminal and nonzero otherwise */~%~%")
-                     (do-finite-set (z (finite-set-add (fa-terminals fa) halt-function))
-                       (format s "~&/* Terminal Symbol function for \"~A\" */~&" z)
-                       (funcall print-stub s z context-type "context")))
-                       ;(format s "~&~:[~;static ~]int ~A( ~A context ) {~%~%~%}~%~%" static-functions (csymbol z) context-type)))
-                   output))
+  (terminals->c-stub (fa-terminals fa)
+                     :output output
+                     :halt-function halt-function
+                     :context-type context-type
+                     :print-stub print-stub))
+
 
 (defun fa->c-parser (fa &key
                      output
