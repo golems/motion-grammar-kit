@@ -22,3 +22,10 @@ Depends: ${shlibs:Depends}, ${misc:Depends}, libach0
 Description: Format Language Tools for Robotics
  C runtime library for motion-grammar-kit
 
+Package: motgramlisp
+Section: lisp
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Format Language Tools for Robotics
+ Lisp image binary for language manipulation and code generation
+

@@ -3,9 +3,11 @@ INCLUDES = -I$(top_srcdir)/include
 
 EXTRA_DIST =
 
+bin_PROGRAMS = motgramlisp
+
 include_HEADERS = include/motgram.h
 
-#TESTS = aa_test la_test
+#TESTS =
 
 lib_LTLIBRARIES = libmotgram.la
 
