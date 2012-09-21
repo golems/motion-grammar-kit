@@ -14,15 +14,34 @@ AC_USE_SYSTEM_EXTENSIONS
 AC_PROG_LIBTOOL
 AC_PROG_CC_C99
 
-AC_CHECK_PROGS([SBCL], [sbcl])
-AC_CHECK_PROGS([CLISP], [clisp])
-AC_CHECK_PROGS([ECL], [ecl])
-AC_CHECK_PROGS([CCL], [ccl])
+
+# Figure out the lisp
+
+AC_ARG_VAR([COMMONLISP],[Common Lisp command, e.g. sbcl, ccl])
+
+AC_DEFUN([CHECK_LISP],
+         [AS_IF([test "x$COMMONLISP" = "x"], AC_CHECK_PROGS([COMMONLISP], [$1]))])
+
+CHECK_LISP([sbcl])
+CHECK_LISP([ccl])
+CHECK_LISP([clisp])
+CHECK_LISP([ecl])
 
 # Checks for libraries.
 
 # Checks for header files.
-AC_CHECK_HEADERS([ach.h])
+
+AC_ARG_WITH([ach], AS_HELP_STRING([--without-ach], [Disable Ach support]))
+AS_IF([test "x$with_ach" != "xno"],
+      [AC_CHECK_HEADERS([ach.h],
+                        [AC_CHECK_LIB([ach],[ach_open],
+                                      [have_ach=yes],
+                                      [have_ach=no])
+                        ],
+                        [have_ach=no])],
+      [AC_MSG_NOTICE([disabling ach])
+       [have_ach=no]
+      ])
 
 # Checks for typedefs, structures, and compiler characteristics.
 
@@ -72,5 +91,13 @@ AS_IF([test "x$enable_debug" = "xyes"],[
     APPEND_CFLAG([-fstack-check])
 ])
 
+
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT
+
+## Print summary
+AC_MSG_NOTICE([])
+AC_MSG_NOTICE([CONFIGURATION SUMMARY])
+AC_MSG_NOTICE([=====================])
+AC_MSG_NOTICE([COMMONLISP:  $COMMONLISP])
+AC_MSG_NOTICE([USE ACH:     $have_ach])

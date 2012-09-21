@@ -32,7 +32,7 @@ clean-local:
 		motgramlisp*
 
 motgramlisp: $(top_srcdir)/scripts/make-core.lisp
-	sbcl --load scripts/make-core.lisp --eval '(sb-ext:quit)'
+	$(COMMONLISP) --load scripts/make-core.lisp
 
 motgramlisp.gz: motgramlisp
 	gzip -c motgramlisp > motgramlisp.gz

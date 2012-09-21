@@ -62,7 +62,14 @@
 
 ;; save core
 (if (find-package :motion-grammar-kit)
-    (sb-ext:save-lisp-and-die "motgramlisp"
-                              :executable t)
     (progn
-      (sb-ext:quit :code -1)))
+      #+sbcl
+      (sb-ext:save-lisp-and-die "motgramlisp"
+                                :executable t)
+      #+ccl
+      (ccl:save-application "motgramlisp" :prepend-kernel t))
+    (progn
+      #+sbcl
+      (sb-ext:quit :code -1)
+      #+ccl
+      (ccl:quit -1)))
