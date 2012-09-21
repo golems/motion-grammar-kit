@@ -27,9 +27,18 @@ clean-local:
 	-rm -rf src/*.fas                   \
 		src/*.fasl                  \
 		src/*.lib                   \
-		*.mgkcore-*
+		motgramlisp*
 
-lispcore: scripts/make-core.lisp
+motgramlisp: $(top_srcdir)/scripts/make-core.lisp
 	sbcl --load scripts/make-core.lisp --eval '(sb-ext:quit)'
+
+motgramlisp.gz: motgramlisp
+	gzip -c motgramlisp > motgramlisp.gz
+
+lisp.name: motgramlisp scripts/versioninfo.lisp
+	./motgramlisp --script $(top_srcdir)/scripts/versioninfo.lisp > lisp.name
+
+dist.lisp: lisp.name motgramlisp.gz
+	rsync --progress motgramlisp.gz dreamhost:code.golems.org/pkg/mgk/core/motgramlisp.`cat lisp.name`.gz
 
 #include aminclude.am

@@ -34,35 +34,18 @@
 ;;;;   OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
 ;;;;   EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-;; Try to load Quicklisp or ASDF
-(unless (find-package :quicklisp)
-  (let ((ql (find-if #'probe-file
-                     (map 'list (lambda (setup) (merge-pathnames setup (user-homedir-pathname)))
-                          '("quicklisp/setup.lisp" ".quicklisp/setup.lisp" "Quicklisp/setup.lisp")))))
-    (cond
-      (ql (load ql))
-      ((not (find-package :asdf))
-       (require :asdf)))))
-
-;; Guess where some ASDF files lives
-(loop for pathname in (list "./src/"
-                            (merge-pathnames ".asdf/systems/"
-                                             (user-homedir-pathname))
-                            (merge-pathnames ".sbcl/systems/"
-                                             (user-homedir-pathname)))
-
-   do (when (probe-file pathname)
-        (pushnew pathname asdf:*central-registry* :test #'equal)))
-
-;; Load Motion-Grammar-Kit
-(progn
-  (if (find-package :quicklisp)
-      (funcall (intern "QUICKLOAD" :ql) :motion-grammar-kit)
-      (require :motion-grammar-kit)))
-
-;; save core
-(if (find-package :motion-grammar-kit)
-    (sb-ext:save-lisp-and-die "motgramlisp"
-                              :executable t)
-    (progn
-      (sb-ext:quit :code -1)))
+(let ((gitid (with-output-to-string (s)
+               (sb-ext:run-program "git" '("rev-parse" "HEAD") :output s :search t)))
+      (isodate
+       (multiple-value-bind (sec min hour date mon year)
+           (decode-universal-time (get-universal-time))
+         (format nil "~A~2,'0d~2,'0dT~2,'0d~2,'0d~2,'0d" year mon date hour min sec))))
+  (when (eq #\Newline (aref gitid (1- (length gitid))))
+    (setq gitid (subseq gitid 0 (1- (length gitid)))))
+  (format t "~A-~A-~A-~A-~A-~A"
+          (string-downcase (software-type))
+          (string-downcase (machine-type))
+          isodate
+          (string-downcase (lisp-implementation-type))
+          (string-downcase (lisp-implementation-version))
+          (string-downcase gitid)))
