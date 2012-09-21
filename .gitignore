@@ -34,3 +34,10 @@
 /.deps
 /.libs
 *.mgkcore*
+/debian/files
+/debian/libmotgram-dev/
+/debian/libmotgram0/
+/debian/tmp
+/debian/*.log
+/debian/*.substvars
+/debian/*.debhelper

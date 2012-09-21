@@ -14,6 +14,8 @@ noinst_PROGRAMS = mg_test
 libmotgram_la_SOURCES =                \
 	libmotgram/motgram.c
 
+libmotgram_la_LIBADD = -lach
+
 distclean-local:
 	-rm -rf doxygen-doc
 
