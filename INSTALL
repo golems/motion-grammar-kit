@@ -1,18 +1,38 @@
 Install Instructions for Motion Grammar Kit
 
-The Motion-Grammar-Kit is implemented primarily in Common Lisp.  To
-quickly get started, you can download binaries from
-http://code.golems.org/pkg/mgk/core/.  Installation from source is
-summarized under the "Short Instructions".  For a step-by-step guide,
-please see the "Detailed Instructions" below.
+The Motion-Grammar-Kit is implemented in Common Lisp and C.  The Lisp
+portion loads using ASDF.  The C portion builds with the conventional
+autotools `./configure && make && make install'.
+
+* To quickly get started, you can download a binary Lisp core file
+  from http://code.golems.org/pkg/mgk/core/.
+
+* Deb packages for Debian and Ubuntu are also available from
+  http://code.golems.org/debian.
+
+* Installation from source is summarized under the "Short
+  Instructions".  For a step-by-step guide, please see the "Detailed
+  Instructions" below.
 
 Binaries
 ========
 
-Binaries are available at http://code.golems.org/pkg/mgk/core/.  These
-are executable lisp core files containing all dependencies, so
-installation is simply copying the file to your bin directory
-(e.g. /usr/local/bin/).
+Binaries for the lisp code are available at
+http://code.golems.org/pkg/mgk/core/.  These are executable lisp core
+files containing all dependencies, so installation is simply copying
+the file to your bin directory (e.g. /usr/local/bin/).
+
+Debian Packages
+===============
+
+1. Add the following to /etc/apt/sources:
+
+    http://code.golems.org/debian squeeze golems.org
+
+  (substitute the codename for your distribution in place of squeeze,
+  e.g. wheezy, precise)
+
+2. `sudo apt-get update && sudo apt-get install libmotgram-dev motgramlisp`
 
 Short Instructions
 ==================
@@ -39,6 +59,12 @@ Motion-Grammar-Kit
 
 * `git clone https://github.com/golems/motion-grammar-kit`
 *  Set your ASDF symlink, and load it up!
+
+Libmotgram
+----------
+* ./configure && make && make install
+* If the Ach library is detected, support will automatically be
+  enabled.
 
 Detailed Instructions
 =====================
@@ -77,7 +103,7 @@ http://www.quicklisp.org/.
 Alternatively, Debian Wheezy and Ubuntu Precise (or later) contain a
 package for quicklisp:
 
-     $ sudo apt-get install cl-quicklisp
+    $ sudo apt-get install cl-quicklisp
 
 Then, the following command will setup quicklisp for your user account:
 
@@ -187,3 +213,36 @@ Finally, load it from the REPL with:
     (ql:quickload :motion-grammar-kit)
 
 and the package is loaded.
+
+Build libmotgram
+----------------
+
+0. If you have obtained the Motion-Grammar-Kit from the git repo, you
+   need to initialize the autotools build scripts.  This requires the
+   autotools and the autoconf macro archive. To install these on
+   Debian or Ubuntu GNU/Linux, you can do
+
+    $ sudo apt-get install autoconf automake libtool autoconf-archive
+
+Then, initialize autotools with
+
+    $ autoreconf -i
+
+This whole step is not necessary when you have obtained a distribution
+tarball which already contains the autoconf-generated configure script.
+
+1. Configure for your system:
+
+    $ ./configure
+
+If the Ach library is detected, support will automatically be enabled.
+To disable Ach support in this case, add the `--without-ach` file to
+configure: `$ ./configure --without-ach`.
+
+2. Build:
+
+    $ ./make
+
+3. Install:
+
+    $ sudo ./make install
