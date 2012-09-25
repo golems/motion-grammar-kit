@@ -2,7 +2,7 @@ Install Instructions for Motion Grammar Kit
 
 The Motion-Grammar-Kit is implemented in Common Lisp and C.  The Lisp
 portion loads using ASDF.  The C portion builds with the conventional
-autotools `./configure && make && make install'.
+autotools `./configure && make && make install`.
 
 * To quickly get started, you can download a binary Lisp core file
   from http://code.golems.org/pkg/mgk/core/.

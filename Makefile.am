@@ -26,7 +26,6 @@ distclean-local:
 mg_test_SOURCES = libmotgram/mg_test.c
 mg_test_LDADD = libmotgram.la -lach
 
-
 clean-local:
 	-rm -rf src/*.fas                   \
 		src/*.fasl                  \
@@ -44,5 +43,11 @@ lisp.name: motgramlisp scripts/versioninfo.lisp
 
 dist.lisp: lisp.name motgramlisp.gz
 	rsync --progress motgramlisp.gz dreamhost:code.golems.org/pkg/mgk/core/motgramlisp.`cat lisp.name`.gz
+
+doc/install.html: $(top_srcdir)/INSTALL
+	mkdir -p doc
+	markdown $(top_srcdir)/INSTALL | \
+	  sed -e 's!\(http://\([[:alnum:]]\|[./#\-]\)*\)!<a href="\1">\1</a>!' \
+	  > doc/install.html
 
 #include aminclude.am
