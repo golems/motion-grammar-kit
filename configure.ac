@@ -31,6 +31,9 @@ CHECK_LISP([ecl])
 
 # Checks for header files.
 
+#################
+## ACH SUPPORT ##
+#################
 AC_ARG_WITH([ach], AS_HELP_STRING([--without-ach], [Disable Ach support]))
 AS_IF([test "x$with_ach" != "xno"],
       [AC_CHECK_HEADERS([ach.h],
@@ -42,6 +45,7 @@ AS_IF([test "x$with_ach" != "xno"],
       [AC_MSG_NOTICE([disabling ach])
        [have_ach=no]
       ])
+AC_SUBST([have_ach])
 
 # Checks for typedefs, structures, and compiler characteristics.
 
@@ -92,7 +96,7 @@ AS_IF([test "x$enable_debug" = "xyes"],[
 ])
 
 
-AC_CONFIG_FILES([Makefile])
+AC_CONFIG_FILES([Makefile config.lisp])
 AC_OUTPUT
 
 ## Print summary

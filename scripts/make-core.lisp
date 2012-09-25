@@ -60,6 +60,13 @@
       (funcall (intern "QUICKLOAD" :ql) :motion-grammar-kit)
       (require :motion-grammar-kit)))
 
+;; Make load motion-grammar-kit-ach
+(when (eq :yes mg-conf::*ac-have-ach*)
+  (if (find-package :quicklisp)
+      (funcall (intern "QUICKLOAD" :ql) :motion-grammar-kit-ach)
+      (require :motion-grammar-kit-ach)))
+
+
 ;; save core
 (if (find-package :motion-grammar-kit)
     (progn

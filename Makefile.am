@@ -9,6 +9,8 @@ include_HEADERS = include/motgram.h
 
 #TESTS =
 
+motgramlisp_SOURCES = scripts/make-core.lisp
+
 lib_LTLIBRARIES = libmotgram.la
 
 noinst_PROGRAMS = mg_test
@@ -32,7 +34,7 @@ clean-local:
 		motgramlisp*
 
 motgramlisp: $(top_srcdir)/scripts/make-core.lisp
-	$(COMMONLISP) --load scripts/make-core.lisp
+	$(COMMONLISP) --load config.lisp --load $(top_srcdir)/scripts/make-core.lisp
 
 motgramlisp.gz: motgramlisp
 	gzip -c motgramlisp > motgramlisp.gz

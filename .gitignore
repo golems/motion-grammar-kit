@@ -45,3 +45,5 @@
 /motgramlisp
 /lisp.name
 /debian/motgramlisp
+/config.lisp
+/motgram*.tar.gz

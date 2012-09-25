@@ -35,9 +35,10 @@
 ;;;;   EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
+(cl:defpackage :motion-grammar-kit-config
+  (:use :cl)
+  (:nicknames :mg-conf))
 
-(in-package :motion-grammar-kit)
+(in-package :motion-grammar-kit-config)
 
-(defun supervisor-table-ach-put (fa channel)
-  (mg::with-supervisor-cstruct (pointer size) fa
-    (ach:put-pointer channel pointer size)))
+(defparameter *ac-have-ach* :@have_ach@)
