@@ -1,11 +1,39 @@
 <p>Install Instructions for Motion Grammar Kit</p>
 
-<h1>Short Instructions</h1>
+<p>The Motion-Grammar-Kit is implemented in Common Lisp and C.  The Lisp
+portion loads using ASDF.  The C portion builds with the conventional
+autotools <code>./configure &amp;&amp; make &amp;&amp; make install</code>.</p>
 
-<p>The Motion-Grammar-Kit is implemented primarily in Common Lisp.  If
-you're already familiar with Common Lisp, here are some quick
-instructions to get you started.  For a step-by-step guide, please see
-the "Detailed Instructions" below.</p>
+<ul>
+<li><p>To quickly get started, you can download a binary Lisp core file
+from <a href="http://code.golems.org/pkg/mgk/core/.">http://code.golems.org/pkg/mgk/core/.</a></p></li>
+<li><p>Deb packages for Debian and Ubuntu are also available from
+<a href="http://code.golems.org/debian.">http://code.golems.org/debian.</a></p></li>
+<li><p>Installation from source is summarized under the "Short
+Instructions".  For a step-by-step guide, please see the "Detailed
+Instructions" below.</p></li>
+</ul>
+
+<h1>Binaries</h1>
+
+<p>Binaries for the lisp code are available at
+<a href="http://code.golems.org/pkg/mgk/core/.">http://code.golems.org/pkg/mgk/core/.</a>  These are executable lisp core
+files containing all dependencies, so installation is simply copying
+the file to your bin directory (e.g. /usr/local/bin/).</p>
+
+<h1>Debian Packages</h1>
+
+<ol>
+<li><p>Add the following to /etc/apt/sources:</p>
+
+<p><a href="http://code.golems.org/debian">http://code.golems.org/debian</a> squeeze golems.org</p>
+
+<p>(substitute the codename for your distribution in place of squeeze,
+e.g. wheezy, precise)</p></li>
+<li><p><code>sudo apt-get update &amp;&amp; sudo apt-get install libmotgram-dev motgramlisp</code></p></li>
+</ol>
+
+<h1>Short Instructions</h1>
 
 <h2>Dependencies</h2>
 
@@ -16,6 +44,7 @@ the Quicklisp library manager (<a href="http://www.quicklisp.org/">http://www.qu
 <ul>
 <li>CL-PPCRE -- quicklisp or <a href="http://weitz.de/cl-ppcre/">http://weitz.de/cl-ppcre/</a></li>
 <li>ALEXANDRIA -- quicklisp or <a href="http://common-lisp.net/project/alexandria/">http://common-lisp.net/project/alexandria/</a></li>
+<li>CFFI -- quicklisp or <a href="http://common-lisp.net/project/cffi/">http://common-lisp.net/project/cffi/</a></li>
 <li>LISP-UNIT -- for tests only, quicklisp or
 <a href="http://www.cs.northwestern.edu/academics/courses/325/readings/lisp-unit.html">http://www.cs.northwestern.edu/academics/courses/325/readings/lisp-unit.html</a></li>
 <li>SYCAMORE -- <a href="http://ndantam.github.com/sycamore/">http://ndantam.github.com/sycamore/</a> or
@@ -29,6 +58,14 @@ the Quicklisp library manager (<a href="http://www.quicklisp.org/">http://www.qu
 <ul>
 <li><code>git clone https://github.com/golems/motion-grammar-kit</code></li>
 <li>Set your ASDF symlink, and load it up!</li>
+</ul>
+
+<h2>Libmotgram</h2>
+
+<ul>
+<li>./configure &amp;&amp; make &amp;&amp; make install</li>
+<li>If the Ach library is detected, support will automatically be
+enabled.</li>
 </ul>
 
 <h1>Detailed Instructions</h1>
@@ -71,7 +108,7 @@ easiest way to install Lisp packages.  You can install Quicklisp from
 <p>Alternatively, Debian Wheezy and Ubuntu Precise (or later) contain a
 package for quicklisp:</p>
 
-<pre><code> $ sudo apt-get install cl-quicklisp
+<pre><code>$ sudo apt-get install cl-quicklisp
 </code></pre>
 
 <p>Then, the following command will setup quicklisp for your user account:</p>
@@ -200,3 +237,41 @@ it):</p>
 </code></pre>
 
 <p>and the package is loaded.</p>
+
+<h2>Build libmotgram</h2>
+
+<ol>
+<li><p>If you have obtained the Motion-Grammar-Kit from the git repo, you
+need to initialize the autotools build scripts.  This requires the
+autotools and the autoconf macro archive. To install these on
+Debian or Ubuntu GNU/Linux, you can do</p>
+
+<p>$ sudo apt-get install autoconf automake libtool autoconf-archive</p></li>
+</ol>
+
+<p>Then, initialize autotools with</p>
+
+<pre><code>$ autoreconf -i
+</code></pre>
+
+<p>This whole step is not necessary when you have obtained a distribution
+tarball which already contains the autoconf-generated configure script.</p>
+
+<ol>
+<li><p>Configure for your system:</p>
+
+<p>$ ./configure</p></li>
+</ol>
+
+<p>If the Ach library is detected, support will automatically be enabled.
+To disable Ach support in this case, add the <code>--without-ach</code> file to
+configure: <code>$ ./configure --without-ach</code>.</p>
+
+<ol>
+<li><p>Build:</p>
+
+<p>$ ./make</p></li>
+<li><p>Install:</p>
+
+<p>$ sudo ./make install</p></li>
+</ol>
