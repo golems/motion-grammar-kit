@@ -1,3 +1,9 @@
+motion-grammar-kit (0.20120927) unstable; urgency=low
+
+  * Add graphviz dependency.
+
+ -- Neil Dantam <ntd@gatech.edu>  Thu, 27 Sep 2012 10:18:00 -0400
+
 motion-grammar-kit (0.20120921) unstable; urgency=low
 
   * Initial Release.

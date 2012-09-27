@@ -1,7 +1,7 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 AC_PREREQ([2.65])
-AC_INIT([motgram], [0.20120921], [ntd@gatech.edu])
+AC_INIT([motgram], [0.20120927], [ntd@gatech.edu])
 AM_INIT_AUTOMAKE
 
 AC_CONFIG_SRCDIR([include/motgram.h])
