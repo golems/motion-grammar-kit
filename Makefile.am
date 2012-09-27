@@ -48,4 +48,4 @@ doc/install.html: $(top_srcdir)/INSTALL
 	  sed -e 's!\(http://\([[:alnum:]]\|[./#\-]\)*\)!<a href="\1">\1</a>!' \
 	  > doc/install.html
 
-#include aminclude.am
+include doxygen.am

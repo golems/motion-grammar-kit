@@ -47,3 +47,4 @@
 /debian/motgramlisp
 /config.lisp
 /motgram*.tar.gz
+/doc/html

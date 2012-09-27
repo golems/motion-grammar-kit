@@ -42,6 +42,8 @@
 #ifndef MOTGRAM_H
 #define MOTGRAM_H
 
+/** \file motgram.h */
+
 struct mg_supervisor_data {
     uint64_t n_states;         /** Number of states */
     uint64_t n_terminals;      /** Number of termnals */
