@@ -830,7 +830,10 @@ This is the finite-automaton that accepts all strings NOT in FA."
 ;;; OUTPUT ;;;
 ;;;;;;;;;;;;;;
 
-(defun fa-dot (fa &key output (font-size 12) (accept-shape "doublecircle"))
+(defun fa-dot (fa &key
+               output
+               (font-size 12)
+               (accept-shape "doublecircle"))
   "Generate Graphviz output for FA.
 FA: finite automaton.
 OUTPUT: output file, type determined by suffix (png,pdf,eps)."

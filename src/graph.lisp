@@ -56,7 +56,12 @@
                     (t (error "Uknown element: ~A" x)))))
       edges)))
 
-(defun graph-dot (edges &key output (font-size 12) directed)
+(defun graph-dot (edges &key
+                  output
+                  node-font-size
+                  directed
+                  rankdir
+                  )
   "Graphviz output of dfa.
 fa: finite automaton
 output: output file, type determined by suffix (png,pdf,eps)"
@@ -70,6 +75,9 @@ output: output file, type determined by suffix (png,pdf,eps)"
                   (if directed
                       (format s "~&digraph {~%")
                       (format s "~&graph {~%"))
+                  (dot-options s
+                               :rankdir rankdir
+                               :node-font-size node-font-size)
                   ;; attributes
                   ;(format s "  overlap=\"false\";~&")
                   ;(format s "  overlap=\"ipsep\";~&")
@@ -84,9 +92,9 @@ output: output file, type determined by suffix (png,pdf,eps)"
                  ; (format s "  concentrate=\"true\";~&")
                   ;(format s "node=\"true\";")
                   ;; state labels
-                  (format s "~:{~&  ~A[label=\"~A\",fontsize=~D,shape=\"oval\"];~}"
+                  (format s "~:{~&  ~A[label=\"~A\",shape=\"oval\"];~}"
                           (loop for n in nodes
-                             collect (list (funcall numbers n) n font-size)))
+                             collect (list (funcall numbers n) n )))
                   ;; edges
                   (format s (if directed
                                 "~:{~&  ~A -> ~A~&~}"

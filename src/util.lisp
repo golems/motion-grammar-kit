@@ -312,7 +312,15 @@ LANG: language output for dot, (or pdf ps eps png)"
     (:omega "&omega;")
     (t (object->string gsymbol))))
 
-
+(defun dot-options (s &key
+                    rankdir
+                    font-size
+                    (node-font-size font-size))
+  (when node-font-size
+    (when node-font-size
+      (format s "  ~&node[fontsize=~D]~%" node-font-size))
+    (when rankdir
+      (format s "~&rankdir=\"~A\";~%" rankdir))))
 
 (defun output-dot (output function &key
                    (program "dot")
@@ -321,7 +329,8 @@ LANG: language output for dot, (or pdf ps eps png)"
 OUTPUT:  (or filename stream t nil)
 FUNCTION: (lambda (stream)) => nil, prints dot text on STREAM
 LANG: language output for dot, (or pdf ps eps png)"
-  (if (or (pathnamep output)
-          (stringp output))
+  (if (and (or (pathnamep output)
+               (stringp output))
+           (not (string= lang "dot")))
       (output-dot-file program output function lang)
       (output-function function output)))
