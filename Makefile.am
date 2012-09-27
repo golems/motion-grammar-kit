@@ -1,15 +1,13 @@
 ACLOCAL_AMFLAGS = -I m4
-INCLUDES = -I$(top_srcdir)/include
+AM_CPPFLAGS = -I$(top_srcdir)/include
 
-EXTRA_DIST =
+EXTRA_DIST = scripts/make-core.lisp
 
-bin_PROGRAMS = motgramlisp
+bin_SCRIPTS = motgramlisp$(EXEEXT)
 
 include_HEADERS = include/motgram.h
 
 #TESTS =
-
-motgramlisp_SOURCES = scripts/make-core.lisp
 
 lib_LTLIBRARIES = libmotgram.la
 
@@ -32,14 +30,14 @@ clean-local:
 		src/*.lib                   \
 		motgramlisp*
 
-motgramlisp: $(top_srcdir)/scripts/make-core.lisp
+motgramlisp$(EXEEXT): $(top_srcdir)/scripts/make-core.lisp
 	$(COMMONLISP) --load config.lisp --load $(top_srcdir)/scripts/make-core.lisp
 
-motgramlisp.gz: motgramlisp
-	gzip -c motgramlisp > motgramlisp.gz
+motgramlisp.gz: motgramlisp$(EXEEXT)
+	gzip -c motgramlisp$(EXEEXT) > motgramlisp.gz
 
-lisp.name: motgramlisp scripts/versioninfo.lisp
-	./motgramlisp --script $(top_srcdir)/scripts/versioninfo.lisp > lisp.name
+lisp.name: motgramlisp$(EXEEXT) scripts/versioninfo.lisp
+	./motgramlisp$(EXEEXT) --script $(top_srcdir)/scripts/versioninfo.lisp > lisp.name
 
 dist.lisp: lisp.name motgramlisp.gz
 	rsync --progress motgramlisp.gz dreamhost:code.golems.org/pkg/mgk/core/motgramlisp.`cat lisp.name`.gz
