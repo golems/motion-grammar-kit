@@ -69,6 +69,9 @@ typedef struct mg_supervisor_table mg_supervisor_table_t;
 int
 mg_supervisor_table_print( mg_supervisor_table_t *table, FILE *fout );
 
+int
+mg_supervisor_table_print_head( mg_supervisor_table_t *table, FILE *fout );
+
 /** Return 0 on success */
 int
 mg_supervisor_table_fread( mg_supervisor_table_t *table, FILE *fin );
@@ -76,13 +79,16 @@ mg_supervisor_table_fread( mg_supervisor_table_t *table, FILE *fin );
 static ssize_t mg_supervisor_next_state( mg_supervisor_table_t *table,
                                   size_t terminal ) {
     uint64_t n_z = table->data->n_terminals;
+    int i;
     switch( table->data->bits ) {
     case 32:
-        return ( (int32_t*)(table->data->table) )[table->state*n_z + terminal];
+        i = ( (int32_t*)(table->data->table) )[table->state*n_z + terminal];
         break;
     default:
         assert(0);
     }
+
+    return i;
 }
 
 static _Bool mg_supervisor_allow ( mg_supervisor_table_t *table,

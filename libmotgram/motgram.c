@@ -71,7 +71,7 @@ mg_supervisor_table_ach_get( mg_supervisor_table_t *table,
                              ach_channel_t *channel,
                              const struct timespec *ACH_RESTRICT abstime,
                              int ach_options ) {
-    size_t frame_size;
+    size_t frame_size = 0;
     ach_status_t r = ach_get( channel, table->data, table->n_data,
                               &frame_size, abstime, ach_options );
     while( ACH_OVERFLOW == r ) {
@@ -116,8 +116,7 @@ mg_supervisor_table_fread( mg_supervisor_table_t *table, FILE *fin ) {
 }
 
 int
-mg_supervisor_table_print( mg_supervisor_table_t *table, FILE *fout ) {
-    size_t state = table->state;
+mg_supervisor_table_print_head( mg_supervisor_table_t *table, FILE *fout ) {
     fprintf(fout,
             "states:   \t%"PRIu64"\n"
             "terminals:\t%"PRIu64"\n"
@@ -125,12 +124,20 @@ mg_supervisor_table_print( mg_supervisor_table_t *table, FILE *fout ) {
             table->data->n_states,
             table->data->n_terminals,
             table->data->bits );
+    return 0;
+}
+
+int
+
+mg_supervisor_table_print( mg_supervisor_table_t *table, FILE *fout ) {
+    size_t state = table->state;
+    mg_supervisor_table_print_head(table,fout);
     for( size_t i = 0; i < table->data->n_states; i ++ ) {
         table->state = i;
         for( size_t j = 0; j < table->data->n_terminals; j ++ ) {
-            printf("%ld\t", mg_supervisor_next_state( table, j ) );
+            fprintf(fout,"%ld\t", mg_supervisor_next_state( table, j ) );
         }
-        printf("\n");
+        fprintf(fout,"\n");
     }
     table->state = state;
     return 0;

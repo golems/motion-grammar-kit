@@ -1,3 +1,10 @@
+motion-grammar-kit (0.20121004) unstable; urgency=low
+
+  * Updated ach library
+  * Better supervisor printing
+
+ -- Neil Dantam <ntd@gatech.edu>  Thu, 04 Oct 2012 23:53:00 -0400
+
 motion-grammar-kit (0.20120927) unstable; urgency=low
 
   * Add graphviz dependency.
