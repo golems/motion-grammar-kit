@@ -618,3 +618,28 @@
                           -1 -1 -1)))
       (lisp-unit:assert-equalp (dfa-transition-vector fa)
                                vector)))
+
+
+(lisp-unit:define-test petri
+  ;; Test Firings
+  (lisp-unit:assert-equal
+   '((p1 . 0) (p2 . 0) (p3 . 1))
+   (gsymbol-sort (petri-net-fire (make-petri-net :places '(p1 p2  p3)
+                                                 :transitions '(t0 t1)
+                                                 :marking '((p1 . 1) (p2 . 1))
+                                                 :arcs '((p1 t1) (p2 t1) (t1 p3)))
+                                 't1)))
+   (lisp-unit:assert-equal
+    '((p1 . 2) (p2 . 2) (p3 . 0))
+    (gsymbol-sort (petri-net-fire (make-petri-net :places '(p1 p2  p3)
+                                                  :transitions '(t0 t1)
+                                                  :marking '((p1 . 1) (p2 . 1))
+                                                  :arcs '((nil t0) (t0 p1) (t0 p2) (p1 t1) (p2 t1) (t1 p3)))
+                                  't0)))
+   (lisp-unit:assert-equal
+    '((p1 . 0) (p2 . 0) (p3 . 0))
+    (gsymbol-sort (petri-net-fire (make-petri-net :places '(p1 p2  p3)
+                                                  :transitions '(t0 t1 t2)
+                                                  :marking '((p3 . 1))
+                                                  :arcs '((nil t0) (t0 p1) (t0 p2) (p1 t1) (p2 t1) (t1 p3) (p3 t2) (t2 nil)))
+                                  't2))))

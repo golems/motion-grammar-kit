@@ -57,4 +57,6 @@
    pushdown-automaton make-pda grammar->pda
    pda-fa-intersection pda-reachability-automaton
    pda-dot
+   ;; petri-net
+   petri-net petri-net-dot petri-net->fa petri-net-fire
    ))

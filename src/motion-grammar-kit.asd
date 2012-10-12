@@ -47,6 +47,7 @@
                (:file "matcher" :depends-on ("package"))
                (:file "set" :depends-on ("package" "util"))
                (:file "fa" :depends-on ("package" "set" "util"))
+               (:file "petri" :depends-on ("fa"))
                (:file "regex" :depends-on ("fa"))
                (:file "grammar" :depends-on ("package" "fa" "set" "util"))
                (:file "parse" :depends-on ("package" "set" "util" "grammar"))
