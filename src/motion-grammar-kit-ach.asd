@@ -35,7 +35,7 @@
 ;;;;   EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 (asdf:defsystem motion-grammar-kit-ach
-  :version "0.0.20120927"
+  :version "0.0.20121115"
   :description "Ach support for Motion-Grammar Kit"
   :depends-on (:motion-grammar-kit :ach)
   :weakly-depends-on (:lisp-unit :cl-fuzz)

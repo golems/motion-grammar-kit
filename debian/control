@@ -18,14 +18,14 @@ Description: Format Language Tools for Robotics
 Package: libmotgram0
 Section: libs
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, libach0
+Depends: ${shlibs:Depends}, ${misc:Depends}, libach1
 Description: Format Language Tools for Robotics
  C runtime library for motion-grammar-kit
 
 Package: motgramlisp
 Section: lisp
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, libach0, graphviz
+Depends: ${shlibs:Depends}, ${misc:Depends}, libach1, graphviz
 Description: Format Language Tools for Robotics
  Lisp image binary for language manipulation and code generation
 
