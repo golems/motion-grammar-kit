@@ -244,6 +244,20 @@
        while line
        collect (ppcre:split scanner line))))
 
+(defun read-csv-matrix (file &optional parse-element)
+  (let ((csv (read-csv file)))
+    (let ((matrix (make-array (list (length csv) (length (car csv))))))
+      (loop
+         for row in csv
+         for i from 0
+         do (loop
+               for x in row
+               for px = (if parse-element (funcall parse-element x) x)
+               for j from 0
+               do (setf (aref matrix i j) px)))
+      matrix)))
+
+
 (defun output-function (function &optional output)
   (declare (type function function))
   (cond

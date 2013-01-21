@@ -40,7 +40,7 @@ lisp.name: motgramlisp$(EXEEXT) scripts/versioninfo.lisp
 	./motgramlisp$(EXEEXT) --script $(top_srcdir)/scripts/versioninfo.lisp > lisp.name
 
 dist.lisp: lisp.name motgramlisp.gz
-	rsync --progress motgramlisp.gz dreamhost:code.golems.org/pkg/mgk/core/motgramlisp.`cat lisp.name`.gz
+	rsync --progress motgramlisp.gz golems@dreamhost:code.golems.org/pkg/mgk/core/motgramlisp.`cat lisp.name`.gz
 
 doc/install.html: $(top_srcdir)/INSTALL
 	mkdir -p doc

@@ -240,7 +240,7 @@ REGEX: An extended regular expression.
 TERMINALS: Set of all terminal symbols in the language.
 "
   ;; FIXME: what if :NOT produces an empty match?
-  (let ((dot (cons :union terminals)))
+  (let ((dot (cons :union (finite-set-list terminals))))
     (labels ((rec (regex)
                (etypecase regex
                  (atom
