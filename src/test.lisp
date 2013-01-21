@@ -620,6 +620,15 @@
                                vector)))
 
 
+(lisp-unit:define-test search
+  (let ((fa (regex->dfa '(:union 5 (:concatenation 1 2)))))
+    (lisp-unit:assert-equal '(5) (fa-shortest-string fa))
+    (lisp-unit:assert-equal '(1 2) (fa-optimal-string fa #'identity)))
+  (let ((fa (regex->dfa '(:concatenation 1 2 3 (:closure 4) (:union 5 (:concatenation 6 7))))))
+    (lisp-unit:assert-equal '(1 2 3 5) (fa-shortest-string fa))
+    (lisp-unit:assert-equal '(1 2 3 5) (fa-optimal-string fa #'identity))))
+
+
 (lisp-unit:define-test petri
   ;; Test Firings
   (lisp-unit:assert-equal

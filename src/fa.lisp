@@ -176,7 +176,7 @@ RESULT: (lambda (state)) => (finite-set terminals)"
 
 
 (defun fa-successors (fa)
-  "Map from original-state to (list (list nonterminal resultant-state))."
+  "Map from original-state to (list (list terminal resultant-state)...)."
   (let ((hash (make-hash-table :test #'equal)))
     (loop for e in (fa-edges fa)
        for q0 = (car e)

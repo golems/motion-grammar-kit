@@ -64,3 +64,50 @@
              with queue = (amortized-queue (cons nil (fa-start fa)))
              until (amortized-queue-empty-p queue)
              do (setq queue (visit queue)))))))
+
+(defun fa-optimal-string (fa cost-function &optional (compare #'-))
+  "Generate a minimum cost string for the FA"
+  (declare (type function cost-function compare))
+  (let ((succs (fa-successors fa))
+        (accept (fa-accept fa))
+        (compare-nodes (lambda (n1 n2)
+                         (funcall compare (car n1) (car n2))))
+        (min-costs (make-hash-table :test #'equal)))
+    (setf (gethash (fa-start fa) min-costs) 0)
+    (labels ((visit (heap prev-node c q)
+               (declare (type number c))
+               (let ((minc (gethash q min-costs)))
+                 (assert (>= c minc))
+                 (if (= c minc)
+                     ;; the min-cost path
+                     (fold (lambda (heap zq1)
+                             (destructuring-bind (z q1) zq1
+                               (let ((new-c (+ c (funcall cost-function z)))
+                                     (old-c (gethash q1 min-costs)))
+                                 (if (and old-c (<= old-c new-c))
+                                     heap
+                                     (progn
+                                       (setf (gethash q1 min-costs) new-c)
+                                       (sycamore::pairing-heap-insert heap (cons new-c (cons prev-node zq1))
+                                                                      compare-nodes))))))
+                           heap (funcall succs q))
+                     ;; a higher cost path, ignore it
+                     heap)))
+             (unwrap (node)
+               (let ((s nil))
+                 (loop
+                    for n = node then (second n)
+                    while n
+                    for z = (third n)
+                    do (push z s))
+                 s))
+             (next (heap)
+               (multiple-value-bind (heap top-node) (sycamore::pairing-heap-remove-min heap compare-nodes)
+                 (destructuring-bind (c prev z q) top-node
+                   (declare (ignore prev z)
+                            (type number c))
+                   (if (finite-set-inp q accept)
+                       (unwrap top-node)
+                       (next (visit heap top-node c q)))))))
+      (unless (finite-set-inp (fa-start fa) accept)
+        (next (visit nil nil 0 (fa-start fa)))))))
