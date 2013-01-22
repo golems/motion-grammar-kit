@@ -241,8 +241,8 @@ configure: `$ ./configure --without-ach`.
 
 2. Build:
 
-    $ ./make
+    $ make
 
 3. Install:
 
-    $ sudo ./make install
+    $ sudo make install
