@@ -373,6 +373,18 @@
                                      (regex->dfa '(:concatenation (:closure a) b a b))))
   )))
 
+
+(lisp-unit:define-test fa-set
+  (lisp-unit:assert-true (fa-subset-p (regex->dfa '(:closure (:union a )))
+                                      (regex->dfa '(:closure (:union a b)))))
+  (lisp-unit:assert-false (fa-subset-p (regex->dfa '(:closure (:union a c)))
+                                       (regex->dfa '(:closure (:union a b)))))
+  (lisp-unit:assert-true (fa-subset-p (regex->dfa '(:concatenation (:closure a) (:closure b)))
+                                       (regex->dfa '(:closure (:union a b)))))
+  (lisp-unit:assert-false (fa-subset-p (regex->dfa '(:concatenation (:closure a) (:closure c)))
+                                       (regex->dfa '(:closure (:union a b)))))
+  )
+
 (lisp-unit:define-test grammar-basic
   (let ((g '((a b c) (b e f))))
     ;; map

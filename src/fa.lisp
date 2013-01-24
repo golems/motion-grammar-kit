@@ -757,7 +757,12 @@ This is the finite-automaton that accepts all strings NOT in FA."
                                                         (finite-set-add set (fixup x)))
                                                       (make-finite-set :compare #'gsymbol-compare)
                                                       (fa-accept fa1))))))))
-
+(defun fa-subset-p (fa1 fa2)
+  "Is FA1 a subset of FA2?"
+  (let ((terminals (finite-set-union (fa-terminals fa1)
+                                     (fa-terminals fa2))))
+    ;; This is the explicit model-checking equation
+    (fa-empty-p (fa-intersection fa1 (fa-complement fa2 terminals)))))
 
 (defun fa-concatenate (fa1 fa2 &optional (unique (gensym)))
   "Concatenation language of FA1 and FA2."
