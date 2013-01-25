@@ -1,6 +1,6 @@
 ;;;; -*- Lisp -*-
 ;;;;
-;;;; Copyright (c) 2012, Georgia Tech Research Corporation
+;;;; Copyright (c) 2013, Georgia Tech Research Corporation
 ;;;; All rights reserved.
 ;;;;
 ;;;; Author(s): Neil T. Dantam <ntd@gatech.edu>
@@ -34,28 +34,16 @@
 ;;;;   OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
 ;;;;   EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+(in-package :motion-grammar)
 
-
-
-(asdf:defsystem motion-grammar-kit
-  :version "0.0.20130121"
-  :description "Motion-Grammar Kit"
-  :depends-on (:cl-ppcre :alexandria :sycamore :cffi)
-  :weakly-depends-on (:lisp-unit :cl-fuzz)
-  :components ((:file "package")
-               (:file "util" :depends-on ("package"))
-               (:file "matcher" :depends-on ("package"))
-               (:file "set" :depends-on ("package" "util"))
-               (:file "fa" :depends-on ("package" "set" "util"))
-               (:file "petri" :depends-on ("fa"))
-               (:file "regex" :depends-on ("fa"))
-               (:file "grammar" :depends-on ("package" "fa" "set" "util"))
-               (:file "parse" :depends-on ("package" "set" "util" "grammar"))
-               (:file "graph" :depends-on ("package"))
-               (:file "pda" :depends-on ("fa" "grammar"))
-               (:file "fuzz" :depends-on ("fa" "set" "util"))
-               (:file "search" :depends-on ("fa"))
-               (:file "supervisor" :depends-on ("fa"))
-               (:file "codegen" :depends-on ("fa" "grammar" "matcher"))
-               (:file "threadpool" :depends-on ("package"))
-               ))
+#+sbcl
+(defun process-work-queue (generator &key (thread-count 8))
+  (let* ((mutex (sb-thread:make-mutex))
+         (thread-function (lambda ()
+                            (loop for work-unit = (sb-thread:with-mutex (mutex)
+                                                    (funcall generator))
+                               while work-unit
+                               do (funcall work-unit))))
+         (threads (loop for i below thread-count
+                     collect (sb-thread:make-thread thread-function))))
+    (map nil #'sb-thread:join-thread threads)))
