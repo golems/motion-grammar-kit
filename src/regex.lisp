@@ -84,6 +84,10 @@
   "Convert a regular expression to a DFA."
   (fa-canonicalize (regex->nfa regex terminals)))
 
+(defun regex->dfa-brzozowski (regex &optional terminals)
+  "Convert a regular expression to a DFA with brzozowski's minimization algorithm"
+  (fa-canonicalize-brzozowski  (regex->nfa regex terminals)))
+
 
 (defun regex-apply (operator &rest args)
   (let ((args (loop for a in args
