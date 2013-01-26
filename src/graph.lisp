@@ -104,3 +104,25 @@ output: output file, type determined by suffix (png,pdf,eps)"
                   (format s "~&}~%"))
                 ;:program "neato"
                 )))
+
+(defun graph-vertices (edges)
+  (fold (lambda (set e) (finite-set-add (finite-set-add set (first e))
+                                   (second e)))
+        (make-finite-set :compare #'gsymbol-compare)
+        edges))
+
+(defun graph-predecessors (edges)
+  (let ((hash (make-hash-table :test #'equal)))
+    (map nil (lambda (e)
+               (destructuring-bind (v0 v1) e
+                 (push v0 (gethash v1 hash))))
+         edges)
+    (lambda (v1) (gethash v1 hash))))
+
+(defun graph-successors (edges)
+  (let ((hash (make-hash-table :test #'equal)))
+    (map nil (lambda (e)
+               (destructuring-bind (v0 v1) e
+                 (push v1 (gethash v0 hash))))
+         edges)
+    (lambda (v0) (gethash v0 hash))))
