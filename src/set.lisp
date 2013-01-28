@@ -62,7 +62,7 @@ MUTABLE: Should this be a mutable set?
 (defun finite-set (&rest items)
   (fold #'finite-set-add (make-finite-set) items))
 
-(defun finite-set-map (result-type function set)
+(defun map-finite-set (result-type function set)
   "Apply FUNCTION to all members of SET."
   (etypecase set
     (sequence (map result-type function set))
@@ -71,6 +71,9 @@ MUTABLE: Should this be a mutable set?
                            (declare (ignore v))
                            (funcall function k))
                          set))))
+
+(defun finite-set-map (result-type function set)
+  (map-finite-set result-type function set))
 
 (defun fold-finite-set (function initial-value set)
   "Fold FUNCTION over SET beginning with first argument INITIAL-VALUE."

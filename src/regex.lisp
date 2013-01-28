@@ -238,6 +238,7 @@ Supports the following operators:
 :complement : match complement
 :not : any symbol except this
 :+ : A A*
+:? : A | epsilon
 :. : match anything
 
 REGEX: An extended regular expression.
@@ -274,6 +275,9 @@ TERMINALS: Set of all terminal symbols in the language.
                       (:complement
                        (assert (null (cdr rest)))
                        (fa->regex (fa-canonicalize (fa-complement (regex->dfa (rec (car rest))) terminals))))
+                      (:?
+                       (assert (null (cdr rest)))
+                       `(:union :epsilon ,(rec (car rest))))
                       (:not
                        (assert (null (cdr rest)))
                        (assert (finite-set-inp (car rest) terminals))
