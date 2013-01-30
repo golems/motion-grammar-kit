@@ -70,11 +70,11 @@
 ;; Run the tests
 (in-package :motion-grammar-kit)
 
-(lisp-unit:run-tests)
+(lisp-unit:run-tests :ALL)
 
 
 #+sbcl
 (sb-ext:quit)
 
 #+ccl
-(ccl:quit)
+sts(ccl:quit)

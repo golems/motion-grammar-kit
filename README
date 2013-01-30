@@ -21,3 +21,13 @@ Installation
 * Binaries are available at http://code.golems.org/pkg/mgk/core
 * See the INSTALL file for detailed instructions
 
+Running tests
+=============
+
+From the command line
+
+    cd src
+    sbcl --script run-test.lisp
+
+From emacs+slime, you must first compile `tests.lisp` (open the file and type
+`C-c C-k`) and then issue `(run-tests :ALL)` in the REPL.
