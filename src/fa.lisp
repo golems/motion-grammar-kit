@@ -838,6 +838,9 @@ This is the finite-automaton that accepts all strings NOT in FA."
 (defun fa-dot (fa &key
                output
                (font-size 12)
+               (label-states t)
+               (shape "ellipse")
+               (rankdir "LR")
                (accept-shape "doublecircle"))
   "Generate Graphviz output for FA.
 FA: finite automaton.
@@ -846,14 +849,18 @@ OUTPUT: output file, type determined by suffix (png,pdf,eps)."
     (output-dot output
                 (lambda (s)
                   (format s "~&digraph {~%")
-                  (format s "~&rankdir=\"LR\";~%")
+                  (dot-options s
+                               :rankdir rankdir
+                               :node-shape shape
+                               :node-font-size font-size)
                   ;; state labels
-                  (format s "~:{~&  ~A[label=\"~A\",fontsize=~D];~}"
+                  (format s "~:{~&  ~A[label=\"~A\"];~}"
                           (finite-set-map 'list (lambda (state)
-                                                  (list (funcall state-numbers state) state font-size))
+                                                  (list (funcall state-numbers state)
+                                                        (if label-states state "")))
                                           (fa-states fa)))
                   ;; start state
-                  (format s "~&  start[shape=none,fontsize=~D];" font-size)
+                  (format s "~&  start[shape=none];")
                   (format s "~&  start -> ~A;" (funcall state-numbers (fa-start fa)))
                   ;; accept state
                   (format s "~:{~&  ~A [ shape=~A ];~}"

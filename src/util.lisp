@@ -329,12 +329,14 @@ LANG: language output for dot, (or pdf ps eps png)"
 (defun dot-options (s &key
                     rankdir
                     font-size
+                    node-shape
                     (node-font-size font-size))
   (when node-font-size
-    (when node-font-size
-      (format s "  ~&node[fontsize=~D]~%" node-font-size))
-    (when rankdir
-      (format s "~&rankdir=\"~A\";~%" rankdir))))
+    (format s "  ~&node[fontsize=~D]~%" node-font-size))
+  (when node-shape
+    (format s "  ~&node[shape=~A]~%" node-shape))
+  (when rankdir
+    (format s "~&rankdir=\"~A\";~%" rankdir)))
 
 (defun output-dot (output function &key
                    (program "dot")
