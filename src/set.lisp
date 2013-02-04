@@ -321,3 +321,35 @@ RESULT-TYPE: (or nil 'list)"
 ;;           (when (eq 'list result-type)
 ;;             (push y result)))))
 ;;     result))
+
+(defun index-finite-set (set key-function value-function &key
+                         (duplicate-type 'tree-set)
+                         (test #'equal))
+  "Index members of a finite set.
+KEY-FUNCTION: Produce the index key from a set member.
+VALUE-FUNCTION: Produce the value to be indexed from the set member.
+DUPLICATE-TYPE: (or nil list tree-set), Don't allow duplicates,
+             or store as a list or store as a tree-set
+RESULT: (lambda (key)) => (values (list set-values...) (or t nil))"
+  (let ((hash (make-hash-table :test test)))
+    (flet ((helper (function)
+             (do-finite-set (x set)
+               (let ((key (funcall key-function x)))
+                 (setf (gethash key hash)
+                       (funcall function (funcall value-function x)
+                                (gethash key hash) ))))))
+      (if duplicate-type
+          (ecase duplicate-type
+            ((:tree-set tree-set)
+             (let ((empty-set (make-finite-set :compare #'gsymbol-compare)))
+               (helper (lambda (value old)
+                         (finite-set-add (or old empty-set)
+                                         value)))))
+            ((:list list)
+             (helper (lambda (value old)
+                       (cons value old)))))
+          ;; no duplicates
+          (helper (lambda (value old)
+                    (assert (null old))
+                    value)))
+      (lambda (key) (gethash key hash)))))

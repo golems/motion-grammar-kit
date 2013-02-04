@@ -116,74 +116,45 @@ ACCEPT: Set of automaton accept states."
 ;;;;;;;;;;;;;;
 
 (defun dfa-mover (fa)
-  (let ((hash (fold-fa-edges (lambda (hash q0 z q1)
-                               (assert (not (eq z :epsilon)))
-                               (assert q1)
-                               (let ((k (list q0 z)))
-                                 (assert (null (gethash k hash)))
-                                 (setf (gethash k hash) q1))
-                               hash)
-                             (make-hash-table :test #'equal)
-                             fa)))
-    (lambda (q0 z) (gethash (list q0 z) hash))))
+  (let ((index (index-finite-set (fa-edges fa)
+                                 (lambda (edge) (list (first edge) (second edge)))
+                                 #'third
+                                 :duplicate-type nil)))
+    (lambda (q0 z) (funcall index (list q0 z)))))
 
 (defun nfa-mover (fa)
-  (let ((hash (fold-fa-edges (lambda (hash q0 z q1)
-                               (assert q1)
-                               (let ((k (list q0 z)))
-                                 (push q1 (gethash k hash)))
-                               hash)
-                             (make-hash-table :test #'equal)
-                             fa)))
-    (lambda (q0 z) (gethash (list q0 z) hash))))
+  (let ((index (index-finite-set (fa-edges fa)
+                                 (lambda (edge) (list (first edge) (second edge)))
+                                 #'third
+                                 :duplicate-type 'list)))
+    (lambda (q0 z) (funcall index (list q0 z)))))
 
 (defun nfa-reverse-mover (nfa)
-  (let ((hash (fold-fa-edges (lambda (hash q0 z q1)
-                               (assert q1)
-                               (let ((k (list q1 z)))
-                                 (setf (gethash k hash)
-                                       (finite-set-add (or (gethash k hash)
-                                                           (make-finite-set :compare #'gsymbol-compare))
-                                                       q0)))
-                               hash)
-                             (make-hash-table :test #'equal)
-                             nfa)))
-    (lambda (q1 z) (gethash (list q1 z) hash))))
+  (let ((index (index-finite-set (fa-edges nfa)
+                                 (lambda (edge) (list (third edge) (second edge)))
+                                 #'first
+                                 :duplicate-type 'tree-set)))
+    (lambda (q1 z) (funcall index (list q1 z)))))
 
 (defun fa-outgoing-terminal-function (fa)
   "Index fa state to terminals leaving that state.
 RESULT: (lambda (state)) => (finite-set terminals)"
-  (let ((hash (make-hash-table :test #'equal)))
-    (fa-map-edges nil (lambda (q z p)
-                        (declare (ignore p))
-                        (setf (gethash q hash)
-                              (finite-set-add (or (gethash q hash)
-                                                  (make-finite-set :compare #'gsymbol-compare))
-                                              z)))
-                  fa)
-    (lambda (q) (gethash q hash))))
+  (index-finite-set (fa-edges fa)
+                    #'first #'second
+                    :duplicate-type 'tree-set))
 
 (defun fa-incoming-terminal-function (fa)
   "Index fa state to terminals leaving that state.
 RESULT: (lambda (state)) => (finite-set terminals)"
-  (let ((hash (make-hash-table :test #'equal)))
-    (fa-map-edges nil (lambda (q z p)
-                        (declare (ignore q))
-                        (setf (gethash p hash)
-                              (finite-set-add (gethash p hash) z)))
-                  fa)
-    (lambda (q) (gethash q hash))))
-
+  (index-finite-set (fa-edges fa)
+                    #'third #'second
+                    :duplicate-type 'tree-set))
 
 (defun fa-successors (fa)
   "Map from original-state to (list (list terminal resultant-state)...)."
-  (let ((hash (make-hash-table :test #'equal)))
-    (loop for e in (fa-edges fa)
-       for q0 = (car e)
-       for z-q1 = (cdr e)
-       do (push z-q1 (gethash q0 hash)))
-    (lambda (q0) (gethash q0 hash))))
-
+  (index-finite-set (fa-edges fa)
+                    #'first #'cdr
+                    :duplicate-type 'list))
 
 ;;;;;;;;;;;;;;;;;
 ;; CONVERSIONS ;;
@@ -358,37 +329,25 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
 (defun fa-prune (fa)
   "Remove unreachable and dead states from the FA."
   ;; index reachable states
-  (let ((succ (fold-fa-edges (lambda (hash q0 v q1)
-                               (declare (ignore v))
-                               (setf (gethash q0 hash)
-                                     (finite-set-add (or (gethash q0 hash)
-                                                         (make-finite-set :compare #'gsymbol-compare))
-                                                     q1))
-                               hash)
-                             (make-hash-table :test #'equal)
-                             fa))
-        (pred (fold-fa-edges (lambda (hash q0 v q1)
-                               (declare (ignore v))
-                               (setf (gethash q1 hash)
-                                     (finite-set-add (or (gethash q1 hash)
-                                                         (make-finite-set :compare #'gsymbol-compare))
-                                                     q0))
-                               hash)
-                             (make-hash-table :test #'equal)
-                             fa))
+  (let ((succ (index-finite-set (fa-edges fa)
+                                #'first #'third
+                                :duplicate-type 'tree-set))
+        (pred (index-finite-set (fa-edges fa)
+                                #'third #'first
+                                :duplicate-type 'tree-set))
         (live-fwd (make-hash-table :test #'equal))
         (live-rev (make-hash-table :test #'equal)))
     ;; mark forward live states
     (labels ((visit (q)
                (unless (gethash q live-fwd)
                  (setf (gethash q live-fwd) t)
-                 (finite-set-map nil #'visit (gethash q succ)))))
+                 (finite-set-map nil #'visit (funcall succ q)))))
       (visit (fa-start fa)))
     ;; mark reverse live states
     (labels ((visit (q)
                (unless (gethash q live-rev)
                  (setf (gethash q live-rev) t)
-                 (finite-set-map nil #'visit (gethash q pred)))))
+                 (finite-set-map nil #'visit (funcall pred q)))))
       (finite-set-map nil #'visit (fa-accept fa)))
     (let ((live (fold-finite-set (lambda (live q)
                                    (if (and (gethash q live-fwd)
