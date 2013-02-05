@@ -34,43 +34,41 @@
 ;;;;   OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
 ;;;;   EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+;; ;; Try to load quicklisp
+;; (unless (find-package :quicklisp)
+;;   (let ((ql0 (merge-pathnames "quicklisp/setup.lisp"
+;;                               (user-homedir-pathname)))
+;;         (ql1 (merge-pathnames ".quicklisp/setup.lisp"
+;;                               (user-homedir-pathname))))
+;;     (cond
+;;       ((probe-file ql0)
+;;        (load ql0))
+;;       ((probe-file ql1)
+;;        (load ql1)))))
 
+;; ;; Try to load ASDF load
+;; (require :asdf)
 
-;; Try to load quicklisp
-(unless (find-package :quicklisp)
-  (let ((ql0 (merge-pathnames "quicklisp/setup.lisp"
-                              (user-homedir-pathname)))
-        (ql1 (merge-pathnames ".quicklisp/setup.lisp"
-                              (user-homedir-pathname))))
-    (cond
-      ((probe-file ql0)
-       (load ql0))
-      ((probe-file ql1)
-       (load ql1)))))
+;; ;; Try to add standard asdf place
+;; (pushnew (merge-pathnames ".asdf/systems/"
+;;            (user-homedir-pathname))
+;;          asdf:*central-registry*
+;;          :test #'equal)
+;; (pushnew (make-pathname :directory '(:relative "."))
+;;          asdf:*central-registry*
+;;          :test #'equal)
 
-;; Try to load ASDF load
-(require :asdf)
+;; ;; Load necessary packages
+;; (asdf:operate 'asdf:load-op :motion-grammar-kit)
+;; (asdf:operate 'asdf:load-op :lisp-unit)
 
-;; Try to add standard asdf place
-(pushnew (merge-pathnames ".asdf/systems/"
-           (user-homedir-pathname))
-         asdf:*central-registry*
-         :test #'equal)
-(pushnew (make-pathname :directory '(:relative "."))
-         asdf:*central-registry*
-         :test #'equal)
-
-;; Load necessary packages
-(asdf:operate 'asdf:load-op :motion-grammar-kit)
-(asdf:operate 'asdf:load-op :lisp-unit)
-
-;; Load tests
-(load "test.lisp")
+;; ;; Load tests
+;; (load "test.lisp")
 
 ;; Run the tests
 (in-package :motion-grammar-kit)
 
-(lisp-unit:run-tests)
+(lisp-unit:run-tests :all)
 
 
 #+sbcl

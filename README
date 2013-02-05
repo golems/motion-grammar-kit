@@ -20,4 +20,4 @@ Installation
 ============
 * Binaries are available at http://code.golems.org/pkg/mgk/core
 * See the INSTALL file for detailed instructions
-
+* You can run the test cases with `make check`
