@@ -67,10 +67,16 @@ MUTABLE: Should this be a mutable set?
   (etypecase set
     (sequence (map result-type function set))
     (tree-set (map-tree-set result-type function set))
-    (hash-table (maphash (lambda (k v)
-                           (declare (ignore v))
-                           (funcall function k))
-                         set))))
+    (hash-table (cond
+                  ((null result-type)
+                   (maphash (lambda (k v)
+                              (declare (ignore v))
+                              (funcall function k))
+                            set))
+                  ((eq 'list result-type)
+                   (loop for k being the hash-keys of set
+                        collect (funcall function k)))
+                  (t (assert nil))))))
 
 (defun finite-set-map (result-type function set)
   (map-finite-set result-type function set))
@@ -330,7 +336,8 @@ KEY-FUNCTION: Produce the index key from a set member.
 VALUE-FUNCTION: Produce the value to be indexed from the set member.
 DUPLICATE-TYPE: (or nil list tree-set), Don't allow duplicates,
              or store as a list or store as a tree-set
-RESULT: (lambda (key)) => (values (list set-values...) (or t nil))"
+RESULT: (values (lambda (key)) => (values (list set-values...) (or t nil))
+                (finite-set keys...))"
   (let ((hash (make-hash-table :test test)))
     (flet ((helper (function)
              (do-finite-set (x set)
@@ -352,4 +359,5 @@ RESULT: (lambda (key)) => (values (list set-values...) (or t nil))"
           (helper (lambda (value old)
                     (assert (null old))
                     value)))
-      (lambda (key) (gethash key hash)))))
+      (values (lambda (key) (gethash key hash))
+              hash))))
