@@ -75,6 +75,9 @@
                                   (rec (cdr symbol)))))))))
       (rec tree))))
 
+(defun random-whole (count)
+  (check-type count (integer 1 #.most-positive-fixnum))
+  (1+ (random (1- count))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;

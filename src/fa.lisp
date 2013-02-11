@@ -527,43 +527,20 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                (gethash (fa-start fa) incoming)
                (finite-set-map 'list (curry-right #'gethash outgoing) (fa-accept fa))))))
 
-(defun graph->fa (adj &key (start (car adj))  directed)
-  (let ((incoming (make-hash-table :test #'equal))
-        (outgoing (make-hash-table :test #'equal))
-        (places (make-hash-table :test #'equal))
-        (accept (make-hash-table :test #'equal)))
-    ;; index incoming, outgoing, and places
-    (dolist (e adj)
-      (destructuring-bind (q0 q1) e
-        (push e (gethash q0 outgoing))
-        (push e (gethash q1 incoming))
-        (setf (gethash e accept) t)
-        (unless directed
-          (let ((e (list q1 q0)))
-            (setf (gethash e accept) t)
-            (push e (gethash q1 outgoing))
-            (push e (gethash q0 incoming))))
-        (setf (gethash q0 places) t
-              (gethash q1 places) t)))
-    ;; build edges
-    (let ((edges))
-      (loop for q being the hash-keys of places
-         do
-           (dolist (in (gethash q incoming))
-             (dolist (out (gethash q outgoing))
-               (push (list in q out) edges))))
-      (assert (every (lambda (e)
-                       (if (= 2 (length e))
-                           (destructuring-bind ((q0 q1) z) e
-                             (declare (ignore q0))
-                             (equal q1 z))
-                           (destructuring-bind ((q0 q1) z (q2 q3)) e
-                             (declare (ignore q0 q3))
-                             (and (equal q1 z) (equal q2 z)))))
-                     edges))
-      (make-fa edges
+(defun graph->fa (adj &key (start (caar adj))  directed)
+  (let ((edges (if directed
+                   (loop for edge in adj
+                      collect (cons (first edge) edge))
+                   (loop for edge in adj
+                      nconc (list (cons (first edge) edge)
+                                  (list (second edge) (second edge) (first edge))))))
+        (vertices (graph-vertices adj)))
+    (make-fa-1 vertices
+               vertices
+               edges
                start
-               accept))))
+               vertices)))
+
 
 ;;;;;;;;;;;;;;;;;;;;
 ;; SET OPERATIONS ;;

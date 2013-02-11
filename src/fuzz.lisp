@@ -36,9 +36,10 @@
 
 (in-package :motion-grammar-kit)
 
-(defun fa-fuzz-generator ()
-  (random-fa (+ 1 (random 6))
-             3))
+
+;;;;;;;;;;;;;;;;;;;;;
+;; FINITE AUTOMATA ;;
+;;;;;;;;;;;;;;;;;;;;;
 
 (defun fa-fuzz-tester (fa)
   ;; first, get the minimal forms
@@ -106,8 +107,8 @@
                 (randomize-counts t))
   (fuzz:run-tests (if randomize-counts
                       (thunk (random-fa state-count terminal-count))
-                      (thunk (random-fa (1+ (random (1- state-count)))
-                                        (1+ (random (1- terminal-count))))))
+                      (thunk (random-fa (random-whole state-count)
+                                        (random-whole terminal-count))))
                   #'fa-fuzz-tester
                   :formatter #'fa-fuzz-formatter
                   :count count))

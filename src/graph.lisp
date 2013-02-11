@@ -126,3 +126,20 @@ output: output file, type determined by suffix (png,pdf,eps)"
                  (push v1 (gethash v0 hash))))
          edges)
     (lambda (v0) (gethash v0 hash))))
+
+
+(defun random-graph (vertex-count &key
+                     (edge-count (floor (/ (* vertex-count vertex-count)
+                                           4)))
+                     randomize-counts)
+  (declare (type fixnum vertex-count edge-count))
+  (multiple-value-bind (vertex-count edge-count)
+      (if randomize-counts
+          (values (random-whole vertex-count)
+                  (random-whole edge-count))
+          (values vertex-count edge-count))
+    (let ((edges))
+      (dotimes (i edge-count)
+        (setq edges (finite-set-add edges (list (random vertex-count)
+                                                (random vertex-count)))))
+      edges)))
