@@ -36,87 +36,55 @@
 
 (in-package :motion-grammar-kit)
 
-(defvar *fuzz-log*)
-(defvar *fuzz-input*)
-(defvar *fuzz-counts*)
-
-(defun fuzz-test (name test-function)
-"Call TEST-FUNCTION with no arguments.  If result is true, mark
-successful test.  If result is false, print an error message.
-NAME: name of thest test
-TEST-FUNCTION: (lambda ()) => (or nil RESULT)
-RESULT: the result of TEST-FUNCTION"
-  (declare (type function test-function)
-           (type symbol name))
-  (let ((result (handler-case (funcall test-function)
-                  (condition (e) ;error
-                    (pprint `(:condition ,name :description ,(write-to-string e) :input ,*fuzz-input*)
-                            *fuzz-log*)
-                    (return-from fuzz-test)))))
-    (if result
-        (when *fuzz-counts*
-          (incf (gethash name *fuzz-counts* 0)))
-        (pprint `(:fail ,name :input ,*fuzz-input*) *fuzz-log*))
-    result))
-
-;; TODO: catch assertions and conditions
-(defun perform-fuzz (generator tester &key
-                     (formatter #'identity)
-                     (log *standard-output*)
-                     (count 1))
-  (let ((*fuzz-counts* (make-hash-table))
-        (*fuzz-log* log))
-    (dotimes (i count)
-      (let* ((input (funcall generator))
-             (*fuzz-input* (funcall formatter input)))
-        (funcall tester input)))
-    (print `(:result
-             ,(loop for k being the hash-keys of *fuzz-counts*
-                 collect (list k (gethash k *fuzz-counts*)))))))
-
-
 (defun fa-fuzz-generator ()
   (random-fa (+ 1 (random 6))
              3))
 
-(defun curry0 (function arg)
-  (lambda () (funcall function arg)))
-
 (defun fa-fuzz-tester (fa)
   ;; first, get the minimal forms
-  (let ((hop (fuzz-test 'hopcroft (curry-list #'fa-canonicalize-hopcroft fa)))
-        (brz (fuzz-test 'brzozowski (curry-list #'fa-canonicalize-brzozowski fa))))
+  (let ((hop (fuzz:test-true 'hopcroft (curry-list #'fa-canonicalize-hopcroft fa)))
+        (brz (fuzz:test-true 'brzozowski (curry-list #'fa-canonicalize-brzozowski fa))))
     ;; check hopcroft
     (when hop
-      (fuzz-test 'hopcroft-dfa
-                 (curry-list #'dfa-p hop))
+      (fuzz:test-predicate 'hopcroft-dfa
+                           #'dfa-p (thunk hop))
 
-      (fuzz-test 'hopcroft-terminals
-                 (lambda () (finite-set-equal (fa-terminals fa) (fa-terminals hop)))))
+      (fuzz:test-predicate 'hopcroft-terminals
+                           #'finite-set-equal
+                           (curry-list #'fa-terminals fa)
+                           (curry-list #'fa-terminals hop)))
     ;; check brzozowski
     (when brz
-      (fuzz-test 'brzozowski-dfa
-                 (curry-list #'dfa-p brz))
-      (fuzz-test 'brzozowski-terminals
-                 (lambda () (finite-set-equal (fa-terminals fa) (fa-terminals brz)))))
+      (fuzz:test-predicate 'brzozowski-dfa
+                           #'dfa-p (thunk brz))
+      (fuzz:test-predicate 'brzozowski-terminals
+                           #'finite-set-equal
+                           (curry-list #'fa-terminals fa)
+                           (curry-list #'fa-terminals brz)))
     ;; check that they match
     (when (and hop brz)
-      (fuzz-test 'hopcroft-brzozowski-equal
-                 (curry-list #'dfa-eq hop brz)))
+      (fuzz:test-predicate 'hopcroft-brzozowski-equal
+                           #'dfa-eq
+                           (thunk hop)
+                           (thunk brz)))
 
     ;; check some other properties
     (when hop
       (let ((universal (make-universal-fa (fa-terminals fa))))
         ;; f = u \cap f
-        (fuzz-test 'union-universal
-                   (lambda () (dfa-eq hop
-                                 (fa-canonicalize (fa-intersection universal hop)))))
+        (fuzz:test-predicate 'union-universal
+                             #'dfa-eq
+                             (thunk hop)
+                             (thunk
+                               (fa-canonicalize (fa-intersection universal hop))))
         ;; u = f \cup \not f
-        (fuzz-test 'union-complement
-                   (lambda () (fa-universal-p (fa-union hop (fa-complement fa)))))
+        (fuzz:test-predicate 'union-complement
+                             #'fa-universal-p
+                             (thunk (fa-union hop (fa-complement fa))))
         ;; \emptyset = f \cap \not f
-        (fuzz-test 'intersection-complement
-                   (lambda () (fa-empty-p (fa-intersection hop (fa-complement fa)))))))))
+        (fuzz:test-predicate 'intersection-complement
+                             #'fa-empty-p
+                             (thunk (fa-intersection hop (fa-complement fa))))))))
 
 
 (defun fa-fuzz-formatter (fa)
@@ -136,10 +104,10 @@ RESULT: the result of TEST-FUNCTION"
                 (state-count 8)
                 (terminal-count 4)
                 (randomize-counts t))
-  (perform-fuzz (if randomize-counts
-                    (lambda () (random-fa state-count terminal-count))
-                    (lambda () (random-fa (1+ (random (1- state-count)))
-                                     (1+ (random (1- terminal-count))))))
-                #'fa-fuzz-tester
-                :formatter #'fa-fuzz-formatter
-                :count count))
+  (fuzz:run-tests (if randomize-counts
+                      (thunk (random-fa state-count terminal-count))
+                      (thunk (random-fa (1+ (random (1- state-count)))
+                                        (1+ (random (1- terminal-count))))))
+                  #'fa-fuzz-tester
+                  :formatter #'fa-fuzz-formatter
+                  :count count))

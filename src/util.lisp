@@ -120,6 +120,10 @@
            lists)
     value))
 
+(defmacro thunk (&body body)
+  "A lambda with no arguments."
+  `(lambda () ,@body))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; GENERALIZED SYMBOLS ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;
