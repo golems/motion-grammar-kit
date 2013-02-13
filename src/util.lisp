@@ -86,26 +86,29 @@
 
 ;; the CL-standards are a bit clumsy for this
 
-(defun curry (function arg0)
-  "Return a new unary function which applies arg0 as leftmost argument of FUNCTION."
-  (declare (type function function))
-  (lambda (arg1) (funcall function arg0 arg1)))
+;; Use Alexandria's currying
 
-(defun curry-right (function arg1)
-  "Return a new unary function which applies arg0 as rightmost argument of FUNCTION."
-  (declare (type function function))
-  (lambda (arg0) (funcall function arg0 arg1)))
+;; (defun curry (function arg0)
+;;   "Return a new unary function which applies arg0 as leftmost argument of FUNCTION."
+;;   (declare (type function function))
+;;   (lambda (arg1) (funcall function arg0 arg1)))
 
-(defun curry-list (function arg0 &rest more-args)
-  "Return a new vararg function which applies ARG0 and MORE-ARGS as leftmost arguments of FUNCTION."
-  (declare (type function function))
-  (let ((helper (lambda (&rest final-args)
-                   (apply function arg0 final-args))))
-    (if more-args
-        (apply #'curry-list
-               helper
-               more-args)
-        helper)))
+
+;; (defun curry-list (function arg0 &rest more-args)
+;;   "Return a new vararg function which applies ARG0 and MORE-ARGS as leftmost arguments of FUNCTION."
+;;   (declare (type function function))
+;;   (let ((helper (lambda (&rest final-args)
+;;                    (apply function arg0 final-args))))
+;;     (if more-args
+;;         (apply #'curry-list
+;;                helper
+;;                more-args)
+;;         helper)))
+
+;; (defun curry-right (function arg1)
+;;   "Return a new unary function which applies arg0 as rightmost argument of FUNCTION."
+;;   (declare (type function function))
+;;   (lambda (arg0) (funcall function arg0 arg1)))
 
 (defun chain (value &rest functions)
   (if functions

@@ -525,7 +525,7 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                                                    z
                                                    (gethash q1 incoming))))
                (gethash (fa-start fa) incoming)
-               (finite-set-map 'list (curry-right #'gethash outgoing) (fa-accept fa))))))
+               (finite-set-map 'list (rcurry #'gethash outgoing) (fa-accept fa))))))
 
 (defun graph->fa (adj &key (start (caar adj))  directed)
   (let ((edges (if directed

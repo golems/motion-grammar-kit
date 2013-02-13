@@ -36,7 +36,7 @@
 
 
 (defpackage :motion-grammar-kit
-  (:use :cl :sycamore)
+  (:use :cl :sycamore :alexandria)
   (:nicknames :motion-grammar :mg)
   (:export
    ;; finite automata

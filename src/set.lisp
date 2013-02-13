@@ -103,7 +103,7 @@ MUTABLE: Should this be a mutable set?
      (finite-set-map nil
                      (lambda (s-1)
                        (apply #'finite-set-map-cross
-                              (curry-list function s-1)
+                              (curry function s-1)
                               sets))
                      set-1))))
 
@@ -295,7 +295,7 @@ RESULT: (lambda (item)) => integer"
         (i -1))
     (do-finite-set (x set)
       (setf (gethash x hash) (incf i)))
-    (curry-right #'gethash hash)))
+    (rcurry #'gethash hash)))
 
 (defun map-finite-set-product (result-type function set-1 &rest more-sets)
   "Apply function to all products of set arguments.
@@ -313,7 +313,7 @@ RESULT-TYPE: (or nil 'list)"
     (more-sets
      (do-finite-set (x-1 set-1)
        (apply #'map-finite-set-product nil
-              (curry-list function x-1)
+              (curry function x-1)
               more-sets)))
     (t
      (do-finite-set (x-1 set-1)

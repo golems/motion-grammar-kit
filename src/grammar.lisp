@@ -206,15 +206,15 @@ RESULT: (lambda nonterminal) => finite-set of chainable parent nonterminals"
   "Indexes productions by head.
 GRAMMAR: a grammar
 RESULT: (lambda (nonterminal)) => set of production bodies NONTERMINAL expands to."
-  (curry-right #'gethash
-               (grammar-fold (lambda (h head body)
-                               (setf (gethash head h)
-                                     (finite-set-add (or (gethash head h)
-                                                         (make-finite-set))
-                                                     body))
-                               h)
-                             (make-hash-table :test #'equal)
-                             grammar)))
+  (rcurry #'gethash
+          (grammar-fold (lambda (h head body)
+                          (setf (gethash head h)
+                                (finite-set-add (or (gethash head h)
+                                                    (make-finite-set))
+                                                body))
+                          h)
+                        (make-hash-table :test #'equal)
+                        grammar)))
 
 
 (defun grammar-first-nonterminals-function (grammar &optional
@@ -730,7 +730,7 @@ RESULT: reduced grammar"
   "Remove productions which can derive no terminal string."
   (let ((old-v (make-finite-set))
         (new-v (grammar-fold (lambda (v head body)
-                               (if (every (curry-right #'finite-set-inp terminals) body)
+                               (if (every (rcurry #'finite-set-inp terminals) body)
                                    (finite-set-add v head)
                                    v))
                              (make-finite-set) grammar)))
@@ -746,7 +746,7 @@ RESULT: reduced grammar"
                                          (finite-set-add v head)
                                          v))
                                    old-v grammar)))
-    (let* ((pred (curry-right #'finite-set-inp (finite-set-union terminals new-v))))
+    (let* ((pred (rcurry #'finite-set-inp (finite-set-union terminals new-v))))
       (rewrite-grammar-list (lambda (production)
                               (when (every pred production)
                                 (list production)))

@@ -43,8 +43,8 @@
 
 (defun fa-fuzz-tester (fa)
   ;; first, get the minimal forms
-  (let ((hop (fuzz:test-true 'hopcroft (curry-list #'fa-canonicalize-hopcroft fa)))
-        (brz (fuzz:test-true 'brzozowski (curry-list #'fa-canonicalize-brzozowski fa))))
+  (let ((hop (fuzz:test-true 'hopcroft (curry #'fa-canonicalize-hopcroft fa)))
+        (brz (fuzz:test-true 'brzozowski (curry #'fa-canonicalize-brzozowski fa))))
     ;; check hopcroft
     (when hop
       (fuzz:test-predicate 'hopcroft-dfa
@@ -52,16 +52,16 @@
 
       (fuzz:test-predicate 'hopcroft-terminals
                            #'finite-set-equal
-                           (curry-list #'fa-terminals fa)
-                           (curry-list #'fa-terminals hop)))
+                           (curry #'fa-terminals fa)
+                           (curry #'fa-terminals hop)))
     ;; check brzozowski
     (when brz
       (fuzz:test-predicate 'brzozowski-dfa
                            #'dfa-p (thunk brz))
       (fuzz:test-predicate 'brzozowski-terminals
                            #'finite-set-equal
-                           (curry-list #'fa-terminals fa)
-                           (curry-list #'fa-terminals brz)))
+                           (curry #'fa-terminals fa)
+                           (curry #'fa-terminals brz)))
     ;; check that they match
     (when (and hop brz)
       (fuzz:test-predicate 'hopcroft-brzozowski-equal
