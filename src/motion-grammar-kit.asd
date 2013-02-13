@@ -58,4 +58,6 @@
                (:file "supervisor" :depends-on ("fa"))
                (:file "codegen" :depends-on ("fa" "grammar" "matcher"))
                (:file "threadpool" :depends-on ("package"))
+               (:file "compiler" :depends-on ("fa" "regex"))
+               (:file "bnf" :depends-on ("compiler"))
                ))
