@@ -285,13 +285,12 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                (unless (gethash q hash)
                  (setf (gethash q hash) t)
                  (do-finite-set (z terminals)
-                   (let ((u (gsymbol-sort (finite-set-list (nfa-move-e-closure q z
-                                                                               mover
-                                                                               (clrhash closure-set))))))
-                     (when u
-                       ;;(assert (null (finite-set-difference u (nfa-e-closure u mover))))
-                       (push (list q z u) edges)
-                       (subset u)))))))
+                   (when-let (u (gsymbol-sort (finite-set-list (nfa-move-e-closure q z
+                                                                                   mover
+                                                                                   (clrhash closure-set)))))
+                     ;;(assert (null (finite-set-difference u (nfa-e-closure u mover))))
+                     (push (list q z u) edges)
+                     (subset u))))))
       (subset start))
     ;; result
     (let ((fa (%make-fa :states (finite-set-tree hash)
@@ -446,35 +445,34 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
         ((null a))
       (do-finite-set (c (fa-terminals dfa))
         ;; x: predecessors of a for token c
-        (let ((x (fold-finite-set (lambda (x q)
-                                    (finite-set-union x (funcall imover q c)))
-                                  nil a)))
-          (when x
-            (do* ((yyy p)
-                  (yy (cdr yyy) (cdr yyy)))
-                 ((null yy))
-              (let ((y (car yy)))
-                (if (finite-set-single-p y)
-                    (progn ;; optmization: stop checking singleton partitions
-                      (push y p-single)
-                      (rplacd yyy (cdr yy)))
-                    (let ((i (finite-set-intersection y x)))
-                      (unless (finite-set-empty-p i)
-                        (let ((j (finite-set-difference y x)))
-                          (unless (finite-set-empty-p j) ;; two new partitions
-                            ;;(format t "~&~%i: ~A~&j: ~A~&" i j)
-                            ;; insert partitions into q
-                            (if (finite-set-inp y q)
-                                ;; add both
-                                (setq q
-                                      (tree-set-insert (tree-set-insert (tree-set-remove q y) i) j))
-                                ;; add smaller
-                                (setq q (tree-set-insert q (finite-set-min-set i j))))
-                            ;; insert partitions into p, right here, destructively
-                            (rplaca yy i)
-                            (rplacd yy (cons j (cdr yy))))))
-                      ;; Increment loop
-                      (setq yyy (cdr yyy))))))))))
+        (when-let (x (fold-finite-set (lambda (x q)
+                                        (finite-set-union x (funcall imover q c)))
+                                      nil a))
+          (do* ((yyy p)
+                (yy (cdr yyy) (cdr yyy)))
+               ((null yy))
+            (let ((y (car yy)))
+              (if (finite-set-single-p y)
+                  (progn ;; optmization: stop checking singleton partitions
+                    (push y p-single)
+                    (rplacd yyy (cdr yy)))
+                  (let ((i (finite-set-intersection y x)))
+                    (unless (finite-set-empty-p i)
+                      (let ((j (finite-set-difference y x)))
+                        (unless (finite-set-empty-p j) ;; two new partitions
+                          ;;(format t "~&~%i: ~A~&j: ~A~&" i j)
+                          ;; insert partitions into q
+                          (if (finite-set-inp y q)
+                              ;; add both
+                              (setq q
+                                    (tree-set-insert (tree-set-insert (tree-set-remove q y) i) j))
+                              ;; add smaller
+                              (setq q (tree-set-insert q (finite-set-min-set i j))))
+                          ;; insert partitions into p, right here, destructively
+                          (rplaca yy i)
+                          (rplacd yy (cons j (cdr yy))))))
+                    ;; Increment loop
+                    (setq yyy (cdr yyy)))))))))
     (dolist (p0 p-single)
       (assert (finite-set-single-p p0)))
     (setq p (nconc p-single (cdr p)))

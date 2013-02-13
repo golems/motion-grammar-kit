@@ -149,10 +149,9 @@
       ;; successor edges
       (do-finite-set (q1 states)
         ;;(print q1)
-        (let ((zz (gethash (list q0 q1) hash)))
-          (when zz
-            (push (list q0 (cons :union zz) q1)
-                  edges)))))
+        (when-let (zz (gethash (list q0 q1) hash))
+          (push (list q0 (cons :union zz) q1)
+                edges))))
     ;;(print edges)
     ;; create new fa
     (make-fa edges
@@ -193,12 +192,12 @@
                   (let ((z1 (gethash (list q0 q-rip) hash)) ;; q0 -> q-rip
                         (z3 (gethash (list q-rip q1) hash)) ;; q-rip -> q1
                         (z4 (gethash (list q0 q1) hash)))   ;; q0 -> q1
-                    (let ((zz (if (and z1 z3)
-                                  (regex-apply :union
-                                               z4
-                                               (regex-apply :concatenation z1 rip-closure z3))
-                                  z4)))
-                      (when zz (push (list q0 zz q1) edges))))))))
+                    (when-let (zz (if (and z1 z3)
+                                      (regex-apply :union
+                                                   z4
+                                                   (regex-apply :concatenation z1 rip-closure z3))
+                                      z4))
+                      (push (list q0 zz q1) edges)))))))
           ;; new-fa
           (gnfa->regex (make-fa edges (fa-start gnfa) (fa-accept gnfa))))))))
 
