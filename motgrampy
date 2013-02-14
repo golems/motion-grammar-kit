@@ -34,14 +34,27 @@
 #   OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
 #   EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+
 if test -z "$1"; then
-    # exec lisp
-    exec motgramlisp --eval '(CLPYTHON.PARSER:ENTER-MIXED-LISP-PYTHON-SYNTAX)'
+    # Starting the REPL
+    # check if tty
+    if tty > /dev/null 2> /dev/null; then
+        # check for rlwrap
+        if which rlwrap > /dev/null 2> /dev/null; then
+            exec rlwrap motgramlisp --eval '(CLPYTHON.PARSER:ENTER-MIXED-LISP-PYTHON-SYNTAX)'
+        else
+            # no rlwrap
+            exec motgramlisp --eval '(CLPYTHON.PARSER:ENTER-MIXED-LISP-PYTHON-SYNTAX)'
+        fi
+    else
+        # not a typewriter
+        exec motgramlisp --eval '(CLPYTHON.PARSER:ENTER-MIXED-LISP-PYTHON-SYNTAX)'
+    fi
 else
     # Escape the filename
     FILE=`echo $1 | sed -e 's/"/\\\\"/g'`
-    # exec lisp
-    exec motgramlisp <<EOF
+    # Exec Lisp
+    exec motgramlisp --script <<EOF
 (clpython:run #p"$FILE")
 EOF
 fi
