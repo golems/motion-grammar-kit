@@ -35,4 +35,5 @@
 ;;;;   EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 (defpackage :motion-grammar-kit-python
-  (:use :cl :alexandria :motion-grammar-kit))
+  (:use :cl :alexandria :motion-grammar-kit)
+  (:nicknames :mg-py))

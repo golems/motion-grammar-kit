@@ -33,22 +33,33 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-# Invoke this script using CLPython.
+# Example script to using the Motion Grammar Kit from Python
+#
+# Invoke this script using CLPython:
 #
 # CL-USER> (ql:quickload :clpython)
 # CL-USER> (clpython:run #P"/path/to/mgk/examples/example.py")
-
+#
+# Or run it from the shell:
+#
+# $ ./example.py
 
 import CL
 import motion_grammar_kit as mg
+from KEYWORD import CONCATENATION, CLOSURE, UNION
 
-dir(mg)
+# Define a regular expression tree for: 0*1*2
+regex = (CONCATENATION,
+         (CLOSURE, 0),
+         (CLOSURE, 1),
+         2)
 
-mg.graph_dot( ((1,0),(0,1), (1,2), (2,0) ),
-              directed=True,
-              output="/tmp/dot.pdf" )
+CL.PRINT( regex )
 
+# Convert to NFA then to DFA
+nfa = mg.regex2nfa(regex)
+dfa = mg.fa_canonicalize(nfa)
 
-mg.random_graph(10, edge_count=10)
-
-CL.DESCRIBE(mg.random_graph)
+# Generate PDFs of the FA
+mg.fa_dot(nfa, output="mgk-nfa.pdf")
+mg.fa_dot(dfa, output="mgk-dfa.pdf")

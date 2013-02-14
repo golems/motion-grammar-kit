@@ -1,6 +1,6 @@
 ;;;; -*- Lisp -*-
 ;;;;
-;;;; Copyright (c) 2012, Georgia Tech Research Corporation
+;;;; Copyright (c) 2013, Georgia Tech Research Corporation
 ;;;; All rights reserved.
 ;;;;
 ;;;; Author(s): Neil T. Dantam <ntd@gatech.edu>
@@ -34,34 +34,20 @@
 ;;;;   OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
 ;;;;   EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+(in-package :motion-grammar-kit-python)
 
-(defpackage :motion-grammar-kit
-  (:use :cl :sycamore :alexandria)
-  (:nicknames :motion-grammar :mg)
-  (:export
-   ;; finite automata
-   finite-automaton make-fa fa-canonicalize nfa->dfa
-   fa-equiv dfa-eq
-   fa-empty-p dfa-p fa-universal-p
-   make-empty-fa make-universal-fa make-empty-fa
-   fa-intersection fa-complement fa-union
-   fa-concatenate fa-reverse
-   fa-supset-p
-   random-fa fa-dot
-   ;; regular expressions
-   regex->dfa regex->nfa fa->regex
-   regex-sweeten
-   ;; grammars
-   grammar->right-regular grammar->fa fa->right-regular-grammar
-   grammar->cnf grammar-remove-useless
-   grammar-print load-bnf save-bnf
-   ;; pushdown automata
-   pushdown-automaton make-pda grammar->pda
-   pda-fa-intersection pda-reachability-automaton
-   pda-dot
-   ;; petri-net
-   petri-net petri-net-dot petri-net->fa petri-net-fire
-   ;; graphs
-   graph->fa csv->graph
-   random-graph graph-dot
-   ))
+
+(defun python-print (thing &optional (stream *standard-output*))
+  (etypecase thing
+    (number (princ thing stream))
+    (symbol
+     (if (eq (symbol-package thing) (find-package "KEYWORD"))
+         (format stream "KEYWORD.~A" thing)
+         (format stream "\"~A\"" thing)))
+    (cons
+     (princ "(" stream)
+     (loop for rest on thing
+        do
+          (python-print (car rest) stream)
+          (when (cdr rest) (princ ", " stream)))
+     (format stream ")~&"))))
