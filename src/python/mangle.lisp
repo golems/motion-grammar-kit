@@ -38,6 +38,16 @@
 
 (in-package :motion-grammar-kit-python)
 
+(defparameter *arg-fixup-table* (make-hash-table :test #'equal))
+
+(defmacro def-arg-fixup (function argument &body body)
+  `(setf (gethash (list ',function ',argument) *arg-fixup-table* )
+         ',body))
+
+(defmacro def-arg-fixup-boolean (function argument)
+  `(def-arg-fixup ,function ,argument
+     (and ,argument (not (zerop ,argument)))))
+
 (defun python-mangle (str &optional package)
   "Convert a lisp symbol name to a valid python identifier.
 PACKAGE: if given, intern the identifier in this package."
@@ -118,18 +128,25 @@ PACKAGE: if given, intern the identifier in this package."
                        (translate-special (cdr arglist))))))
       (translate-basic arglist))))
 
-(defun clpython-translate-argcall (arglist py-package)
+(defun clpython-translate-argcall (lisp-function arglist py-package)
 "Convert symbols in arglist to valid python identifiers."
-  (labels ((translate-basic (arglist)
+  (labels ((translate-arg (arg)
+             (let ((py-arg (python-mangle arg py-package)))
+               (if-let (fixup (gethash (list lisp-function arg) *arg-fixup-table*))
+                 `(let ((,arg ,py-arg))
+                    ,@fixup)
+                 py-arg)))
+           (translate-basic (arglist)
              (when arglist
-               (case (car arglist)
-                 (&key
-                  (translate-key (cdr arglist)))
-                 ((&optional &rest)
-                  (error "Can't tranlate ~A arguments for python" (car arglist)))
-                 (otherwise
-                  (cons (python-mangle (car arglist) py-package)
-                        (translate-basic (cdr arglist)))))))
+               (let ((arg (car arglist)))
+                 (case arg
+                   (&key
+                    (translate-key (cdr arglist)))
+                   ((&optional &rest)
+                    (error "Can't tranlate ~A arguments for python" arg))
+                   (otherwise
+                    (cons (translate-arg arg)
+                          (translate-basic (cdr arglist))))))))
            (translate-key (arglist)
              (when arglist
                (let ((sym (if (listp (car arglist))
@@ -137,7 +154,7 @@ PACKAGE: if given, intern the identifier in this package."
                               (car arglist))))
                  (check-type sym symbol)
                  `(,(intern (symbol-name sym) (find-package "KEYWORD"))
-                    ,(python-mangle sym py-package)
+                    ,(translate-arg sym)
                     ,@(translate-key (cdr arglist)))))))
     (translate-basic arglist)))
 
@@ -152,7 +169,7 @@ identifiers."
         `(progn
            (declaim (inline ,py-sym))
            (defun ,py-sym ,(clpython-translate-arglist arglist py-package)
-             (,lisp-sym ,@(clpython-translate-argcall arglist py-package))))
+             (,lisp-sym ,@(clpython-translate-argcall lisp-sym arglist py-package))))
         `(setf (symbol-function (quote ,py-sym))
                (symbol-function (quote ,lisp-sym))))))
 

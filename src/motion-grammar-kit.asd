@@ -66,4 +66,5 @@
                         :depends-on ("base")
                         :components ((:file "package")
                                      (:file "mangle" :depends-on ("package"))
-                                     (:file "bind" :depends-on ("mangle"))))))
+                                     (:file "fixup" :depends-on ("mangle"))
+                                     (:file "bind" :depends-on ("mangle" "fixup"))))))
