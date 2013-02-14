@@ -16,8 +16,14 @@ Features
 * Visualization
   * Generate automata diagrams with Graphviz
 
+Usage
+=====
+* Can be used from either Common Lisp or Python
+* Common Lisp: Loadable via ASDF
+* Python: use the `./motgrampy` script to start the python interpreter
+
 Installation
 ============
 * Binaries are available at http://code.golems.org/pkg/mgk/core
-* See the INSTALL file for detailed instructions
+* See the `INSTALL` file for detailed instructions
 * You can run the test cases with `make check`

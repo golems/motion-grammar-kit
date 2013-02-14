@@ -80,6 +80,26 @@
   (1+ (random (1- count))))
 
 
+(defmacro whereas* (bindings &body body)
+  "Evaluate bindings in turn, continuing only if the value is true.
+If all bindings are true, evaluate body."
+  (destructuring-bind ((var value) &rest other-bindings) bindings
+    `(let ((,var ,value))
+       (when ,var
+         ,@(if other-bindings
+               `((whereas* ,other-bindings ,@body))
+               body)))))
+
+(defmacro whereas (bindings &body body)
+  (let* ((vars (mapcar #'first bindings))
+         (genvars (mapcar (lambda (v) (gensym (string v))) vars))
+         (genbindings (mapcar (lambda (genvar binding) (cons genvar (cdr binding)))
+                              genvars bindings))
+         (rebindings (mapcar #'list vars genvars)))
+    `(whereas* ,genbindings
+       (let ,rebindings
+         ,@body))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; HIGHER ORDER FUNCTIONS ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;

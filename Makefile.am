@@ -19,9 +19,10 @@ EXTRA_DIST = scripts/make-core.lisp        \
              src/codegen.lisp              \
              src/threadpool.lisp           \
              src/test.lisp                 \
-             src/run-test.lisp
+             src/run-test.lisp             \
+             motgrampy
 
-bin_SCRIPTS = motgramlisp$(EXEEXT)
+bin_SCRIPTS = motgramlisp$(EXEEXT) motgrampy$(EXEEXT)
 
 include_HEADERS = include/motgram.h
 

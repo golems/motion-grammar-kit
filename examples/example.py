@@ -1,3 +1,5 @@
+#!/usr/bin/env motgrampy
+
 # Copyright (c) 2013, Georgia Tech Research Corporation
 # All rights reserved.
 #
@@ -38,13 +40,15 @@
 
 
 import CL
-import motion_grammar_kit_python as mg
+import motion_grammar_kit as mg
 
 dir(mg)
 
-mg.graph_dot( ((1,0),(0,1), (1,2), (2,4) ),
-              DIRECTED=True,
-              OUTPUT="/tmp/dot.pdf" )
+mg.graph_dot( ((1,0),(0,1), (1,2), (2,0) ),
+              directed=True,
+              output="/tmp/dot.pdf" )
 
 
+mg.random_graph(10, edge_count=10)
 
+CL.DESCRIBE(mg.random_graph)
