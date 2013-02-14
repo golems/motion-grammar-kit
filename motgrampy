@@ -37,15 +37,13 @@
 
 if test -z "$1"; then
     # Starting the REPL
-    # check if tty
-    if tty > /dev/null 2> /dev/null; then
-        # check for rlwrap
-        if which rlwrap > /dev/null 2> /dev/null; then
-            exec rlwrap motgramlisp --eval '(CLPYTHON.PARSER:ENTER-MIXED-LISP-PYTHON-SYNTAX)'
-        else
-            # no rlwrap
-            exec motgramlisp --eval '(CLPYTHON.PARSER:ENTER-MIXED-LISP-PYTHON-SYNTAX)'
-        fi
+    # check if tty and have rlwrap
+    if which tty > /dev/null 2> /dev/null && \
+        tty > /dev/null 2> /dev/null &&      \
+        which rlwrap > /dev/null 2> /dev/null
+    then
+        # wrap with readline
+        exec rlwrap motgramlisp --eval '(CLPYTHON.PARSER:ENTER-MIXED-LISP-PYTHON-SYNTAX)'
     else
         # not a typewriter
         exec motgramlisp --eval '(CLPYTHON.PARSER:ENTER-MIXED-LISP-PYTHON-SYNTAX)'
