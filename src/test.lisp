@@ -688,6 +688,8 @@
                                    b
                                    'no))
 
+  (lisp-unit:assert-false (if-pattern (:pattern 1) 'a 'a))
+
   (lisp-unit:assert-equal '(2 3)
                           (if-pattern (:pattern 1 (:pattern a b))
                                       (list 1 (list 2 3))
@@ -728,4 +730,19 @@
                                     (list 1 (list 2 3))
                                     a
                                     'no))
+
+   (lisp-unit:assert-eq 'b
+                        (pattern-case (list 1 2)
+                          ((:pattern 2 1) 'a)
+                          ((:pattern 1 2) 'b)))
+
+   (lisp-unit:assert-eq 'a
+                        (pattern-case (list 1 2)
+                          ((:pattern 1 2) 'a)
+                          ((:pattern 2 1) 'b)))
+   (lisp-unit:assert-eq 'b
+                        (pattern-case (list 1 2)
+                          ((:pattern 1 3) 'a)
+                          (t 'b)))
+
   )

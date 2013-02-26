@@ -36,6 +36,11 @@
 
 (in-package :motion-grammar-kit)
 
+(defun ensure-progn (body)
+  (if (cdr body)
+      (cons 'progn body)
+      (car body)))
+
 ;; GOAL: rewrite a string/list/expression based on a Context-Sensitive grammar
 
 ;; (:not (:not x)) := x
@@ -183,23 +188,24 @@
 
 (defun pattern-compile-pattern (patterns exp bound-list then else)
   (with-gensyms (first rest else-fun)
-    (labels ((rec (patterns exp bound-list)
-               (if patterns
-                   `(if ,exp
-                        (let ((,first (car ,exp))
-                              (,rest (cdr ,exp)))
-                          ,(pattern-compile (car patterns) first bound-list
-                                            (lambda (vars)
-                                              (rec (cdr patterns) rest (append vars bound-list)))
-                                            (lambda ()
-                                              `(,else-fun))))
-                        (,else-fun))
-                   `(if ,exp
-                        (,else-fun)
-                        ,(funcall then bound-list)))))
-
-      `(flet ((,else-fun () ,(funcall else)))
-         ,(rec patterns exp bound-list)))))
+    (let ((call-else (if else (list else-fun) nil)))
+      (labels ((rec (patterns exp bound-list)
+                 (if patterns
+                     `(if (consp ,exp)
+                          (let ((,first (car ,exp))
+                                (,rest (cdr ,exp)))
+                            ,(pattern-compile (car patterns) first bound-list
+                                              (lambda (vars)
+                                                (rec (cdr patterns) rest (append vars bound-list)))
+                                              (lambda () call-else)))
+                          ,call-else)
+                     `(if ,exp
+                          ,call-else
+                          ,(funcall then bound-list)))))
+        (if else
+            `(flet ((,else-fun () ,(funcall else)))
+               ,(rec patterns exp bound-list))
+            (rec patterns exp bound-list))))))
 
 
 (defun pattern-compile-exp (car cdr exp bound-list then else)
@@ -223,3 +229,14 @@
                          (when else
                            (lambda ()
                              else))))))
+
+(defmacro pattern-case (exp &body cases)
+  (with-gensyms (exp-sym)
+    (labels ((helper (cases)
+               (when cases
+                 (destructuring-bind ((pattern &rest body) &rest rest-cases) cases
+                   `(if-pattern ,pattern ,exp-sym
+                                ,(ensure-progn body)
+                                ,(helper rest-cases))))))
+      `(let ((,exp-sym ,exp))
+         ,(helper cases)))))
