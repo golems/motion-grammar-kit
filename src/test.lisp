@@ -664,3 +664,68 @@
                                                   :marking '((p3 . 1))
                                                   :arcs '((nil t0) (t0 p1) (t0 p2) (p1 t1) (p2 t1) (t1 p3) (p3 t2) (t2 nil)))
                                   't2))))
+
+
+(lisp-unit:define-test pattern
+  (lisp-unit:assert-eq 'yes
+                       (if-pattern (:pattern 1 :b)
+                                   (list 1 :b)
+                                   'yes
+                                   'no))
+  (lisp-unit:assert-eq 'no
+                       (if-pattern (:pattern 1 :b)
+                                   (list 1 2)
+                                   'yes
+                                   'no))
+  (lisp-unit:assert-eq 2
+                       (if-pattern (:pattern 1 b)
+                                   (list 1 2)
+                                   b
+                                   'no))
+  (lisp-unit:assert-eq 'no
+                       (if-pattern (:pattern 1 b)
+                                   (list 2 2)
+                                   b
+                                   'no))
+
+  (lisp-unit:assert-equal '(2 3)
+                          (if-pattern (:pattern 1 (:pattern a b))
+                                      (list 1 (list 2 3))
+                                      (list a b)
+                                      'no))
+  (lisp-unit:assert-equal 'no
+                          (if-pattern (:pattern 1 (:pattern a b))
+                                      (list 1 (list 2))
+                                      (list a b)
+                                      'no))
+  (lisp-unit:assert-equal 'no
+                          (if-pattern (:pattern 1 (:pattern a b))
+                                      (list 1 (list 2 3 4))
+                                      (list a b)
+                                      'no))
+  (lisp-unit:assert-equal '(2 3 4)
+                          (if-pattern (:pattern 1 b)
+                                      (list 1 (list 2 3 4))
+                                      b
+                                      'no))
+  (lisp-unit:assert-eq 1
+                       (if-pattern (:pattern a a)
+                                   (list 1 1)
+                                   a
+                                   'no))
+  (lisp-unit:assert-eq 'no
+                       (if-pattern (:pattern a a)
+                                   (list 1 2)
+                                   a
+                                   'no))
+   (lisp-unit:assert-eq 1
+                        (if-pattern (:pattern a (:pattern 2 a))
+                                    (list 1 (list 2 1))
+                                    a
+                                    'no))
+   (lisp-unit:assert-eq 'no
+                        (if-pattern (:pattern a (:pattern 2 a))
+                                    (list 1 (list 2 3))
+                                    a
+                                    'no))
+  )
