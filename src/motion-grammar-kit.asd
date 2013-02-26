@@ -47,6 +47,7 @@
                         :components ((:file "package")
                                      (:file "util" :depends-on ("package"))
                                      (:file "pattern" :depends-on ("util"))
+                                     (:file "meta-pattern" :depends-on ("pattern"))
                                      (:file "matcher" :depends-on ("package"))
                                      (:file "set" :depends-on ("package" "util"))
                                      (:file "fa" :depends-on ("package" "set" "util"))

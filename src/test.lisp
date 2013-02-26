@@ -745,4 +745,12 @@
                           ((:pattern 1 3) 'a)
                           (t 'b)))
 
+   (lisp-unit:assert-true (pattern-case (list 1)
+                            ((consp) t)))
+   (lisp-unit:assert-false (pattern-case 1
+                            ((consp) t)))
+   (lisp-unit:assert-true (pattern-case 1
+                            ((atom) t)))
+   (lisp-unit:assert-false (pattern-case (list 1)
+                            ((atom) t)))
   )
