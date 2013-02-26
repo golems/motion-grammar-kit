@@ -49,99 +49,27 @@
 
 ;; Pattern Grammar
 ;; ---------------
+;; Pattern is a test with a set of bindings
 ;;
-;; pattern := binding
-;;            t
-;;            nil
-;;            number
-;;            keyword-symbol
-;;            (:equal value)
-;;            (:eq value)
-;;            (:predicate function)
+;; pattern := symbol                   { bind expresson to SYMBOL }
+;;            t                        { true }
+;;            nil                      { false }
+;;            number                   { = NUMBER }
+;;            keyword-symbol           { eq KEYWORD-SYMBOL }
+;;            (:predicate function)    { (FUNCTION expression) }
 ;;            (:and patterns)
 ;;            (:or patterns)
 ;;            (:not pattern)
 ;;            (:pattern patterns)
-
-
-;; (defun eval-pattern-match (pattern exp)
-;;   (cond
-;;     ((null pattern) (not exp))
-;;     ((eq t pattern) t)
-;;     ((numberp pattern) (and (numberp exp) (= pattern exp)))
-;;     ((symbolp pattern)
-;;      (if (keywordp pattern)
-;;          (eq pattern exp)
-;;          t))
-;;     ((consp pattern)
-;;      (destructuring-case pattern
-;;        ((:equals value)
-;;         (equal value exp))
-;;        ((:eq value)
-;;         (eq value exp))
-;;        ((:pattern &rest patterns)
-;;         (every #'eval-pattern-match patterns exp))
-;;        ((:predicate predicate)
-;;         (funcall predicate exp))
-;;        ((:and &rest patterns)
-;;         (every (lambda (pattern) (eval-pattern-match pattern exp))
-;;                patterns))
-;;        ((:or &rest patterns)
-;;         (some (lambda (pattern) (eval-pattern-match pattern exp))
-;;               patterns))
-;;        ((:not pattern)
-;;         (not (eval-pattern-match pattern exp)))
-;;        ((t &rest rest)
-;;         (declare (ignore rest))
-;;         (error "Unknown pattern ~A" pattern))))
-;;     (t (error "Unknown pattern ~A" pattern))))
-
-;; (defmacro cond-pattern-eval (value &body clauses)
-;;   (with-gensyms (value-sym)
-;;   `(let ((,value-sym ,value))
-;;      (cond
-;;        ,@(loop for (test . body) in clauses
-;;             collect `((eval-pattern-match ',test ,value-sym) ,@body))))))
-
-
-;; (defun pattern-bindings (pattern exp binding-list)
-;;   "Produce bindings for the pattern match.
-;; binding-list: (list (list var gensym subexp))"
-;;   (cond
-;;     ;; no bindings case
-;;     ((eval-pattern-match `(:or nil
-;;                                (:eq t)
-;;                                (:predicate numberp)
-;;                                (:predicate keywordp)))
-;;      binding-list)
-;;     ;; single binding
-;;     ((symbolp pattern)
-;;      (list pattern (gensym (string pattern)) exp))
-;; ))
-;; (defmacro bind-pattern (pattern value &body body)
-;;   (cond
-;;     ;; no bindings case
-;;     ((eval-pattern-match `(:or nil
-;;                                (:eq t)
-;;                                (:predicate numberp)
-;;                                (:predicate keywordp)))
-;;      (cons 'progn body))
-;;     ;; single binding
-;;     ((symbolp pattern)
-;;      `(let ((,pattern value))
-;;         body))
-
-;; (destructuring-bind (a b c d e f g) c
-;;   (list b a))
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; PATTERN COMPILATION ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
-
-(defparameter *meta-patterns* nil)
+(defun pattern-continue (continuation &optional vars)
+  (when continuation
+    (funcall continuation vars)))
 
 (defun if-pattern-emit (vars values-expression then &optional else)
   (with-gensyms (matches)
@@ -153,13 +81,13 @@
                         vars))
            (then-expr (if (and else vars)
                           `(let ,(map 'list #'list vars genvars)
-                             ,(funcall then vars))
-                          (funcall then vars))))
+                             ,(pattern-continue then vars))
+                          (pattern-continue then vars))))
 
       `(multiple-value-bind (,matches ,@genvars) ,values-expression
          (if ,matches
              ,then-expr
-             ,@(when else (list (funcall else))))))))
+             ,(pattern-continue else))))))
 
 (defun pattern-compile-meta (pattern exp bound-list then else &optional (metas *meta-patterns*))
   (if metas
@@ -168,55 +96,57 @@
         (pattern-compile-meta pattern exp bound-list then else (cdr metas)))
       (error "Unknown pattern ~A" pattern)))
 
+
+
+(defun pattern-compile-predicate (car cdr exp then else)
+  `(if (,car ,exp ,@(when cdr cdr))
+       ,(pattern-continue then nil)
+       ,(pattern-continue else)))
+
+
 ;; returns (values (list vars) expression)
 ;; expression evalutes to (values matches-p vars...)
 (defun pattern-compile (pattern exp bound-list then else)
   (cond
     ((null pattern)
-     (if-pattern-emit nil (list 'not exp) then else))
+     (pattern-continue else))
     ((eq t pattern)
-     (if-pattern-emit nil t then else))
+     (pattern-continue then nil))
     ((numberp pattern)
-     (if-pattern-emit nil `(and (numberp ,exp)
-                                (= ,pattern ,exp))
-                      then else))
+     `(if (and (numberp ,exp)
+               (= ,pattern ,exp))
+          ,(pattern-continue then)
+          ,(pattern-continue else)))
     ((symbolp pattern)
      (cond
        ((keywordp pattern)
-        (if-pattern-emit nil `(eq ,pattern ,exp) then else))
+        (pattern-compile-predicate 'eq (list pattern) exp then else))
        ((find pattern bound-list)
-        (if-pattern-emit nil `(eql ,pattern ,exp) then else)) ;; FIXME: is eql appropriate?
+        (pattern-compile-predicate 'eql (list pattern) exp then else))
        (t
-        (if-pattern-emit pattern `(values t ,exp) then else))))
+        `(let ((,pattern ,exp))
+           ,(pattern-continue then (list pattern))))))
     ((consp pattern)
      (pattern-compile-exp (car pattern) (cdr pattern) exp bound-list then else))
     (t (pattern-compile-meta pattern exp bound-list then else))))
 
-
-(defun pattern-compile-predicate (car cdr exp then else)
-  `(if (,car ,exp ,@(when cdr cdr))
-       ,(funcall then nil)
-       ,@(when else
-               (list (funcall else)))))
-
-
 (defun pattern-compile-pattern (patterns exp bound-list then else)
   (with-gensyms (first rest else-fun)
     (let* ((call-else (if else (list else-fun) nil))
-           (else-lambda (if else (lambda () call-else) nil)))
+           (else-lambda (if else (lambda (vars) (declare (ignore vars)) call-else) nil)))
       (labels ((rec (patterns exp bound-list)
                  (cond
                    ((null patterns)
                     `(if ,exp
                          ,call-else
-                        ,(funcall then bound-list)))
+                        ,(pattern-continue then bound-list)))
                    ((eq '&rest (car patterns))
                     (assert (and (symbolp (cadr patterns))
                                  (null (cddr patterns))))
                     (if-pattern-emit (cadr patterns)
                                      `(values t ,exp)
                                      (lambda (vars)
-                                       (funcall then (append vars bound-list)))
+                                       (pattern-continue then (append vars bound-list)))
                                      else-lambda))
                    (t
                     `(if (consp ,exp)
@@ -228,7 +158,7 @@
                                              else-lambda))
                          ,call-else)))))
         (if else
-            `(flet ((,else-fun () ,(funcall else)))
+            `(flet ((,else-fun () ,(pattern-continue else)))
                ,(rec patterns exp bound-list))
             (rec patterns exp bound-list))))))
 
@@ -248,15 +178,22 @@
 
 
 (defmacro if-pattern (pattern exp then &optional else)
-  (with-gensyms (exp-sym)
-    `(let ((,exp-sym ,exp))
-       ,(pattern-compile pattern exp-sym nil
-                         (lambda (vars)
-                           (declare (ignore vars))
-                           then)
-                         (when else
-                           (lambda ()
-                             else))))))
+  (let* ((exp-sym (if (constantp pattern) pattern
+                      (gensym "EXP")))
+         (compiled (pattern-compile pattern exp-sym nil
+                                    (lambda (vars)
+                                      (declare (ignore vars))
+                                      then)
+                                    (when else
+                                      (lambda (vars)
+                                        (declare (ignore vars))
+                                        else)))))
+    (if (constantp pattern)
+        ;; no need to rebind constant expressions
+        compiled
+        ;; we use exp, so rebind i
+        `(let ((,exp-sym ,exp))
+           ,compiled))))
 
 (defmacro pattern-case (exp &body cases)
   (with-gensyms (exp-sym)
@@ -268,13 +205,6 @@
                                 ,(helper rest-cases))))))
       `(let ((,exp-sym ,exp))
          ,(helper cases)))))
-
-
-(defmacro pattern-lambda (pattern &body body)
-  (with-gensyms (exp)
-    `(lambda (,exp) (if-pattern ,pattern ,exp
-                                (values ,(ensure-progn body) t)
-                                (values nil nil)))))
 
 (defmacro def-meta-pattern (meta-pattern replacement-pattern)
   "During pattern expansion, if a pattern matches META-PATTERN,

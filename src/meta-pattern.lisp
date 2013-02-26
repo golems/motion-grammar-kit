@@ -36,6 +36,8 @@
 
 (in-package :motion-grammar-kit)
 
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defparameter *meta-patterns* nil))
 
 (def-meta-pattern (:pattern 'atom) (:predicate atom))
 (def-meta-pattern (:pattern 'consp) (:predicate consp))

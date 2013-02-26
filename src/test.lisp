@@ -753,4 +753,11 @@
                             ((atom) t)))
    (lisp-unit:assert-false (pattern-case (list 1)
                             ((atom) t)))
+
+   (labels ((pat-fact (n)
+              (pattern-case n
+                (0 1)
+                (t (* n (pat-fact (1- n)))))))
+
+
   )
