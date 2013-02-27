@@ -272,6 +272,7 @@ If all bindings are true, evaluate body."
     (cons (car a) (common-prefix (cdr a) (cdr b) test))))
 
 (defun prefix-split (a b &optional (test #'equal))
+  "Returns (values common-prefix suffix-a suffix-b)"
   (if (and a b (funcall test (car a) (car b)))
       (multiple-value-bind (prefix suffix-a suffix-b)
           (prefix-split (cdr a) (cdr b) test)
@@ -286,39 +287,43 @@ If all bindings are true, evaluate body."
 
 ;; Trie: (list (prefix . trie) ...)
 (defun trie-insert (trie value)
-  (cond
-    ((null trie)
-      (list (list value nil)))
-    ((null value)
-     (cons nil trie))
-    (t
-     (destructuring-bind ((prefix . suffixes) &rest rest) trie
-       ;(print suffixes)
-       (multiple-value-bind (new-prefix value-suffix old-prefix-suffix)
-           (prefix-split value prefix)
-         (if new-prefix
-             ;; split this node
-             (cons (cons new-prefix
-                         (cond
-                           ;; value equals old-prefix
-                           ((and (null value-suffix) (null old-prefix-suffix))
-                            `(nil ,@suffixes))
-                           ;; value is a prefix of old-prefix
-                           ((null value-suffix)
-                            `(nil (,old-prefix-suffix . ,suffixes)))
-                           ;; old-prefix is a prefix of value
-                           ((null old-prefix-suffix)
-                            (trie-insert suffixes value-suffix))
-                           ;; unique members of value and old-prefix
-                           (t
-                            `((,value-suffix nil) (,old-prefix-suffix . ,suffixes)))))
-                   rest)
-             ;; next
-             (cons (car trie) (trie-insert (cdr trie) value))))))))
+  ;;(print trie)
+  (flet ((next () (cons (car trie) (trie-insert (cdr trie) value))))
+    (cond
+      ((null trie)
+       (list (list value nil)))
+      ((null value)
+       (cons nil trie))
+      ((null (car trie))
+       (next))
+      (t
+       (destructuring-bind ((prefix . suffixes) &rest rest) trie
+         ;;(print suffixes)
+         (multiple-value-bind (new-prefix value-suffix old-prefix-suffix)
+             (prefix-split value prefix)
+           (if new-prefix
+               ;; split this node
+               (cons (cons new-prefix
+                           (cond
+                             ;; value equals old-prefix
+                             ((and (null value-suffix) (null old-prefix-suffix))
+                              `(nil ,@suffixes))
+                             ;; value is a prefix of old-prefix
+                             ((null value-suffix)
+                              `(nil (,old-prefix-suffix . ,suffixes)))
+                             ;; old-prefix is a prefix of value
+                             ((null old-prefix-suffix)
+                              (trie-insert suffixes value-suffix))
+                             ;; unique members of value and old-prefix
+                             (t
+                              `((,value-suffix nil) (,old-prefix-suffix . ,suffixes)))))
+                     rest)
+               ;; next
+               (next))))))))
 
 (defun map-trie (function trie)
   (labels ((visit (trie accum)
-             (format t "~&t: ~A, a: ~A~&" trie accum)
+             ;;(format t "~&t: ~A, a: ~A~&" trie accum)
              (if (car trie)
                  (destructuring-bind (prefix &rest suffixes) (car trie)
                    (visit suffixes (cons prefix accum)))

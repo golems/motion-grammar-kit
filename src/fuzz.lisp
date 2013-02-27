@@ -112,3 +112,30 @@
                   #'fa-fuzz-tester
                   :formatter #'fa-fuzz-formatter
                   :count count))
+
+
+;;;;;;;;;;
+;; TRIE ;;
+;;;;;;;;;;
+
+(defun random-string (base length)
+  (loop for i below (random-whole length)
+     collect (random base)))
+
+(defun trie-fuzz (&key
+                  (count 1)
+                  (string-count 100)
+                  (string-base 100)
+                  (string-length 100))
+
+  (fuzz:run-tests (thunk (loop for i below (random-whole string-count)
+                              collect (random-string string-base string-length)))
+                  (lambda (strings)
+                    (let ((trie (fold #'trie-insert nil strings))
+                          (set (remove-duplicates strings :test #'equal)))
+                      (let ((trie-set))
+                        (map-trie (lambda (s) (push s trie-set)) trie)
+                        (fuzz:test-predicate 'trie-set #'finite-set-equal
+                                             (thunk set)
+                                             (thunk trie-set)))))
+                  :count count))
