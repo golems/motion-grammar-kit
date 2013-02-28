@@ -667,6 +667,7 @@
 
 
 (lisp-unit:define-test pattern
+  ;; basic patterns
   (lisp-unit:assert-eq 'yes
                        (if-pattern (:pattern 1 :b)
                                    (list 1 :b)
@@ -745,6 +746,7 @@
                           ((:pattern 1 3) 'a)
                           (t 'b)))
 
+   ;; pattern case
    (lisp-unit:assert-true (pattern-case (list 1)
                             ((consp) t)))
    (lisp-unit:assert-false (pattern-case 1
@@ -754,5 +756,12 @@
    (lisp-unit:assert-false (pattern-case (list 1)
                             ((atom) t)))
 
+   ;; or patterns
+   (lisp-unit:assert-eq 1
+                        (if-pattern  (or (:pattern b) (:pattern b b)) '(1) b 'no))
+   (lisp-unit:assert-eq 2
+                        (if-pattern  (or (:pattern b) (:pattern b b)) '(2 2) b 'no))
+   (lisp-unit:assert-eq 'no
+                        (if-pattern  (or (:pattern b) (:pattern b b)) '(1 2) b 'no))
 
   )
