@@ -53,13 +53,13 @@
 ;;
 ;; pattern := symbol                   { bind expresson to SYMBOL }
 ;;            t                        { true }
-;;            nil                      { false }
+;;            nil                      { match nil }
 ;;            number                   { = NUMBER }
 ;;            keyword-symbol           { eq KEYWORD-SYMBOL }
+;;            (and patterns)           { match all stuff }
+;;            (or patterns)            { match any stuff }
+;;            (not pattern)
 ;;            (:predicate function)    { (FUNCTION expression) }
-;;            (:and patterns)
-;;            (:or patterns)
-;;            (:not pattern)
 ;;            (:pattern patterns)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -71,23 +71,17 @@
   (when continuation
     (funcall continuation vars)))
 
-(defun if-pattern-emit (vars values-expression then &optional else)
-  (with-gensyms (matches)
-    (let* ((vars (ensure-list vars))
-           (genvars (if else
-                        (map 'list (lambda (var)
-                                     (gensym (string var)))
-                             vars)
-                        vars))
-           (then-expr (if (and else vars)
-                          `(let ,(map 'list #'list vars genvars)
-                             ,(pattern-continue then vars))
-                          (pattern-continue then vars))))
 
-      `(multiple-value-bind (,matches ,@genvars) ,values-expression
-         (if ,matches
-             ,then-expr
-             ,(pattern-continue else))))))
+(defun if-pattern-emit (exp then else)
+  (declare (type (or symbol list) exp))
+  `(if ,exp
+       ,(pattern-continue then nil)
+       ,(pattern-continue else nil)))
+
+(defun let-pattern-emit (var exp then)
+  (declare (type symbol var exp))
+  `(let ((,var ,exp))
+     ,(pattern-continue then (list var))))
 
 (defun pattern-compile-meta (pattern exp bound-list then else &optional (metas *meta-patterns*))
   (if metas
@@ -96,27 +90,24 @@
         (pattern-compile-meta pattern exp bound-list then else (cdr metas)))
       (error "Unknown pattern ~A" pattern)))
 
-
-
 (defun pattern-compile-predicate (car cdr exp then else)
-  `(if (,car ,exp ,@(when cdr cdr))
-       ,(pattern-continue then nil)
-       ,(pattern-continue else)))
+  (if-pattern-emit `(,car ,exp ,@(when cdr cdr))
+                   then else))
 
 
 ;; returns (values (list vars) expression)
 ;; expression evalutes to (values matches-p vars...)
 (defun pattern-compile (pattern exp bound-list then else)
+  (declare (type symbol exp))
   (cond
     ((null pattern)
      (pattern-continue else))
     ((eq t pattern)
      (pattern-continue then nil))
     ((numberp pattern)
-     `(if (and (numberp ,exp)
-               (= ,pattern ,exp))
-          ,(pattern-continue then)
-          ,(pattern-continue else)))
+     (if-pattern-emit `(and (numberp ,exp)
+                            (= ,pattern ,exp))
+                      then else))
     ((symbolp pattern)
      (cond
        ((keywordp pattern)
@@ -124,39 +115,35 @@
        ((find pattern bound-list)
         (pattern-compile-predicate 'eql (list pattern) exp then else))
        (t
-        `(let ((,pattern ,exp))
-           ,(pattern-continue then (list pattern))))))
+        (let-pattern-emit pattern exp then))))
     ((consp pattern)
      (pattern-compile-exp (car pattern) (cdr pattern) exp bound-list then else))
     (t (pattern-compile-meta pattern exp bound-list then else))))
 
 (defun pattern-compile-pattern (patterns exp bound-list then else)
+  (declare (type symbol exp))
   (with-gensyms (first rest else-fun)
     (let* ((call-else (if else (list else-fun) nil))
            (else-lambda (if else (lambda (vars) (declare (ignore vars)) call-else) nil)))
       (labels ((rec (patterns exp bound-list)
                  (cond
                    ((null patterns)
-                    `(if ,exp
-                         ,call-else
-                        ,(pattern-continue then bound-list)))
+                    (if-pattern-emit exp else then))
                    ((eq '&rest (car patterns))
                     (assert (and (symbolp (cadr patterns))
                                  (null (cddr patterns))))
-                    (if-pattern-emit (cadr patterns)
-                                     `(values t ,exp)
-                                     (lambda (vars)
-                                       (pattern-continue then (append vars bound-list)))
-                                     else-lambda))
+                    (let-pattern-emit (cadr patterns) exp then))
                    (t
-                    `(if (consp ,exp)
-                         (let ((,first (car ,exp))
-                               (,rest (cdr ,exp)))
-                           ,(pattern-compile (car patterns) first bound-list
-                                             (lambda (vars)
-                                               (rec (cdr patterns) rest (append vars bound-list)))
-                                             else-lambda))
-                         ,call-else)))))
+                    (if-pattern-emit `(consp ,exp)
+                                     (lambda (var)
+                                       (assert (null var))
+                                       `(let ((,first (car ,exp))
+                                              (,rest (cdr ,exp)))
+                                          ,(pattern-compile (car patterns) first bound-list
+                                                            (lambda (vars)
+                                                              (rec (cdr patterns) rest (append vars bound-list)))
+                                                            else-lambda)))
+                                     else-lambda)))))
         (if else
             `(flet ((,else-fun () ,(pattern-continue else)))
                ,(rec patterns exp bound-list))
@@ -164,6 +151,7 @@
 
 
 (defun pattern-compile-exp (car cdr exp bound-list then else)
+  (declare (type symbol exp car))
   (case car
     ;; predicates
     (:predicate
