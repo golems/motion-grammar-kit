@@ -897,3 +897,20 @@ RETURNS: (values S-B {A-B} P-B)"
                                                       (list x)))
                                            body))))
                      grammar :recursive nil)))
+
+(defun grammar-left-factor (grammar &optional (unique (gensym)))
+  "Left factor a grammar"
+  (labels ((build (trie head)
+             (labels ((traverse (node)
+                        (if (cddr node)
+                            (destructuring-bind (path &rest children) node
+                              (let* ((new-head (gsymbol-gen (list head (car path)) unique))
+                                     (new-prod `(,head ,@path ,new-head)))
+                                (append (list new-prod) (build children new-head))))
+                            (list (cons head (or (car node) '(:epsilon)))))))
+               (apply #'append (mapcar #'traverse trie)))))
+    (multiple-value-bind (fun keys) (index-finite-set grammar #'car #'cdr :duplicate-type 'list)
+      (let* ((solve-group (lambda (head) (build (fold #'trie-insert nil (funcall fun head)) head)))
+             (new-grammar (apply #'append (finite-set-map 'list solve-group keys)))
+             (predicate (lambda (p1 p2) (equal (car p1) (grammar-start-nonterminal grammar)))))
+        (sort new-grammar predicate)))))

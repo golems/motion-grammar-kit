@@ -620,6 +620,60 @@
 
   )
 
+(lisp-unit:define-test grammar-left-factoring
+  (labels
+    ((test (input expected-output)
+           (let ((actual-output (grammar-left-factor input nil)))
+             (format t "Got: ~S~%Exp: ~S~%~%" actual-output expected-output)
+             (lisp-unit:assert-true (alexandria:set-equal actual-output expected-output :test #'equal))
+             (lisp-unit:assert-equal (grammar-start-nonterminal actual-output)
+                                     (grammar-start-nonterminal expected-output)))))
+    (let ((grammar-1  '((A a)))
+          (grammar-1-res '((A a)))
+          (grammar-2 '(
+                       (A |a| B)
+                       (A |a| C)
+                       (B |b|)
+                       (C |c|)))
+          (grammar-2-res '(
+                           (A |a| ((A |a|)))
+                           (((A |a|)) B)
+                           (((A |a|)) C)
+                           (B |b|)
+                           (C |c|)))
+          (grammar-3 '(
+                       (A |a| B)
+                       (A |a| |a| C)
+                       (A |a| |a| B)
+                       (A |a| C)
+                       (B |b|)
+                       (C |c|)))
+          (grammar-3-res '(
+                           (A |a| ((A |a|)))
+                           (((A |a|)) B)
+                           (((A |a|)) C)
+                           (((A |a|)) |a| ((((A |a|)) |a|)))
+                           (((((A |a|)) |a|)) B)
+                           (((((A |a|)) |a|)) C)
+                           (B |b|)
+                           (C |c|)))
+          (grammar-4 '(
+                       (S |i| E |t| S)
+                       (S |i| E |t| S |e| |S|)
+                       (S |a|)
+                       (E |b|)))
+          (grammar-4-res '(
+                           (S |i| E |t| S ((S |i|)))
+                           (S |a|)
+                           (((S |i|)) |e| S)
+                           (((S |i|)) :epsilon)
+                           (E |b|))))
+
+      (test grammar-1 grammar-1-res)
+      (test grammar-2 grammar-2-res)
+      (test grammar-3 grammar-3-res)
+      (test grammar-4 grammar-4-res))))
+
 (lisp-unit:define-test codegen
     (let ((fa (make-fa '((a 0 b)
                          (b 1 a)
