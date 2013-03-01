@@ -291,6 +291,16 @@ A conjunction of disjunctions of literals."
                                                  integer))))))
   (values integer vars))
 
+(defun decode-logic-assignment (integer vars)
+  (when integer
+    (loop
+       for v in vars
+       for i from 0
+       collect
+         (if (zerop (ldb (byte 1 i) integer))
+             (cons not v)
+             v))))
+
 (defun horn-clause (body &optional head)
   "Or of body implies head"
   (flet ((helper (clause b)
