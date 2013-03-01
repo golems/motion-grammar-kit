@@ -122,8 +122,8 @@ The lambda will evalute E, assigning each bit of INTEGER to the corresponding va
        for i from 0 below max
        for sat = (funcall fun i)
        when sat
-       do (return-from circuit-sat-brute (values t i v)))
-    (values nil 0 v)))
+       do (return-from circuit-sat-brute (values i v)))
+    (values 0 v)))
 
 (defun prop-join (e)
   (labels ((join (op args)
@@ -218,6 +218,7 @@ A conjunction of disjunctions of literals."
     (fixup (visit e))))
 
 (defun prop->dimacs (e &optional (stream *standard-output*))
+  "Convert E to dimacs format and return a list of the variables"
   (let* ((e (prop-join (prop->cnf e)))
          (v (finite-set-list (logic-variables e)))
          (hash (make-hash-table :test #'equal)))
@@ -230,17 +231,67 @@ A conjunction of disjunctions of literals."
                (gethash `(not ,x) hash)  (concatenate 'string "-" s)))
     ;; header
     (format stream "~&p cnf ~D ~D~&"
-            (length v) (length e))
+            (length v) (length (cdr e)))
     (format stream "~&c variables ~{~A~^, ~}~&" v)
     ;; clauses
     (assert (eq (car e) 'and))
     (dolist (x (cdr e))
-    (assert (eq (car x) 'or))
+      (assert (eq (car x) 'or))
       (format stream "~&~{~A ~}0~&" (loop for y in (cdr x)
-                                       collect (gethash y hash))))))
+                                       collect (gethash y hash))))
+    ;; result
+    v))
 
+#+sbcl
+(defun minisat (e &key
+                (dimacs-pathname (format nil "/tmp/dimacs.~D" (sb-posix:getuid)))
+                (minisat-result-pathname (format nil "/tmp/minisat.~D" (sb-posix:getuid)))
+                (keep-files t))
+  (unwind-protect
+       (let ((vars ;; write dimacs
+              (with-open-file (s dimacs-pathname :direction :output :if-exists :supersede)
+                (prop->dimacs e s)))
+             (minisat-process ;; run minisat
+              (sb-ext:run-program "minisat" (list dimacs-pathname minisat-result-pathname)
+                                  :wait t
+                                  :search t)))
+         (ecase (sb-ext:process-exit-code  minisat-process)
+           (0 (error "minisat failed"))
+           (1 (error "minisat interrupted by sigint or couldn't read input"))
+           (3 (error "minisat couldn't parse input"))
+           (10 ;; sat
+            ;; parse results
+            (with-open-file (fin minisat-result-pathname :direction :input)
+              (let ((sat-line (read-line fin))
+                    (var-line (read-line fin))
+                    (code 0))
+                (assert (string= sat-line "SAT"))
+                (loop with start = 0
+                   do (multiple-value-bind (integer new-start) (parse-integer var-line :start start :junk-allowed t)
+                        (setq start new-start)
+                        (when (> integer 0)
+                          (setf (ldb (byte 1 (1- integer)) code) 1)))
+                   while (< start (length var-line)))
+                (values code vars))))
+           (20 ;; unsat
+            (values nil vars))))
+    (unless keep-files
+      (when (probe-file dimacs-pathname)
+        (delete-file dimacs-pathname))
+      (when (probe-file minisat-result-pathname)
+        (delete-file minisat-result-pathname)))))
 
-(defun horn-clase (body &optional head)
+(defun print-logic-vars (integer vars)
+  (when integer
+    (loop
+       for v in vars
+       for i from 0
+       do
+         (format t "~&~A: ~A" v (not (zerop (ldb (byte 1 i)
+                                                 integer))))))
+  (values integer vars))
+
+(defun horn-clause (body &optional head)
   "Or of body implies head"
   (flet ((helper (clause b)
            `(or (not ,b)
