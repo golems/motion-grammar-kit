@@ -101,9 +101,10 @@
   (declare (type symbol exp))
   (cond
     ((null pattern)
-     (pattern-continue else bindings))
+     (if-pattern-emit bindings `(null ,exp)
+                      then else))
     ((eq t pattern)
-     (pattern-continue then  bindings))
+     (pattern-continue then bindings))
     ((numberp pattern)
      (if-pattern-emit bindings `(and (numberp ,exp)
                                      (= ,pattern ,exp))
@@ -136,9 +137,13 @@
                    (t
                     (if-pattern-emit bindings `(consp ,exp)
                                      (lambda (bindings)
-                                       `(let ((,first (car ,exp))
+                                       `(let (,@(unless (eq (car patterns) t)
+                                                        ;; bind car unless pattern is t, which matches anything
+                                                        `((,first (car ,exp))))
                                               (,rest (cdr ,exp)))
-                                          ,(pattern-compile (car patterns) first bindings
+                                          ,(pattern-compile (car patterns)
+                                                            (unless (eq (car patterns) t) first)
+                                                            bindings
                                                             (lambda (vars)
                                                               (rec (cdr patterns) rest (append vars bindings)))
                                                             else)))
@@ -155,7 +160,7 @@
     (let ((first t)
           (bindings-0 bindings)
           (or-bindings nil))
-    (labels ((rec (patterns)
+    (labels ((rec (patterns bindings)
                (if patterns
                    (pattern-compile (car patterns) exp bindings
                                     ;; found a true case
@@ -170,10 +175,10 @@
                                         `(,then-fun ,@or-bindings)))
                                     ;; false, check next
                                     (lambda (bindings)
-                                      (rec (cdr patterns))))
+                                      (rec (cdr patterns) bindings)))
                    ;; all false, goto else
                    (pattern-continue else bindings))))
-      (let ((inner (rec patterns))) ;; now the previous vars have been setq'ed
+      (let ((inner (rec patterns bindings))) ;; now the previous vars have been setq'ed
         `(flet ((,then-fun (,@or-bindings)
                   ,(pattern-continue then (append or-bindings bindings))))
            ,inner))))))
@@ -231,7 +236,7 @@
   (with-gensyms (pattern)
     `(push (lambda (,pattern)
              (if-pattern ,meta-pattern ,pattern
-                         ',replacement-pattern))
+                         ,replacement-pattern))
            *meta-patterns*)))
 
 
@@ -242,6 +247,6 @@
     `(let ((*meta-patterns*
             (cons (lambda (,pattern)
                     (if-pattern ,meta-pattern ,pattern
-                                ',replacement-pattern))
+                                ,replacement-pattern))
                   *meta-patterns*)))
        ,@body)))

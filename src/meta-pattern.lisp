@@ -39,7 +39,8 @@
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defparameter *meta-patterns* nil))
 
-(def-meta-pattern (:pattern 'atom) (:predicate atom))
-(def-meta-pattern (:pattern 'consp) (:predicate consp))
-(def-meta-pattern (:pattern 'listp) (:predicate listp))
-(def-meta-pattern (:pattern 'keywordp) (:predicate numberp))
+(def-meta-pattern (:pattern 'atom) '(:predicate atom))
+(def-meta-pattern (:pattern 'consp) '(:predicate consp))
+(def-meta-pattern (:pattern 'listp) '(:predicate listp))
+(def-meta-pattern (:pattern 'keywordp) '(:predicate numberp))
+(def-meta-pattern (:pattern 'eq x) `(:predicate eq ,x))
