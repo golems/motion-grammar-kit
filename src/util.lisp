@@ -476,3 +476,13 @@ LANG: language output for dot, (or pdf ps eps png)"
   (cond ((< a b) -1)
         ((> a b) 1)
         (t 0)))
+
+;;;;;;;;;;;
+;;; Strings
+;;;;;;;;;;;
+
+(defun string-upcase-p (str)
+  (string= str (string-upcase str)))
+
+(defun string-downcase-p (str)
+  (string= str (string-downcase str)))
