@@ -60,10 +60,12 @@ MUTABLE: Should this be a mutable set?
     (t nil)))
 
 (defun finite-set (&rest items)
-  (apply #'finite-set-custom (make-finite-set) items))
+  "Make a set"
+  (finite-set-union (make-finite-set) items))
 
-(defun finite-set-custom (init &rest items)
-  (fold #'finite-set-add init items))
+(defun finite-tree-set (compare &rest items)
+  "Make a tree-set"
+  (apply #'tree-set compare items))
 
 (defun map-finite-set (result-type function set)
   "Apply FUNCTION to all members of SET."
@@ -183,12 +185,14 @@ RESULT: a finite set"
      (error "Can't operate on ~A and ~B" a b))))
 
 (defun finite-set-list (set)
+  "Return SET as a list"
   (etypecase set
     (list set)
     (tree-set (map-tree-set 'list #'identity set))
     (hash-table (loop for k being the hash-keys of set collect k))))
 
 (defun finite-set-tree (set)
+  "Return SET as a tree"
   (etypecase set
     (list (fold #'tree-set-insert (make-tree-set #'gsymbol-compare) set))
     (tree-set set)
@@ -240,15 +244,34 @@ RESULT: a finite set"
 
 (defun finite-set-union (set-1 set-2)
   "Return the union of set-1 and set-2."
-  (cond
-    ((null set-1) set-2)
-    ((null set-2) set-1)
-    ((and (listp set-1) (listp set-2))
-     (union set-1 set-2 :test #'equal))
-    ((and (tree-set-p set-1)
-          (tree-set-p set-2))
-     (tree-set-union set-1 set-2))
-    (t (error "Can't union on ~A and ~B" set-1 set-2))))
+  (labels ((add-to-tree (set items)
+             (declare (type tree-set set))
+             (fold-finite-set #'tree-set-insert set items))
+           (add-to-hash (set items)
+             (let ((f (lambda (h k)
+                        (setf (gethash k h) t)
+                        h)))
+               (fold-finite-set f
+                                (fold-finite-set f (make-finite-set :mutable t) set)
+                                items))))
+    (etypecase set-1
+      (null set-2)
+      (list (etypecase set-2
+              (null set-1)
+              (list (union set-1 set-2 :test #'equal))
+              (tree-set (add-to-tree set-2 set-1))
+              (hash-table (union set-1 (finite-set-list set-2)
+                                 :test #'equal))))
+      (tree-set (etypecase set-2
+                  (null set-1)
+                  (list (add-to-tree set-1 set-2))
+                  (tree-set (tree-set-union set-1 set-2))
+                  (hash-table (add-to-tree set-1 set-2))))
+      (hash-table (etypecase set-2
+                    (null set-1)
+                    (list (add-to-hash set-1 set-2))
+                    (tree-set (tree-set-union set-2 set-1))
+                    (hash-table (add-to-hash set-1 set-2)))))))
 
 (defun finite-set-intersection (set-1 set-2)
   (cond
