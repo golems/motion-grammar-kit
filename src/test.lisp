@@ -844,4 +844,39 @@
                                      '(hi (100 1) 6 (2 100 2))))
      (lisp-unit:assert-eql 102 myvar)
      )
+
+   ;; and patterns
+   ;(lisp-unit:assert-eql 5
+   ;                      (if-pattern  (and a (:predicate #'oddp)) 5 a 'no))
+
+   ;(lisp-unit:assert-eql 'no
+   ;                      (if-pattern  (and a (:predicate #'evenp)) 5 a 'no))
+
+   ;(lisp-unit:assert-eql 5
+   ;                      (if-pattern  (and a a) 5 a 'no))
+
+   ;(lisp-unit:assert-eql 5
+   ;                      (if-pattern  (and a b) 5 a 'no))
+
+   ;(lisp-unit:assert-eql 25
+   ;                      (if-pattern  (and a b) 5 (* a b) 'no))
+
+   ;(lisp-unit:assert-eql 5
+   ;                      (if-pattern  (and a) 5 a 'no))
+
+   ;(lisp-unit:assert-eql 11
+   ;                      (if-pattern  (:pattern (and a (:predicate #'oddp)) b) '(5 6) (+ a b) 'no))
+
+   ;(lisp-unit:assert-eql 'no
+   ;                      (if-pattern  (and (:pattern a a) (:pattern b b)) '(5 6) (+ a b) 'no))
+
+   ;(lisp-unit:assert-eql 11
+   ;                      (if-pattern  (and (:pattern a b) (:pattern a b)) '(5 6) (+ a b) 'no))
+
+   ;(lisp-unit:assert-eql 'no
+   ;                      (if-pattern  (and (:pattern a b) (:pattern b a)) '(5 6) (+ a b) 'no))
+
+   ;(lisp-unit:assert-eql 10
+   ;                        (if-pattern  (and (:pattern a b) (:pattern b a)) '(5 5) (+ a b) 'no))
+   )
    )
