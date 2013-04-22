@@ -164,9 +164,7 @@ If all bindings are true, evaluate body."
   (etypecase a
     (fixnum
      (etypecase b
-       (fixnum (cond ((< a b) -1)
-                     ((> a b) 1)
-                     (t 0)))
+       (fixnum (fixnum-compare a b))
        (character 1)
        (string 1)
        (symbol 1)
@@ -182,9 +180,7 @@ If all bindings are true, evaluate body."
      (etypecase b
        (fixnum -1)
        (character -1)
-       (string (cond ((string< a b) -1)
-                     ((string> a b) 1)
-                     (t 0)))
+       (string (string-compare a b))
        (symbol 1)
        (tree-set 1)))
     (symbol
@@ -454,3 +450,39 @@ LANG: language output for dot, (or pdf ps eps png)"
            (not (string= lang "dot")))
       (output-dot-file program output function lang)
       (output-function function output)))
+
+;;;;;;;;;;;;;;;;
+;;; Comparisions
+;;;;;;;;;;;;;;;;
+
+(defmacro compare-op (a b)
+  "The monoid for comparisions"
+  `(cond ((> 0.0 ,a) -1)
+        ((< 0.0 ,a) 1)
+        (t ,b)
+        ))
+
+(defmacro compare-nest (&rest vals)
+  (if vals
+  `(compare-op ,(car vals) (compare-nest ,@(cdr vals))
+  ) 0))
+
+(defun string-compare (a b)
+  (cond ((string< a b) -1)
+        ((string> a b) 1)
+        (t 0)))
+
+(defun fixnum-compare (a b)
+  (cond ((< a b) -1)
+        ((> a b) 1)
+        (t 0)))
+
+;;;;;;;;;;;
+;;; Strings
+;;;;;;;;;;;
+
+(defun string-upcase-p (str)
+  (string= str (string-upcase str)))
+
+(defun string-downcase-p (str)
+  (string= str (string-downcase str)))
