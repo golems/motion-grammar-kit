@@ -44,3 +44,4 @@
 (def-meta-pattern (:pattern 'listp) '(:predicate listp))
 (def-meta-pattern (:pattern 'keywordp) '(:predicate numberp))
 (def-meta-pattern (:pattern 'eq x) `(:predicate eq ,x))
+(def-meta-pattern (:pattern 'equal x) `(:predicate equal ,x))
