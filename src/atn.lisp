@@ -44,7 +44,7 @@
 ;;;   (values string-desc corresponding-nonterminal maybe-prod-id type)
 ;;;
 ;;; where type is (or 'start 'mid 'final)
-;;; 
+;;;
 ;;; This is kinda redundant because maybe-prod-id != nil implies type = 'mid
 ;;;
 ;;; TODO Define exactly what a prod-id refers to
@@ -54,13 +54,13 @@
   nonterminal ;; The nonterminal the state is within
   type ;; (or 'start 'mid 'final)
   prod-id ;; (or fixnum nil), When type is 'mid, then a fixnum for prodution id, nil otherwise
-  ) 
+  )
 
 (defun init-atn-state (name nonterminal type pid)
   (let ((as (make-atn-state))
         )
-    
-    ) 
+
+    )
   ;;; TODO not only for lists
   (list name nonterminal type pid)
   )
