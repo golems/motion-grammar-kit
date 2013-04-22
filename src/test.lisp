@@ -348,6 +348,24 @@
     (lisp-unit:assert-true (fa-equiv (fa-minimize-brzozowski (fa-state->edge state-fa))
                                      (fa-minimize-hopcroft edge-fa)))))
 
+(lisp-unit:define-test fa-rewrite-states
+  (let* ((orig (make-fa '((a 1 b)
+                          (b 2 c)
+                          (c 3 d)
+                          )
+                        'a '(b d)))
+         (fun (lambda (x) (format nil "~A~A" x x)))
+         (expected (make-fa '((aa 1 bb)
+                              (bb 2 cc)
+                              (cc 3 dd)
+                              )
+                            'aa '(bb dd)
+                            ))
+         (result (fa-rewrite-states fun orig))
+        )
+
+    (lisp-unit:assert-true (dfa-equal result
+                                      expected))))
 
 
 (lisp-unit:define-test fa-op
