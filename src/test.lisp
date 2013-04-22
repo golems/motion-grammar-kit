@@ -823,18 +823,18 @@
                             ((atom) t)))
 
    ;; or patterns
-   (lisp-unit:assert-eq 1
-                        (if-pattern  (or (:pattern b) (:pattern b b)) '(1) b 'no))
-   (lisp-unit:assert-eq 2
-                        (if-pattern  (or (:pattern b) (:pattern b b)) '(2 2) b 'no))
-   (lisp-unit:assert-eq 'no
-                        (if-pattern  (or (:pattern b) (:pattern b b)) '(1 2) b 'no))
+   (lisp-unit:assert-eql 1
+                         (if-pattern  (or (:pattern b) (:pattern b b)) '(1) b 'no))
+   (lisp-unit:assert-eql 2
+                         (if-pattern  (or (:pattern b) (:pattern b b)) '(2 2) b 'no))
+   (lisp-unit:assert-eql 'no
+                         (if-pattern  (or (:pattern b) (:pattern b b)) '(1 2) b 'no))
 
    ;; lambdas
-   (lisp-unit:assert-eq 5
-                        (funcall (pattern-lambda ((:pattern a b a)) (+ a b b)) '(1 2 1)))
-   (lisp-unit:assert-eq 5
-                        (funcall (pattern-lambda (a b a) (+ a b b)) 1 2 1))
+   (lisp-unit:assert-eql 5
+                         (funcall (pattern-lambda ((:pattern a b a)) (+ a b b)) '(1 2 1)))
+   (lisp-unit:assert-eql 5
+                         (funcall (pattern-lambda (a b a) (+ a b b)) 1 2 1))
 
    (let ((myvar 100))
      (lisp-unit:assert-equal '(nil 99 nil 98)
@@ -842,6 +842,6 @@
                                        (incf myvar)
                                        (- a b))
                                      '(hi (100 1) 6 (2 100 2))))
-     (lisp-unit:assert-eq 102 myvar)
+     (lisp-unit:assert-eql 102 myvar)
      )
    )
