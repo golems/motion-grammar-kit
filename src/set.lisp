@@ -393,11 +393,9 @@ RESULT: (values (lambda (key)) => (values (list set-values...) (or t nil))
 RELATION: lambda (a b) => boolean. Must be an equivalence relation
 RESULT: Function always returns a list of non-empty lists of set-elements. If all
 elements are related, it will return a singleton list with n elements."
-  (let ((res nil))
-    (labels ((insert (b)
-               (let ((sr (find (list b) res :test (lambda (a b) (funcall relation (car a) (car b))))))
-                 (if sr
-                   (setf (cdr sr) (cons b (cdr sr)))
-                   (push (list b) res)))))
-      (finite-set-map 'nil #'insert set)
-      res)))
+  (let ((partitions nil))
+    (do-finite-set (a set partitions)
+      (if-let ((match-partition (find-if (lambda (partition-b) (funcall relation a (car partition-b)))
+                                         partitions)))
+        (rplacd match-partition (cons a (cdr match-partition)))
+        (push (list a) partitions)))))
