@@ -638,6 +638,12 @@
 
   )
 
+(lisp-unit:define-test partition-finite-set
+  (assert-finite-set-equal '((2 8 5) (3 9 6) (1 10 7 4))
+                           (finite-set-partition '(1 2 3 4 5 6 7 8 9 10) (lambda (a b) (= (mod a 3) (mod b 3))))
+                           )
+  )
+
 (lisp-unit:define-test grammar-left-factoring
   (labels
     ((test (input expected-output)
