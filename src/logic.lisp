@@ -212,9 +212,11 @@ A conjunction of disjunctions of literals."
                 (fixup `(or ,e)))
                ((eq (car e) 'or)
                 `(and ,e))
-               (t (destructuring-bind (and a b) e
-                    (assert (eq and 'and))
-                    (list 'and (wrap 'or a) (wrap 'or b)))))))
+               (t (fixup-ands e))))
+           (fixup-ands (e)
+             (if-pattern (:pattern 'and a b) e
+                         (list 'and (fixup-ands a) (fixup-ands b))
+                         (wrap 'or e))))
     (fixup (visit e))))
 
 (defun prop->dimacs (e &optional (stream *standard-output*))
