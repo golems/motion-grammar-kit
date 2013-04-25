@@ -184,7 +184,7 @@ A conjunction of disjunctions of literals."
                 (rewrite 'or `(not ,a) b))
                ;; biconditional elimination
                ((:pattern 'iff a b)
-                (rewrite 'and `('implies ,a ,b) `('implies ,b ,a)))
+                (rewrite 'and `(implies ,a ,b) `(implies ,b ,a)))
                ;; move not inwards
                ((:pattern 'not (:pattern 'and a b))
                 (rewrite 'or `(not ,a) `(not ,b)))
