@@ -539,6 +539,12 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                start
                vertices)))
 
+(defun fa-rewrite-states (fun fa)
+  "Convert each state label by applying fun. The fa will only remain equivalent
+   if the function fun is injective"
+  (labels ((f (q) (funcall fun q))
+           (helper (q0 z q1) (list (f q0) z (f q1))))
+    (make-fa (fa-map-edges 'list #'helper fa) (f (fa-start fa)) (finite-set-map 'list fun (fa-accept fa)))))
 
 ;;;;;;;;;;;;;;;;;;;;
 ;; SET OPERATIONS ;;

@@ -1,11 +1,10 @@
 ;;;; -*- Lisp -*-
 ;;;;
-;;;; Copyright (c) 2012, Georgia Tech Research Corporation
+;;;; Copyright (c) 2013-2013, Georgia Tech Research Corporation
 ;;;; All rights reserved.
 ;;;;
-;;;; Author(s): Neil T. Dantam <ntd@gatech.edu>
+;;;; Author(s): Arash Rouhani <rarash@gatech.edu>
 ;;;; Georgia Tech Humanoid Robotics Lab
-;;;; Under Direction of Prof. Mike Stilman
 ;;;;
 ;;;; This file is provided under the following "BSD-style" License:
 ;;;;
@@ -35,13 +34,3 @@
 ;;;;   EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 (in-package :motion-grammar-kit)
-
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (defparameter *meta-patterns* nil))
-
-(def-meta-pattern (:pattern 'atom) '(:predicate atom))
-(def-meta-pattern (:pattern 'consp) '(:predicate consp))
-(def-meta-pattern (:pattern 'listp) '(:predicate listp))
-(def-meta-pattern (:pattern 'keywordp) '(:predicate numberp))
-(def-meta-pattern (:pattern 'eq x) `(:predicate eq ,x))
-(def-meta-pattern (:pattern 'equal x) `(:predicate equal ,x))

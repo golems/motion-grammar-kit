@@ -150,6 +150,50 @@ If all bindings are true, evaluate body."
   "A lambda with no arguments."
   `(lambda () ,@body))
 
+;;;;;;;;;;;;;;;;;;;;
+;;; Comparisions ;;;
+;;;;;;;;;;;;;;;;;;;;
+
+(defmacro or-compare-2 (compare-exp-1 compare-exp-2)
+  "Short-circuit evaluatation of arguments, returning the first one that is nonzero."
+  (alexandria:with-gensyms (sym1)
+   `(let ((,sym1 ,compare-exp-1))
+      (declare (fixnum ,sym1))
+      (if (zerop ,sym1)
+          ,compare-exp-2
+          ,sym1))))
+
+(defmacro or-compare (&rest vals)
+  "Short-circuit evaluatation of arguments, returning the first one that is nonzero."
+  (cond
+    ((null vals) 0)
+    ((null (cdr vals)) (car vals))
+    (t `(or-compare-2 ,(car vals)
+                      (or-compare ,@(cdr vals))))))
+
+(defun string-compare (a b)
+  (declare (type string a b))
+  (cond ((string< a b) -1)
+        ((string> a b) 1)
+        (t 0)))
+
+(declaim (inline fixnum-compare))
+(defun fixnum-compare (a b)
+  (declare (type fixnum a b))
+  (cond ((< a b) -1)
+        ((> a b) 1)
+        (t 0)))
+
+;;;;;;;;;;;;;;;
+;;; Strings ;;;
+;;;;;;;;;;;;;;;
+
+(defun string-upcase-p (str)
+  (string= str (string-upcase str)))
+
+(defun string-downcase-p (str)
+  (string= str (string-downcase str)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; GENERALIZED SYMBOLS ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -164,9 +208,7 @@ If all bindings are true, evaluate body."
   (etypecase a
     (fixnum
      (etypecase b
-       (fixnum (cond ((< a b) -1)
-                     ((> a b) 1)
-                     (t 0)))
+       (fixnum (fixnum-compare a b))
        (character 1)
        (string 1)
        (symbol 1)
@@ -182,9 +224,7 @@ If all bindings are true, evaluate body."
      (etypecase b
        (fixnum -1)
        (character -1)
-       (string (cond ((string< a b) -1)
-                     ((string> a b) 1)
-                     (t 0)))
+       (string (string-compare a b))
        (symbol 1)
        (tree-set 1)))
     (symbol
@@ -214,11 +254,9 @@ If all bindings are true, evaluate body."
     (cons
      (etypecase b
        (atom 1)
-       (list (let ((c (gsymbol-compare (car a) (car b))))
-               (declare (type fixnum c))
-               (if (zerop c)
-                   (gsymbol-compare (cdr a) (cdr b))
-                   c)))))))
+       (list (or-compare (gsymbol-compare (car a) (car b))
+                         (gsymbol-compare (cdr a) (cdr b))))))))
+
 
 
 ;; (defun gsymbol-compare (a b)

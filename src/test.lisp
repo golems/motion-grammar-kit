@@ -36,6 +36,7 @@
 
 (in-package :motion-grammar-kit)
 
+(lisp-unit:REMOVE-TESTS :ALL)
 
 (defmacro assert-finite-set-equal (a b)
   `(lisp-unit:assert-true (finite-set-equal ,a ,b)))
@@ -348,6 +349,24 @@
     (lisp-unit:assert-true (fa-equiv (fa-minimize-brzozowski (fa-state->edge state-fa))
                                      (fa-minimize-hopcroft edge-fa)))))
 
+(lisp-unit:define-test fa-rewrite-states
+  (let* ((orig (make-fa '((a 1 b)
+                          (b 2 c)
+                          (c 3 d)
+                          )
+                        'a '(b d)))
+         (fun (lambda (x) (format nil "~A~A" x x)))
+         (expected (make-fa '((aa 1 bb)
+                              (bb 2 cc)
+                              (cc 3 dd)
+                              )
+                            'aa '(bb dd)
+                            ))
+         (result (fa-rewrite-states fun orig))
+        )
+
+    (lisp-unit:assert-true (dfa-equal result
+                                      expected))))
 
 
 (lisp-unit:define-test fa-op
@@ -620,6 +639,11 @@
 
   )
 
+(lisp-unit:define-test partition-finite-set
+  (assert-finite-set-equal '((2 8 5) (3 9 6) (1 10 7 4))
+                           (partition-finite-set '(1 2 3 4 5 6 7 8 9 10)
+                                                 (lambda (a b) (= (mod a 3) (mod b 3))))))
+
 (lisp-unit:define-test grammar-left-factoring
   (labels
     ((test (input expected-output)
@@ -805,11 +829,60 @@
                             ((atom) t)))
 
    ;; or patterns
-   (lisp-unit:assert-eq 1
-                        (if-pattern  (or (:pattern b) (:pattern b b)) '(1) b 'no))
-   (lisp-unit:assert-eq 2
-                        (if-pattern  (or (:pattern b) (:pattern b b)) '(2 2) b 'no))
-   (lisp-unit:assert-eq 'no
-                        (if-pattern  (or (:pattern b) (:pattern b b)) '(1 2) b 'no))
+   (lisp-unit:assert-eql 1
+                         (if-pattern  (or (:pattern b) (:pattern b b)) '(1) b 'no))
+   (lisp-unit:assert-eql 2
+                         (if-pattern  (or (:pattern b) (:pattern b b)) '(2 2) b 'no))
+   (lisp-unit:assert-eql 'no
+                         (if-pattern  (or (:pattern b) (:pattern b b)) '(1 2) b 'no))
 
-  )
+   ;; lambdas
+   (lisp-unit:assert-eql 5
+                         (funcall (pattern-lambda ((:pattern a b a)) (+ a b b)) '(1 2 1)))
+   (lisp-unit:assert-eql 5
+                         (funcall (pattern-lambda (a b a) (+ a b b)) 1 2 1))
+
+   (let ((myvar 100))
+     (lisp-unit:assert-equal '(nil 99 nil 98)
+                             (mapcar (pattern-lambda ((or (:pattern a b) (:pattern b a b)))
+                                       (incf myvar)
+                                       (- a b))
+                                     '(hi (100 1) 6 (2 100 2))))
+     (lisp-unit:assert-eql 102 myvar)
+     )
+
+   ;; and patterns
+   ;(lisp-unit:assert-eql 5
+   ;                      (if-pattern  (and a (:predicate #'oddp)) 5 a 'no))
+
+   ;(lisp-unit:assert-eql 'no
+   ;                      (if-pattern  (and a (:predicate #'evenp)) 5 a 'no))
+
+   ;(lisp-unit:assert-eql 5
+   ;                      (if-pattern  (and a a) 5 a 'no))
+
+   ;(lisp-unit:assert-eql 5
+   ;                      (if-pattern  (and a b) 5 a 'no))
+
+   ;(lisp-unit:assert-eql 25
+   ;                      (if-pattern  (and a b) 5 (* a b) 'no))
+
+   ;(lisp-unit:assert-eql 5
+   ;                      (if-pattern  (and a) 5 a 'no))
+
+   ;(lisp-unit:assert-eql 11
+   ;                      (if-pattern  (:pattern (and a (:predicate #'oddp)) b) '(5 6) (+ a b) 'no))
+
+   ;(lisp-unit:assert-eql 'no
+   ;                      (if-pattern  (and (:pattern a a) (:pattern b b)) '(5 6) (+ a b) 'no))
+
+   ;(lisp-unit:assert-eql 11
+   ;                      (if-pattern  (and (:pattern a b) (:pattern a b)) '(5 6) (+ a b) 'no))
+
+   ;(lisp-unit:assert-eql 'no
+   ;                      (if-pattern  (and (:pattern a b) (:pattern b a)) '(5 6) (+ a b) 'no))
+
+   ;(lisp-unit:assert-eql 10
+   ;                        (if-pattern  (and (:pattern a b) (:pattern b a)) '(5 5) (+ a b) 'no))
+   )
+   ;)

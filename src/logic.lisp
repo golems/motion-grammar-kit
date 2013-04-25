@@ -84,7 +84,7 @@
 (defun logic-variables (e)
   (labels ((helper (v e)
              (pattern-case e
-               ((:pattern (or 'and 'or :iff :implies) &rest args)
+               ((:pattern (or 'and 'or 'iff 'implies) &rest args)
                 (fold #'helper v args))
                ((:pattern 'not a)
                 (helper v a))
@@ -180,11 +180,11 @@ A conjunction of disjunctions of literals."
                     (:pattern 'or (eq t) t))
                 (rewrite t))
                ;; implication elimination
-               ((:pattern :implies a b)
+               ((:pattern 'implies a b)
                 (rewrite 'or `(not ,a) b))
                ;; biconditional elimination
-               ((:pattern :iff a b)
-                (rewrite 'and `(:implies ,a ,b) `(:implies ,b ,a)))
+               ((:pattern 'iff a b)
+                (rewrite 'and `(implies ,a ,b) `(implies ,b ,a)))
                ;; move not inwards
                ((:pattern 'not (:pattern 'and a b))
                 (rewrite 'or `(not ,a) `(not ,b)))
@@ -212,9 +212,11 @@ A conjunction of disjunctions of literals."
                 (fixup `(or ,e)))
                ((eq (car e) 'or)
                 `(and ,e))
-               (t (destructuring-bind (and a b) e
-                    (assert (eq and 'and))
-                    (list 'and (wrap 'or a) (wrap 'or b)))))))
+               (t (fixup-ands e))))
+           (fixup-ands (e)
+             (if-pattern (:pattern 'and a b) e
+                         (list 'and (fixup-ands a) (fixup-ands b))
+                         (wrap 'or e))))
     (fixup (visit e))))
 
 (defun prop->dimacs (e &optional (stream *standard-output*))
@@ -298,7 +300,7 @@ A conjunction of disjunctions of literals."
        for i from 0
        collect
          (if (zerop (ldb (byte 1 i) integer))
-             (cons not v)
+             (cons 'not v)
              v))))
 
 (defun horn-clause (body &optional head)
