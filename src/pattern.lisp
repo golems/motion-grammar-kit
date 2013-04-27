@@ -230,6 +230,10 @@
       `(let ((,exp-sym ,exp))
          ,(helper cases)))))
 
+(defmacro pattern-lambda (pattern &body body)
+  (with-gensyms (vars)
+    `(lambda (&rest ,vars) (if-pattern (:pattern ,@pattern) ,vars (progn ,@body) nil))))
+
 (defmacro def-meta-pattern (meta-pattern replacement-pattern)
   "During pattern expansion, if a pattern matches META-PATTERN,
    substitute instead REPLACEMENT-PATTERN."
