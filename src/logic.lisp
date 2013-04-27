@@ -77,6 +77,12 @@
                 t)
                ((:pattern 'or a (:predicate never-as a))
                 t)
+               ;; de morgan (and --> or)
+               ((:pattern 'not (:pattern 'and (:pattern 'not a) (:pattern 'not b)))
+                (list 'or a b))
+               ;; de morgan (or --> and)
+               ((:pattern 'not (:pattern 'or (:pattern 'not a) (:pattern 'not b)))
+                (list 'and a b))
                ;; double negation
                ((:pattern 'not (:pattern 'not a))
                 (recurse a))
