@@ -272,6 +272,7 @@ A conjunction of disjunctions of literals."
                 (dimacs-pathname (format nil "/tmp/dimacs.~D" (sb-posix:getuid)))
                 (minisat-result-pathname (format nil "/tmp/minisat.~D" (sb-posix:getuid)))
                 (keep-files t))
+  (unless e (return-from minisat (values nil nil)))
   (unwind-protect
        (let ((vars ;; write dimacs
               (with-open-file (s dimacs-pathname :direction :output :if-exists :supersede)
