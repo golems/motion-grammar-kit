@@ -47,14 +47,14 @@
 ;;;    | (iff E E)
 
 (defun prop-simplify (e &optional (use-minisat nil))
-  (labels ((solve (e) (if use-minisat (minisat e) nil))
-           (same-as (e1 e2) (unless (solve (list 'and e1 (list 'not e2))) use-minisat))
-           (never-as (e1 e2) (unless (solve (list 'and e1 e2)) use-minisat))
+  (labels ((recurse (e) (prop-simplify e use-minisat))
+           (same-as (e1 e2) (when use-minisat (propositions-equivalent e1 e2)))
+           (never-as (e1 e2) (same-as e1 (list 'not e2)))
            (help-simplify (e)
              (pattern-case e
                ;; ;; simple equivalence
                ((:pattern (or 'and 'or) a a)
-                (prop-simplify a))
+                (recurse a))
                ;; operator removal
                ((or (:pattern 'and a (eq t))
                     (:pattern 'and (eq t) a)
@@ -63,7 +63,7 @@
                     (:pattern 'and a (:predicate same-as a))
                     (:pattern 'or a (:predicate same-as a))
                     )
-                (prop-simplify a))
+                (recurse a))
                ((or (:pattern 'and t nil)
                     (:pattern 'and nil t)
                     )
@@ -79,25 +79,24 @@
                 t)
                ;; double negation
                ((:pattern 'not (:pattern 'not a))
-                (prop-simplify a))
+                (recurse a))
                ;; implication elimination
                ((:pattern 'implies a b)
-                (prop-simplify `(or (not ,a) ,b)))
+                (recurse `(or (not ,a) ,b)))
                ;; biconditional elimination
                ((:pattern 'iff a b)
-                (prop-simplify `(and (implies ,a ,b) (implies ,b ,a))))
+                (recurse `(and (implies ,a ,b) (implies ,b ,a))))
                ;; basic formula, recurse
                ((atom) e)
-               ((:pattern (or 'and 'or 'implies 'iff)
-                 a b)
-                 (list (car e) (prop-simplify a) (prop-simplify b)))
+               ((:pattern (or 'and 'or 'implies 'iff) a b)
+                 (list (car e) (recurse a) (recurse b)))
                ((:pattern 'not a)
-                (list (car e) (prop-simplify a)))
+                (list (car e) (recurse a)))
                (t (error "Invalid proposition: ~A" e)))))
     (let ((e-new (help-simplify e)))
       (if (gsymbol-equal e e-new)
         e
-        (prop-simplify e-new)))))
+        (recurse e-new)))))
 
 (defun logic-variables (e)
   (labels ((helper (v e)
