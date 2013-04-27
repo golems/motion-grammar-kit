@@ -329,3 +329,13 @@ A conjunction of disjunctions of literals."
     (if head
         (fold #'helper head body)
         (fold #'helper (list 'not (car body)) (cdr body)))))
+
+(defun proposition-tautology (e)
+  "Is e ALWAYS true?
+  Note, kinda expensive since it calls minisat."
+  (not (minisat (list 'not e))))
+
+(defun propositions-equivalent (e1 e2)
+  "Is ('iff e1 e2) a tautology?
+  Note, kinda expensive since it calls minisat."
+  (proposition-tautology (list 'iff e1 e2)))
