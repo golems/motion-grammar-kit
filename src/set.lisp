@@ -101,17 +101,6 @@ MUTABLE: Should this be a mutable set?
     (tree-set set)
     (list (gsymbol-sort set))))
 
-(defun finite-set-map-cross (function set-1 &rest sets)
-  (cond
-    ((null sets) (finite-set-map nil function set-1))
-    (t
-     (finite-set-map nil
-                     (lambda (s-1)
-                       (apply #'finite-set-map-cross
-                              (curry function s-1)
-                              sets))
-                     set-1))))
-
 (defmacro do-finite-set ((var set &optional result-form) &body body)
   "Iterate over members of the set."
   (alexandria:with-gensyms (set-var fun)

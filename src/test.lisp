@@ -36,6 +36,7 @@
 
 (in-package :motion-grammar-kit)
 
+(lisp-unit:REMOVE-TESTS :ALL)
 
 (defmacro assert-finite-set-equal (a b)
   `(lisp-unit:assert-true (finite-set-equal ,a ,b)))
