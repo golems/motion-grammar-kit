@@ -558,21 +558,21 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
 ;;;;;;;;;;;;;;;;;;;;
 
 
-(defun dfa-eq (a b)
+(defun dfa-eq (a b &optional (edge-equivalence #'equal))
   "Check equivalence up to state names of DFAs"
   (and (finite-set-equal (fa-states a) (fa-states b))
        (finite-set-equal (fa-terminals a) (fa-terminals b))
        (finite-set-equal (fa-accept a) (fa-accept b))
-       (equal (fa-edges a) (fa-edges b))
+       (funcall edge-equivalence  (fa-edges a) (fa-edges b))
        (equal (fa-start a) (fa-start b))))
 
-(defun dfa-equal (a b)
+(defun dfa-equal (a b &optional (edge-equivalence #'equal))
   "Check equivalence up to state names of DFAs"
   (assert (dfa-p a))
   (assert (dfa-p b))
   (let ((a (dfa-renumber a))
         (b (dfa-renumber b)))
-    (dfa-eq a b)))
+    (dfa-eq a b edge-equivalence)))
 
 (defun fa-equiv (a b)
   "Check if two FAs recognize the same language."
