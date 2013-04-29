@@ -304,6 +304,17 @@ A conjunction of disjunctions of literals."
 (defun prop-sat-p (e)
   "Is E satisfiable?"
   (minisat e))
+
+(defun prop-tautology-p (e)
+  "Is E always true?
+  Note, kinda expensive since it calls minisat."
+  (not (prop-sat-p (list 'not e))))
+
+(defun prop-equivalent-p (e1 e2)
+  "Is ('iff E1 E2) a tautology?
+  Note, kinda expensive since it calls minisat."
+  (prop-tautology-p (list 'iff e1 e2)))
+
 (defun print-logic-vars (integer vars)
   (when integer
     (loop
@@ -332,13 +343,3 @@ A conjunction of disjunctions of literals."
     (if head
         (fold #'helper head body)
         (fold #'helper (list 'not (car body)) (cdr body)))))
-
-(defun proposition-tautology (e)
-  "Is e ALWAYS true?
-  Note, kinda expensive since it calls minisat."
-  (not (minisat (list 'not e))))
-
-(defun propositions-equivalent (e1 e2)
-  "Is ('iff e1 e2) a tautology?
-  Note, kinda expensive since it calls minisat."
-  (proposition-tautology (list 'iff e1 e2)))
