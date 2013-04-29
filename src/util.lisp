@@ -300,7 +300,7 @@ If all bindings are true, evaluate body."
       (equal symbol '(:epsilon))))
 
 (defun gsymbol-equal (a b)
-  (= 0 (gsymbol-compare a b)))
+  (zerop (gsymbol-compare a b)))
 
 ;;;;;;;;;;
 ;; TRIE ;;
