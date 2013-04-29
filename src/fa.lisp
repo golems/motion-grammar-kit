@@ -70,6 +70,10 @@ FUNCTION: (lambda (q-0 z q-1))"
        (fa-edges fa)))
 
 (defun fold-fa-edges (function initial-value fa)
+  "Fold FUNCTION over edges of FA.
+FUNCTION: (lambda (accumulator q-0 z q-1))
+INITIAL-VALUE: initial value of accumulator
+FA: the finite-automaton"
   (fold (lambda (v e) (apply function v e))
         initial-value (fa-edges fa)))
 
