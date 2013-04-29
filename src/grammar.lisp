@@ -79,19 +79,26 @@ GRAMMAR: the BNF grammar"
 RESULT: (or nil 'list 'vector)
 FUNCTION: (lambda (left-hand-side right-hand-side id))
 GRAMMAR: the BNF grammar"
-  (let ((counter 0))
-    (grammar-map result (lambda (lhs rhs) (funcall function lhs rhs counter) (incf counter)) grammar)
-    )
-  )
+  (let ((counter -1))
+    (grammar-map result
+                 (lambda (lhs rhs)
+                   (funcall function lhs rhs (incf counter)))
+                 grammar)))
 
-(defun grammar-map-grouped (function grammar)
-  "Applies function to each production in grammar.
-RESULT: nil
-FUNCTION: (lambda (head (bodys)))
+(defun grammar-map-grouped (result-type function grammar)
+  "Applies function to each nonterminal in grammar.
+RESULT-TYPE: (or 'list nil)
+FUNCTION: (lambda (head (list bodies...)))
 GRAMMAR: the BNF grammar"
-  (multiple-value-bind (fun ht) (index-finite-set grammar #'car #'cdr :duplicate-type 'list)
-    (declare (ignore fun))
-    (maphash function ht)))
+  (let ((body-function (index-finite-set grammar #'car #'cdr
+                                         :duplicate-type 'list)))
+    (map-finite-set result-type (lambda (head) (funcall function head
+                                                        (funcall body-function head)))
+                    (grammar-nonterminals grammar))))
+
+ ;; (multiple-value-bind (fun ht) (index-finite-set grammar #'car #'cdr :duplicate-type 'list)
+ ;;   (declare (ignore fun))
+ ;;   (maphash function ht)))
 
 (defun grammar-fold-list (function initial-value grammar)
   "Reduces function across productions of the grammar.
