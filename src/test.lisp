@@ -47,6 +47,24 @@
   (lisp-unit:assert-false (dfa-equal (make-fa '((0 a 1) (1 b 0)) 0 (finite-set 1))
                                      (make-fa '((x a y) (y b x)) 'y (finite-set 'x)))))
 
+
+(lisp-unit:define-test util
+  (flet ((relation (a b)
+           (= (eval a) (eval b))))
+    (lisp-unit:assert-true (finite-set-equivalent #'relation
+                                                  '(1 2 3)
+                                                  '((+ 2 1) (+ 1 1) (+ 1 0))))
+
+    (lisp-unit:assert-false (finite-set-equivalent #'relation
+                                                   '(1 2 3)
+                                                   '((+ 2 1) (+ 1 1) (+ 1 1))))
+    (lisp-unit:assert-false (finite-set-equivalent #'relation
+                                                   '(1 2 3)
+                                                   '((+ 2 1) (+ 1 1) (+ 1 0) 5)))
+    (lisp-unit:assert-true (finite-set-relation-subset #'relation
+                                                       '(1 2 3)
+                                                       '((+ 2 1) (+ 1 1) (+ 1 0) 5)))))
+
 (defmacro test-fa (fa)
   `(progn
      (lisp-unit:assert-true (dfa-p (fa-minimize-hopcroft ,fa)))

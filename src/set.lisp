@@ -173,18 +173,26 @@ RESULT: a finite set"
     (t
      (error "Can't operate on ~A and ~B" a b))))
 
+(defun finite-set-relation-subset (relation set-a set-b)
+  "For every elemenent of SET-A, does there exist an element of SET-B satisfying RELATION?"
+  (block outer
+    (do-finite-set (ea set-a) ;; iterate over set-a
+      (block inner
+        (do-finite-set (eb set-b) ;; iterate over set-b
+          (when (funcall relation ea eb) ;; if equivalent, short-circuit the inner loop
+            (return-from inner)))
+        ;; nothing equivalent, sets are not equal
+        (return-from outer nil)))
+    ;; all passed, equal
+    t))
+
 (defun finite-set-equivalent (relation set-a set-b)
   "Are the sets equivalent, that is, does every element in set-aa exist in set-bb and vice verse?
    Note that this function is *much* slower than to just check if the sets are equal.
    RELATION: lambda (e1 e2) ==> (or t nil). Must be an equivalence relation"
   ;; TODO We can't escape worst case O(n^2). But we could occasionally get O(1) if we would use more lazyness
-  (let* ((andor (lambda (matrix) (funcall #'every (lambda (row) (funcall #'some #'identity row)) matrix)))
-         )
-    (funcall andor (map-finite-set 'list (lambda (ea)
-                                           (map-finite-set 'list (lambda (eb)
-                                                                   (funcall relation ea eb))
-                                                           set-b))
-                                   set-a))))
+  (and (finite-set-relation-subset relation set-a set-b)
+       (finite-set-relation-subset relation set-b set-a)))
 
 (defun finite-set-list (set)
   "Return SET as a list"
