@@ -299,6 +299,8 @@ If all bindings are true, evaluate body."
       (eq symbol :epsilon)
       (equal symbol '(:epsilon))))
 
+(defun gsymbol-equal (a b)
+  (= 0 (gsymbol-compare a b)))
 
 ;;;;;;;;;;
 ;; TRIE ;;
