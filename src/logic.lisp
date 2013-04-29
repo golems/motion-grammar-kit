@@ -301,6 +301,9 @@ A conjunction of disjunctions of literals."
       (when (probe-file minisat-result-pathname)
         (delete-file minisat-result-pathname)))))
 
+(defun prop-sat-p (e)
+  "Is E satisfiable?"
+  (minisat e))
 (defun print-logic-vars (integer vars)
   (when integer
     (loop
