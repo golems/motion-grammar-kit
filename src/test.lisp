@@ -36,6 +36,7 @@
 
 (in-package :motion-grammar-kit)
 
+(lisp-unit:REMOVE-TESTS :ALL)
 
 (defmacro assert-finite-set-equal (a b)
   `(lisp-unit:assert-true (finite-set-equal ,a ,b)))
@@ -367,6 +368,24 @@
     (lisp-unit:assert-true (dfa-equal result
                                       expected))))
 
+(lisp-unit:define-test fa-rewrite-edges
+  (let* ((orig (make-fa '((a 1 b)
+                          (b 2 c)
+                          (c 3 d)
+                          )
+                        'a '(b d)))
+         (fun (lambda (x) (* x x)))
+         (expected (make-fa '((a 1 b)
+                              (b 4 c)
+                              (c 9 d)
+                              )
+                            'a '(b d)
+                            ))
+         (result (fa-rewrite-edges fun orig))
+        )
+
+    (lisp-unit:assert-true (dfa-equal result
+                                      expected))))
 
 (lisp-unit:define-test fa-op
   ;; intersection

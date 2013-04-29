@@ -546,6 +546,13 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
            (helper (q0 z q1) (list (f q0) z (f q1))))
     (make-fa (fa-map-edges 'list #'helper fa) (f (fa-start fa)) (finite-set-map 'list fun (fa-accept fa)))))
 
+(defun fa-rewrite-edges (fun fa)
+  "Convert each edge label by applying fun. The fa will only remain equivalent
+   if the function fun is injective"
+  (labels ((f (q) (funcall fun q))
+           (helper (q0 z q1) (list q0 (f z) q1)))
+    (make-fa (fa-map-edges 'list #'helper fa) (fa-start fa) (fa-accept fa))))
+
 ;;;;;;;;;;;;;;;;;;;;
 ;; SET OPERATIONS ;;
 ;;;;;;;;;;;;;;;;;;;;

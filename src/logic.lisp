@@ -46,40 +46,58 @@
 ;;;    | (implies E)
 ;;;    | (iff E E)
 
-(defun prop-simplify (e)
-  (pattern-case e
-    ;; ;; simple equivalence
-    ((:pattern (or 'and 'or) a a)
-     (prop-simplify a))
-    ;; operator removal
-    ((or (:pattern 'and a (eq t))
-         (:pattern 'and (eq t) a)
-         (:pattern 'or nil a)
-         (:pattern 'or a nil))
-     (prop-simplify a))
-    ((or (:pattern 'and t nil)
-         (:pattern 'and nil t))
-     nil)
-    ((or (:pattern 'or t (eq t))
-         (:pattern 'or (eq t) t))
-     t)
-    ;; double negation
-    ((:pattern 'not (:pattern 'not a))
-     (prop-simplify a))
-    ;; implication elimination
-    ((:pattern 'implies a b)
-     (prop-simplify `(or (not ,a) ,b)))
-    ;; biconditional elimination
-    ((:pattern 'iff a b)
-     (prop-simplify `(and (implies ,a ,b) (implies ,b ,a))))
-    ;; basic formula, recurse
-    ((atom) e)
-    ((:pattern (or 'and 'or 'implies 'iff)
-               a b)
-     (list (car e) (prop-simplify a) (prop-simplify b)))
-    ((:pattern 'not a)
-     (list (car e) (prop-simplify a)))
-    (t (error "Invalid proposition: ~A" e))))
+(defun prop-simplify (e &optional (use-minisat nil))
+  (labels ((solve (e) (if use-minisat (minisat e) nil))
+           (same-as (e1 e2) (unless (solve (list 'and e1 (list 'not e2))) use-minisat))
+           (never-as (e1 e2) (unless (solve (list 'and e1 e2)) use-minisat))
+           (help-simplify (e)
+             (pattern-case e
+               ;; ;; simple equivalence
+               ((:pattern (or 'and 'or) a a)
+                (prop-simplify a))
+               ;; operator removal
+               ((or (:pattern 'and a (eq t))
+                    (:pattern 'and (eq t) a)
+                    (:pattern 'or nil a)
+                    (:pattern 'or a nil)
+                    (:pattern 'and a (:predicate same-as a))
+                    (:pattern 'or a (:predicate same-as a))
+                    )
+                (prop-simplify a))
+               ((or (:pattern 'and t nil)
+                    (:pattern 'and nil t)
+                    )
+                nil)
+               ((:pattern 'and a (:predicate never-as a))
+                nil)
+
+               ((or (:pattern 'or t (eq t))
+                    (:pattern 'or (eq t) t)
+                    )
+                t)
+               ((:pattern 'or a (:predicate never-as a))
+                t)
+               ;; double negation
+               ((:pattern 'not (:pattern 'not a))
+                (prop-simplify a))
+               ;; implication elimination
+               ((:pattern 'implies a b)
+                (prop-simplify `(or (not ,a) ,b)))
+               ;; biconditional elimination
+               ((:pattern 'iff a b)
+                (prop-simplify `(and (implies ,a ,b) (implies ,b ,a))))
+               ;; basic formula, recurse
+               ((atom) e)
+               ((:pattern (or 'and 'or 'implies 'iff)
+                 a b)
+                 (list (car e) (prop-simplify a) (prop-simplify b)))
+               ((:pattern 'not a)
+                (list (car e) (prop-simplify a)))
+               (t (error "Invalid proposition: ~A" e)))))
+    (let ((e-new (help-simplify e)))
+      (if (gsymbol-equal e e-new)
+        e
+        (prop-simplify e-new)))))
 
 (defun logic-variables (e)
   (labels ((helper (v e)
@@ -184,7 +202,7 @@ A conjunction of disjunctions of literals."
                 (rewrite 'or `(not ,a) b))
                ;; biconditional elimination
                ((:pattern 'iff a b)
-                (rewrite 'and `('implies ,a ,b) `('implies ,b ,a)))
+                (rewrite 'and `(implies ,a ,b) `(implies ,b ,a)))
                ;; move not inwards
                ((:pattern 'not (:pattern 'and a b))
                 (rewrite 'or `(not ,a) `(not ,b)))
