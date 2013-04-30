@@ -69,6 +69,7 @@
 (defstruct (atn-state (:type list)
                       (:constructor make-atn-state (name nonterminal type prod-id)) )
   ;; TODO: Make vector. Requires refactoring where I've assumed list
+  ;; TODO: eliminate some redundant fields
   name  ;; String description AND unique identifier
   nonterminal ;; The nonterminal the state is within
   type ;; (or 'start 'mid 'final)
@@ -104,9 +105,9 @@
 (defstruct atn
   "The reasons for the names dge/ee/edg is because they look like edge but
    without one of it's components. Its a nice human mnemonic"
-  fa ;; The actual finite automata
+  fa      ;; The quasi-finite automata
   mem-dge ;; lambda (q0) => (list (list z q1)... )
-  mem-ee ;; lambda (z) => (list (list q0 q1)... )
+  mem-ee  ;; lambda (z) => (list (list q0 q1)... )
   )
 
 (defun fa->atn (fa)
@@ -125,22 +126,25 @@
   "Convience. See mem-ee"
   (funcall (atn-mem-ee atn) symbol))
 
-(defun grammar->ATN (grammar)
+(defun grammar->atn (grammar)
   "Return the ATN of the grammar. "
-  (let ((state-counter 0)
-        (prod-counter -1))
-      (fa->atn (make-fa (apply #'append (grammar-map 'list (lambda (head body)
-                                    (incf prod-counter)
-                                    (labels ((chain (xs)
-                                               (if xs
-                                                 (cons (list (numeric state-counter) (car xs) (numeric (incf state-counter))) (chain (cdr xs)))
-                                                 nil))
-                                             (numeric (id) (atn-numeric-name id head prod-counter))
-                                             )
-                                    (let* ((beg (list (ATN-START-NAME head) :epsilon (numeric (incf state-counter))))
-                                           (mids (chain body))
-                                           (end (list (numeric state-counter) :epsilon (ATN-FINAL-NAME head)))
-                                           )
-                                      `(,beg ,@mids ,end)
-                                      ))
-                                    ) grammar)) nil nil))))
+  (let* ((state-counter 0)
+         (prod-counter -1)
+         (fa-edges (grammar-fold  ; collect atn edges over the grammar
+                    (lambda (edges head body)
+                      (incf prod-counter)
+                      (let ((e edges))
+                        (labels ((numeric (id) (atn-numeric-name id head prod-counter))
+                                 (new-edge (q-0 z q-1) (push (list q-0 z q-1) e)))
+                          ;; beg
+                          (new-edge (atn-start-name head) :epsilon (numeric (incf state-counter)))
+                          ;; mid
+                          (loop for x in body
+                             for q-0 = (numeric state-counter)
+                             for q-1 = (numeric (incf state-counter))
+                             do (new-edge q-0 x q-1))
+                          ;;end
+                          (new-edge (numeric state-counter) :epsilon (atn-final-name head)))
+                        e))
+                    nil grammar)))
+    (fa->atn (make-fa fa-edges nil nil))))
