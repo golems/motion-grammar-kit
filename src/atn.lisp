@@ -162,7 +162,8 @@
                         (when (atn-state-start-p q-0)
                           (setq start-states (finite-set-nadd start-states q-0))))
                   (atn-fa atn))
-    (labels ((visit (rev-prod q-0)
+    (labels ((visit (rev-prod q-0)      ; Assuming the ATN is acyclic.
+                                        ; With a cycle, this is nonterminating
                ;; collect final state
                (when (atn-state-final-p q-0)
                  (push (reverse rev-prod) prods))

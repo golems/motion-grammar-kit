@@ -139,3 +139,31 @@
                                              (thunk set)
                                              (thunk trie-set)))))
                   :count count))
+
+;;;;;;;;;
+;; ATN ;;
+;;;;;;;;;
+
+(defun random-grammar (nonterminal-count terminal-count production-count production-length)
+  (let* ((n-nonterm (random-whole nonterminal-count))
+         (n-term (random-whole terminal-count))
+         (n-sym (+ n-nonterm n-term)))
+    (let ((nonterminals (loop for i below n-nonterm
+                           collect (list 'nonterm i)))
+          (terminals (loop for i below n-term
+                      collect (list 'term i))))
+      (let ((symbols (finite-set-union nonterminals terminals)))
+        (loop for k below (random-whole production-count)
+           collect (cons (elt nonterminals (random n-nonterm))
+                         (loop for i below (random-whole production-length)
+                            collect (elt symbols (random n-sym)))))))))
+
+
+(defun atn-fuzz (&key (count 1))
+  (fuzz:run-tests (thunk (random-grammar 10 20 20 5))
+                  (lambda (grammar)
+                    (fuzz:test-predicate 'atn<->grammar
+                                         #'finite-set-equal
+                                         (thunk grammar)
+                                         (thunk (atn->grammar (grammar->atn grammar)))))
+                  :count count))
