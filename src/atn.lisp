@@ -66,7 +66,9 @@
 ;; ATN states
 ;;;;;;;;;;;;;;;
 
-(defstruct (atn-state (:type list)) ;; TODO: Make vector. Requires refactoring where I've assumed list
+(defstruct (atn-state (:type list)
+                      (:constructor make-atn-state (name nonterminal type prod-id)) )
+  ;; TODO: Make vector. Requires refactoring where I've assumed list
   name  ;; String description AND unique identifier
   nonterminal ;; The nonterminal the state is within
   type ;; (or 'start 'mid 'final)
@@ -74,21 +76,14 @@
           ;; More precisely, the prod-id refers to the index in the original "list" of productions
   )
 
-(defun init-atn-state (name nonterminal type pid)
-  (make-atn-state
-     :name name
-     :nonterminal nonterminal
-     :type type
-     :prod-id pid))
-
 (defun atn-start-name (head)
-  (init-atn-state (format nil "p_~A" head) head 'start nil))
+  (make-atn-state (format nil "p_~A" head) head 'start nil))
 
 (defun atn-final-name (head)
-  (init-atn-state (format nil "p_~A'" head) head 'final nil))
+  (make-atn-state (format nil "p_~A'" head) head 'final nil))
 
 (defun atn-numeric-name (int head prod-id)
-  (init-atn-state (format nil "p_~A" int) head 'mid prod-id))
+  (make-atn-state (format nil "p_~A" int) head 'mid prod-id))
 
 (defun atn-state-compare (a b)
   "Compare two atn states"

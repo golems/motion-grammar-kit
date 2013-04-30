@@ -927,7 +927,7 @@
    )
 
 (defun finite-fake-atnconf-set (configurations &optional (also-stack t))
-  (let* ((fake-fun (lambda (atn-state-name) (init-atn-state atn-state-name 'fake 'fake 'fake)))
+  (let* ((fake-fun (lambda (atn-state-name) (make-atn-state atn-state-name 'fake 'fake 'fake)))
          (conf-convert (lambda (config)
                          (fill-atnconf (funcall fake-fun (atnconf-state config))
                                        (atnconf-alternative config)
