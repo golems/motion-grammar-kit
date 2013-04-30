@@ -96,6 +96,9 @@
 (defun atn-state-final-p (p)
   (equal 'final (atn-state-type p)))
 
+(defun atn-state-start-p (p)
+  (equal 'start (atn-state-type p)))
+
 ;;;;;;;;;;;;;;;
 ;; ATN states
 ;;;;;;;;;;;;;;;
@@ -148,3 +151,28 @@
                         e))
                     nil grammar)))
     (fa->atn (make-fa fa-edges nil nil))))
+
+(defun atn->grammar (atn)
+  (let ((succ (fa-successors (atn-fa atn)))
+        (prods nil)
+        (start-states (make-finite-set :mutable t)))
+    ;; find initial states
+    (fa-map-edges nil (lambda (q-0 x q-1)
+                        (declare (ignore x q-1))
+                        (when (atn-state-start-p q-0)
+                          (setq start-states (finite-set-nadd start-states q-0))))
+                  (atn-fa atn))
+    (labels ((visit (rev-prod q-0)
+               ;; collect final state
+               (when (atn-state-final-p q-0)
+                 (push (reverse rev-prod) prods))
+               ;; recurse on successors
+               (dolist (s (funcall succ q-0))
+                 (destructuring-bind (x q-1) s
+                   (visit (if (eq :epsilon x)
+                              rev-prod
+                              (cons x rev-prod))
+                          q-1)))))
+      (do-finite-set (q start-states)
+        (visit (list (atn-state-nonterminal q)) q)))
+    prods))

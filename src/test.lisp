@@ -926,6 +926,17 @@
    ;                        (if-pattern  (and (:pattern a b) (:pattern b a)) '(5 5) (+ a b) 'no))
    )
 
+;;;;;;;;;;;
+;;; ATNs ;;
+;;;;;;;;;;;
+
+(lisp-unit:define-test atn
+  (let ((grammar '((a 1 b) (b 2 a))))
+    (assert-finite-set-equal grammar (atn->grammar (grammar->atn grammar)))
+    (lisp-unit:assert-false (finite-set-equal (cons '(a 2 b) grammar)
+                                               (atn->grammar (grammar->atn grammar))))))
+
+
 (defun finite-fake-atnconf-set (configurations &optional (also-stack t))
   (let* ((fake-fun (lambda (atn-state-name) (make-atn-state atn-state-name 'fake 'fake 'fake)))
          (conf-convert (lambda (config)
