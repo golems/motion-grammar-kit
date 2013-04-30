@@ -728,6 +728,10 @@
       (test grammar-3 grammar-3-res)
       (test grammar-4 grammar-4-res))))
 
+(lisp-unit:define-test grammar-map-grouped
+  (assert-finite-set-equal (grammar-map-grouped 'list (lambda (head bodys) (list head bodys)) '((A |b| |c|) (A |c| |d|) (B |e|)))
+                           '((B ((|e|))) (A ((|c| |d|) (|b| |c|))))))
+
 (lisp-unit:define-test codegen
     (let ((fa (make-fa '((a 0 b)
                          (b 1 a)
