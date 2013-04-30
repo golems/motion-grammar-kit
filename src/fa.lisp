@@ -160,6 +160,18 @@ RESULT: (lambda (state)) => (finite-set terminals)"
                     #'first #'cdr
                     :duplicate-type 'list))
 
+(defun fa-bridges (fa)
+  "Map from terminal to (list (list original resultant-state)...)."
+  (index-finite-set (fa-edges fa)
+                    #'second (lambda (edge) (cons (car edge) (cddr edge)))
+                    :duplicate-type 'list))
+
+(defun fa-index-custom (fa key-function value-function)
+  "Map from (key-function edge) to (value-function edge)"
+  (index-finite-set (fa-edges fa)
+                    key-function value-function
+                    :duplicate-type 'list))
+
 ;;;;;;;;;;;;;;;;;
 ;; CONVERSIONS ;;
 ;;;;;;;;;;;;;;;;;
