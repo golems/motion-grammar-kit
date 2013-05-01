@@ -728,6 +728,10 @@
       (test grammar-3 grammar-3-res)
       (test grammar-4 grammar-4-res))))
 
+(lisp-unit:define-test grammar-map-grouped
+  (assert-finite-set-equal (grammar-map-grouped 'list (lambda (head bodys) (list head bodys)) '((A |b| |c|) (A |c| |d|) (B |e|)))
+                           '((B ((|e|))) (A ((|c| |d|) (|b| |c|))))))
+
 (lisp-unit:define-test codegen
     (let ((fa (make-fa '((a 0 b)
                          (b 1 a)
@@ -921,4 +925,357 @@
    ;(lisp-unit:assert-eql 10
    ;                        (if-pattern  (and (:pattern a b) (:pattern b a)) '(5 5) (+ a b) 'no))
    )
-   ;)
+
+(defun finite-fake-atnconf-set (configurations &optional (also-stack t))
+  (let* ((fake-fun (lambda (atn-state-name) (init-atn-state atn-state-name 'fake 'fake 'fake)))
+         (conf-convert (lambda (config)
+                         (fill-atnconf (funcall fake-fun (atnconf-state config))
+                                       (atnconf-alternative config)
+                                       (if also-stack
+                                         (mapcar fake-fun (atnconf-stack config))
+                                         (atnconf-stack config))))))
+    (fold #'finite-set-add (empty-atnconf-set) (mapcar conf-convert configurations))))
+
+(defun assert-atnconf-equal (set expected)
+  (assert-finite-set-equal set
+                           (finite-set-map 'list (lambda (atnconf) (cons (caar atnconf) (cdr atnconf))) expected)))
+
+(defun grammar ()
+  '((A |a| |b|) (A C |b|) (C |d| C |f|) (C |a|)))
+
+(defun atn ()
+  (grammar->ATN (grammar)))
+
+(defun test-closure (start-config tuples &optional (debug nil))
+  "Expected is a list of tuples WITHOUT the alternative fixnum!"
+  (let ((res (atn-closure (atn) (make-empty-dd) start-config))
+        (expected (finite-fake-atnconf-set (mapcar (pattern-lambda ((:pattern x y)) (list x (atnconf-alternative start-config) y)) tuples))))
+    (when debug (print res))
+    (assert-finite-set-equal expected res)))
+
+(lisp-unit:define-test ll-star-closure-C
+  (test-closure (list (ATN-start-name 'C) 7 nil)
+                '(("p_C" nil) ("p_7" nil) ("p_11" nil))))
+
+(lisp-unit:define-test ll-star-closure-A
+  (test-closure (list (ATN-start-name 'A) 5 nil)
+                '(("p_A" nil) ("p_1" nil) ("p_4" nil) ("p_C" ("p_5")) ("p_7" ("p_5")) ("p_11" ("p_5")))))
+
+(lisp-unit:define-test ll-star-closure-8
+  (test-closure (list (ATN-numeric-name 8 'C 2) 5 nil)
+                '(("p_8" nil) ("p_C" ("p_9")) ("p_7" ("p_9")) ("p_11" ("p_9")))))
+
+(lisp-unit:define-test ll-star-closure-empty
+  (test-closure (list (ATN-numeric-name 12 'C 3) 5 nil)
+                '(("p_12" nil) ("p_C'" nil) ("p_9" nil) ("p_5" nil))))
+
+(lisp-unit:define-test ll-star-closure
+  ;; TODO: refactor like the other guys above
+  ;; Slightly harder with different stack rule but still possible
+  (let* ((grammar '((A |a| |b|) (A C |b|) (C |d| C |f|) (C |a|)))
+         (atn (grammar->ATN grammar))
+
+         ;; Test for undoing with nonempty stack
+         (stackNe (list (ATN-numeric-name 9 'C 2) (ATN-numeric-name 5 'A 1)))
+         (resNe (atn-closure atn (make-empty-dd) (list (ATN-numeric-name 12 'C 3) 5 stackNe))))
+    ;(print resNe)
+    (let ((s stackNe)) ;; s as in stack
+      ;; Note, we don't need (or we shouldn't) fakeify the stack as it already is complete
+      ;(print (finite-fake-atnconf-set `("p_12" 5 ,s) `("p_C'" 5 ,s) `("p_9" 5 ,(cdr s))))
+      (assert-finite-set-equal (finite-fake-atnconf-set `(("p_12" 5 ,s) ("p_C'" 5 ,s) ("p_9" 5 ,(cdr s))) nil) resNe))))
+
+(defun ds-only-configurations (configurations)
+  (let ((ds (make-empty-dd)))
+    (setf (dd-configurations ds) (finite-fake-atnconf-set configurations))
+    ds))
+
+(defun ds-only-configuration-states (states)
+  (ds-only-configurations
+    (loop for state in states
+          for x below 123456789
+          collect (list state x nil))))
+
+(lisp-unit:define-test dd-unique-atn-states
+  (labels ((helper (configs)
+             (dd-unique-atn-states (ds-only-configurations configs)))
+           (checker (expected actual)
+             (lisp-unit:assert-true (and (= (finite-set-length expected) (finite-set-length actual))
+                                         (finite-set-equal expected (finite-set-map 'list #'atn-state-name actual))))))
+    (checker '("p_A" "a" "b")
+             (helper '(("p_A" 3 nil) ("a" 1 nil) ("b" 3 nil))))
+
+    (checker '("p_A" "a")
+             (helper '(("p_A" 3 nil) ("a" 1 nil) ("p_A" 3 ("p_B")))))
+
+    (checker '("p_A" "a")
+             (helper '(("a" 3 nil) ("a" 1 nil) ("p_A" 3 ("p_B")))))
+    )
+  )
+
+(lisp-unit:define-test atn-get-terminals
+  (labels ((helper (grammar states)
+             (atn-get-terminals (grammar->ATN grammar) #'terminal-string-p (ds-only-configuration-states states)))
+           (checker (expected actual)
+             (lisp-unit:assert-true (and (= (finite-set-length expected) (finite-set-length actual))
+                                         (finite-set-equal expected actual)))))
+
+    (let* ((grammar '((A |a| |b|) (A C |b|) (C |d| C |f|) (C |a|) (A |gg| |ll| |vv|))))
+
+      (checker '()
+        (helper grammar '("p_A")))
+
+      (checker '(|gg|)
+        (helper grammar '("p_13" "p_13")))
+
+      (checker '(|a|)
+        (helper grammar '("p_1" "p_11")))
+
+      (checker '(|ll| |b| |f| |d|)
+        (helper grammar '("p_14" "p_16" "p_3" "p_2" "p_8" "p_9" "p_7"))))))
+
+(lisp-unit:define-test find-predicted-alternatives
+  (labels ((helper (configs)
+             (sort  (find-predicted-alternatives (ds-only-configurations configs)) #'<)))
+    (lisp-unit:assert-equal '(1 3)
+                            (helper '(("p_A" 3 nil) ("a" 1 nil) ("b" 3 nil))))
+
+    (lisp-unit:assert-equal '(1)
+                            (helper '(("p_A" 1 nil) ("a" 1 nil) ("b" 1 nil))))
+
+    (lisp-unit:assert-equal '()
+                            (helper '()))))
+
+(lisp-unit:define-test LL-star-move
+  (labels ((helper (configs terminal)
+             (apply #'finite-tree-set #'atnconf-compare
+                    (atn-move (grammar->ATN '((A |a| |b|) (A C |b|) (C |d| C |f|) (C |a|)))
+                              (ds-only-configurations configs)
+                              terminal)))
+           (helper-expected (configs)
+             (finite-fake-atnconf-set configs)))
+    (assert-finite-set-equal (helper-expected '(("p_2" 3 nil)))
+                             (helper '(("p_1" 3 nil)) '|a|))
+
+    (assert-finite-set-equal (helper-expected '())
+                             (helper '(("p_1" 3 nil)) '|b|))
+
+
+    (assert-finite-set-equal (helper-expected '())
+                             (helper '(("p_4" 3 nil)) '|C|)) ; XXX: Note illegal input just to show how it works
+
+    (assert-finite-set-equal (helper-expected '(("p_2" 3 nil) ("p_12" 2 nil) ("p_2" 3 ("p_9"))))
+                             (helper '(("p_1" 3 nil) ("p_11" 2 nil) ("p_1" 3 ("p_9")) ("p_3" 2 nil)) '|a|))))
+
+(defun assert-fa-equivalent (expected actual &optional (mgmode nil))
+  ;; TODO: It's SERIOUS issue that I've commented out that the propositions-equivalent.
+  ;; I did it because the many many calls to the sat solver killed my machine
+  (let* ((mgmode-comparator (lambda (e1 e2) (and (gsymbol-compare (first e1) (first e2))
+                                                 ;(propositions-equivalent (second e1) (second e2))
+                                                 (gsymbol-compare (third e1) (third e2)))))
+         (comparator (if mgmode
+                       (curry #'finite-set-equivalent mgmode-comparator)
+                       #'finite-set-equal)))
+    (lisp-unit:assert-true (dfa-equal expected actual comparator))))
+
+(defun assert-create-dfa-errors (grammar nonterminal &optional (mgmode nil))
+  (lisp-unit:assert-error 'simple-error (create-dfa grammar nonterminal mgmode)))
+
+(lisp-unit:define-test ll-star-create-dfa
+  ;; TODO: Also test that productions have the right id in the final states
+  (let* ((my-grammar '((A |a| |b|) (A C |g|) (C |d| C |f|) (C |a|)))
+         ;; This grammar is relatively easy because it's unambigious (though
+         ;; not seen trivially) and there are no backloops
+         (resA (create-dfa my-grammar 'A))
+         (resC (create-dfa my-grammar 'C)))
+    ;(fa-pdf (fa-rewrite-states #'atn-state-name (grammar->ATN my-grammar)))
+    ;(fa-pdf resA :OUTPUT "/tmp/dfa.pdf")
+    (assert-fa-equivalent (make-fa '((s0 |a| s1) (s0 |d| f1) (s1 |g| f1) (s1 |b| f0)) 's0 '(f0 f1)) resA)
+    (assert-fa-equivalent (make-fa '((s0 |a| f3) (s0 |d| f2)) 's0 '(f2 f3)) resC))
+  (let* ((my-grammar '((A L |b|) (A L |d|) (L) (L |a| L)))
+         ;; This grammar is containing a loop, that is it's not LL(k) nor LR(k) for any k
+         ;(resA (create-dfa my-grammar 'A))
+         (resL (create-dfa my-grammar 'L)))
+    ;(assert-fa-equivalent (make-fa '((s0 |a| s1) (s0 |b| f0) (s0 |d| f1)
+    ;                                 (s1 |a| s1) (s1 |b| f0) (s1 |d| f1)) 's0 '(f0 f1)) resA)
+    ;;; Actually, the fa above is not as good as it could be, but it's still ok.
+    ;;
+    ;; Whoups, that actually was LL-regular but the heuristic *should* throw an
+    ;; error here! (see chapter in the LL* paper: "aborting DFA construction")
+    (assert-create-dfa-errors my-grammar 'A)
+
+    (assert-fa-equivalent (make-fa '((s0 |a| f3) (s0 |d| f2) (s0 |b| f2)) 's0 '(f2 f3)) resL))
+
+  (let* ((my-grammar '((A |a| |b| |c| |d| |e| B |f|) (A |a| |b| |c| |d| B |f|) (B |e| |e| A) (B |e| |e| B) (B )))
+         (resA (create-dfa my-grammar 'A))
+         (resB (create-dfa my-grammar 'B)))
+    (assert-fa-equivalent (make-fa '((s0 |a| s1) (s1 |b| s2) (s2 |c| s3) (s3 |d| s4)
+                                     (s4 |e| s6) (s4 |f| f1)
+                                     (s6 |e| s7) (s6 |f| f0)
+                                     (s7 |e| s10) (s7 |a| f1) (s7 |f| f1)
+                                     (s10 |e| s7) (s10 |a| f0) (s10 |f| f0)) 's0 '(f0 f1)) resA)
+    (assert-fa-equivalent (make-fa '((s0 |f| f4) (s0 |e| s1)
+                                     (s1 |e| s2)
+                                     (s2 |a| f2) (s2 |e| f3) (s2 |f| f3)) 's0 '(f2 f3 f4)) resB)
+
+    )
+
+  (assert-create-dfa-errors '((A |a| |b| |c|) (A |a| |b|)) 'A) ;; This grammar should error becuase we can't determine the production
+  (assert-create-dfa-errors '((A |a| C |b|) (A |a| C |c|) (C |d| C |e|) (C )) 'A) ;; This grammar isn't LL-regular (but LR(0) I think)
+  ;; TODO add test for recursion overflow, but I wanna wait until it's parametrized.
+  )
+
+(defun fa-make-fa-print (fa &optional (pp t))
+  (let ((*print-pretty* pp)) (format t "~%(make-fa '~A '~A '~A)~%"
+                             (fa-map-edge-lists 'list #'identity fa)
+                             (fa-start fa)
+                             (finite-set-map 'list #'identity (fa-accept fa)))))
+
+(lisp-unit:define-test ll-star-create-dfa-mgmode
+  ;; TODO: Test that productions have the right id in the final states
+  ;; TODO: There is one issue with these tests, two edges like (A) vs (NOT (NOT
+  ;; A)) are really equivalent. But currently we just check strict equality, so
+  ;; if our prop->simplify method improves, ours tests will start to fail
+  (let* ((my-grammar '((A (pred is-warm) (mu cool-down) A) (A (pred (not is-warm)) (mu heat-up) A)))
+         ;; Note that we use (not is-warm) rather than (is-warm), as then this can be proven to be semantically LL(1)
+         (resA (create-dfa my-grammar 'A t)))
+    (assert-fa-equivalent (make-fa '((s0 IS-WARM f0) (s0 (and (NOT IS-WARM) (NOT IS-WARM)) f1)) 's0 '(f0 f1)) resA) t)
+
+  (assert-create-dfa-errors '((A (pred is-warm) (mu cool-down) A)
+                              (A (pred is-cold) (mu heat-up) A)) 'A t) ;; Not semantically LL(1)
+  (assert-create-dfa-errors '((A (pred is-warm) (mu cool-down) A)
+                              (A (pred (not is-warm)) (mu heat-up) A)
+                              (A (pred (or is-warm (not is-warm))) (mu finale))) 'A t) ;; Not semantically LL(1)
+
+  (let* ((my-grammar '((A (mu cool-down) (pred is-warm)) (A (mu cool-down) (pred (not is-warm)))))
+         ;; Here we check if mutators also appear in the dfa
+         (resA (create-dfa my-grammar 'A t)))
+    ;(fa-make-fa-print resA)
+    (assert-fa-equivalent (make-fa '((s0 (MU cool-down) s1) (s1 IS-WARM f0) (s1 (and (NOT IS-WARM) (NOT IS-WARM)) f1)) 's0 '(f0 f1)) resA) t)
+
+  ;; This test is gonna be kinda ugly so I have to add some helpers
+  ;; We should see that the splitting is working as it should
+  (labels ((ot1 (s) (if (gsymbol-equal s 'a) 'b 'a)) ;; other 1
+           (ot2 (s) (if (gsymbol-equal s 'c) 'b 'c)) ;; other 2
+           (ndef (s) `(and (not ,s ) (or (or d e) f))) ;; (ndef 'd) ==> !d and (e or f)
+           (nabc (s) `(and (and (not ,s) ,(ot1 s)) ,(ot2 s))) ;; (nabc 'a) ==> !a and b and c
+           )
+    (let* ((mu '(MU someeffect))
+           (my-grammar `((A (pred (and a ,(ndef 'd))) ,mu (pred ,(nabc 'a)))
+                         (A (pred (and b ,(ndef 'e))) ,mu (pred ,(nabc 'b)))
+                         (A (pred (and c ,(ndef 'f))) ,mu (pred ,(nabc 'c)))
+                         ))
+           (resA (create-dfa my-grammar 'A t))
+           (ansA (make-fa '((s9 (AND (NOT (AND (AND (NOT C) A) B)) (AND (AND (NOT B) A) C))
+                                final=>1)
+                            (s9 (AND (AND (AND (NOT C) A) B) (NOT (AND (AND (NOT B) A) C)))
+                                final=>2)
+                            (s8 (AND (NOT (AND (AND (NOT C) A) B)) (AND (AND (NOT A) B) C))
+                                final=>0)
+                            (s8 (AND (AND (AND (NOT C) A) B) (NOT (AND (AND (NOT A) B) C)))
+                                final=>2)
+                            (s7 (AND (NOT (AND (AND (NOT A) B) C)) (AND (AND (NOT B) A) C))
+                                final=>1)
+                            (s7 (AND (AND (AND (NOT A) B) C) (NOT (AND (AND (NOT B) A) C)))
+                                final=>0)
+                            (s6 (MU SOMEEFFECT) s9) (s5 (MU SOMEEFFECT) s8)
+                            (s3 (MU SOMEEFFECT) s7)
+                            (s0
+                              (AND
+                                (AND (NOT (AND A (AND (NOT D) (OR (OR D E) F))))
+                                     (AND B (AND (NOT E) (OR (OR D E) F))))
+                                (AND C (AND (NOT F) (OR (OR D E) F))))
+                              s6)
+                            (s0
+                              (AND
+                                (AND (AND A (AND (NOT D) (OR (OR D E) F)))
+                                     (NOT (AND B (AND (NOT E) (OR (OR D E) F)))))
+                                (AND C (AND (NOT F) (OR (OR D E) F))))
+                              s5)
+                            (s0
+                              (AND
+                                (AND (NOT (AND A (AND (NOT D) (OR (OR D E) F))))
+                                     (NOT (AND B (AND (NOT E) (OR (OR D E) F)))))
+                                (AND C (AND (NOT F) (OR (OR D E) F))))
+                              final=>2)
+                            (s0
+                              (AND
+                                (AND (AND A (AND (NOT D) (OR (OR D E) F)))
+                                     (AND B (AND (NOT E) (OR (OR D E) F))))
+                                (NOT (AND C (AND (NOT F) (OR (OR D E) F)))))
+                              s3)
+                            (s0
+                              (AND
+                                (AND (NOT (AND A (AND (NOT D) (OR (OR D E) F))))
+                                     (AND B (AND (NOT E) (OR (OR D E) F))))
+                                (NOT (AND C (AND (NOT F) (OR (OR D E) F)))))
+                              final=>1)
+                            (s0
+                              (AND
+                                (AND (AND A (AND (NOT D) (OR (OR D E) F)))
+                                     (NOT (AND B (AND (NOT E) (OR (OR D E) F)))))
+                                (NOT (AND C (AND (NOT F) (OR (OR D E) F)))))
+                              final=>0)) 's0 '(final=>0 final=>1 final=>2))
+                 ))
+
+      (assert-fa-equivalent ansA resA t) ;; Sufficient but not necessary!
+      ;(fa-pdf resA :OUTPUT "/tmp/dfa.pdf")
+
+      (assert-create-dfa-errors `((A (pred (and a ,(ndef 'd))) ,mu (pred ,(nabc 'a)))
+                                  (A (pred (and b ,(ndef 'e))) (MU othereffect) (pred ,(nabc 'b))) ;; Not semantically LL(1)
+                                  (A (pred (and c ,(ndef 'f))) ,mu (pred ,(nabc 'c)))
+                                  ) 'A t)))
+
+  ;; TODO: These tests below are correct but we must fix that they don't fail
+  ;; if you change the propositions to something that is equivalent
+  ;(let* ((my-grammar '((A (pred hungry)       (mu hunt) EAT (mu sleep))
+  ;                     (A (pred enjoy-hunting) (mu hunt) EXAMRESULT (mu not-sleep))
+  ;                     (EAT (pred helper) (pred hunt-went-ok) (mu grill) (pred (not abc)) (mu eat))
+  ;                     (EAT (pred (not helper)) (pred (and (not you-are-happy-anyway) (not hunt-went-ok))) (mu get-pissed) (mu chillax) (mu chill-more))
+  ;                     (EXAMRESULT (pred helper) (pred success) (mu grill) (pred abc) (mu abc))
+  ;                     (EXAMRESULT (pred (not helper)) (pred you-are-happy-anyway) (mu grill) (pred (not abc)) (mu def))))
+  ;       (resA (create-dfa my-grammar 'A t))
+  ;       (ansA (make-fa '((s12 ABC final=>1) (s12 (AND (NOT ABC) (NOT ABC)) final=>0)
+  ;         (s9 (MU GRILL) s12)
+  ;         (s6
+  ;          (AND (OR YOU-ARE-HAPPY-ANYWAY HUNT-WENT-OK)
+  ;               YOU-ARE-HAPPY-ANYWAY)
+  ;          final=>1)
+  ;         (s6
+  ;          (AND (AND (NOT YOU-ARE-HAPPY-ANYWAY) (NOT HUNT-WENT-OK))
+  ;               (NOT YOU-ARE-HAPPY-ANYWAY))
+  ;          final=>0)
+  ;         (s5 (AND HUNT-WENT-OK SUCCESS) s9)
+  ;         (s5 (AND (NOT HUNT-WENT-OK) SUCCESS) final=>1)
+  ;         (s5 (AND HUNT-WENT-OK (NOT SUCCESS)) final=>0)
+  ;         (s4 (AND (NOT HELPER) (NOT HELPER)) s6) (s4 HELPER s5)
+  ;         (s3 (MU HUNT) s4) (s0 (AND HUNGRY ENJOY-HUNTING) s3)
+  ;         (s0 (AND (NOT HUNGRY) ENJOY-HUNTING) final=>1)
+  ;         (s0 (AND HUNGRY (NOT ENJOY-HUNTING)) final=>0)) 's0 '(final=>0
+  ;                                                               final=>1)))
+  ;       )
+  ;  ;; Multiple nonterminals. Checking many steps here to see that the semantically LL(1) condition seem to work
+  ;  ;(fa-pdf (fa-rewrite-states #'atn-state-name (atn-fa (grammar->ATN my-grammar))))
+  ;  ;(fa-pdf resA :OUTPUT "/tmp/dfa.pdf")
+  ;  ;(fa-pdf (fa-rewrite-states #'atn-state-name (atn-fa (grammar->ATN my-grammar)))  :OUTPUT "/tmp/dotANSA.pdf")
+  ;  ;(fa-pdf ansA :OUTPUT "/tmp/dfaANSA.pdf")
+  ;  ;(fa-make-fa-print ansA)
+  ;  (assert-fa-equivalent ansA resA t)
+  ;  )
+
+  ;(let* ((my-grammar '((B (pred a) (pred a) B)
+  ;                     (B )
+  ;                     (A (pred a) B (pred (not a)))
+  ;                     (A B (pred (not a)))))
+  ;       ;; Not LL(k) (nor LR(k) I believe)
+  ;       (resA (create-dfa my-grammar 'A t))
+  ;       (ansA (make-fa '((s6 (AND (NOT A) (NOT A)) final=>2) (s6 A s3) (s3 A s6)
+  ;         (s3 (AND (NOT A) (NOT A)) final=>3)
+  ;         (s2 (AND (NOT A) (NOT A)) final=>2) (s2 A s3) (s0 A s2)
+  ;         (s0 (AND (NOT A) (NOT A)) final=>3)) 's0 '(final=>2 final=>3)))
+  ;       )
+  ;  ;(fa-make-fa-print resA)
+  ;  ;(fa-pdf (fa-rewrite-states #'atn-state-name (grammar->ATN my-grammar)))
+  ;  ;(fa-pdf resA :OUTPUT "/tmp/dfa.pdf")
+  ;  (assert-fa-equivalent ansA resA t)
+  ;  )
+  )

@@ -65,7 +65,8 @@
                                      (:file "compiler" :depends-on ("fa" "regex"))
                                      (:file "bnf" :depends-on ("compiler"))
                                      (:file "atn" :depends-on ("set" "fa" "grammar"))
-                                     (:file "LL-star" :depends-on ("atn"))
+                                     (:file "ll-star" :depends-on ("atn" "logic"))
+                                     (:file "ll-star-codegen" :depends-on ("ll-star"))
                                      (:file "logic" :depends-on ("meta-pattern"))))
                (:module "python"
                         :depends-on ("base")

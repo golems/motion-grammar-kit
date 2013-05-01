@@ -35,35 +35,51 @@
 
 (in-package :motion-grammar-kit)
 
+;;; ATN (Augmented Transition Networks) - A ATN is like a grammar made easily
+;;; visualizeable (hence why I insisted to make it an fa so I can keep
+;;; (fa-pdf)ing it.) The ATN strictly speaking isn't a finite
+;;; automata, but it's a natural way to encode it
+;;;
+;;; This structure is helpful when creating the lookahead dfa in the LL-star
+;;; algorithm but it might be used for other grammar-analyzing purposes
+;;;
+;;; The atn is also useful because in the LL-star algorithm, it can encode
+;;; regular languages within the graph (think backedges in the atn graph). One
+;;; might argue that one can do it by hand with the grammar, but that is
+;;; incorrect. The dfa construction algorithm can't handle such grammar and
+;;; will say that it's unconfidend if the grammar really is regular or not.
+;;;
+;;; For example this grammar won't work
+;;;
+;;; ((A |a| B |c|)
+;;;  (A |a| B |d|)
+;;;  (B :epsilon)
+;;;  (B |b| B))
+;;;
+;;; However by making very small adjustments to the atn-construction algorithm we could support this syntax
+;;;
+;;; ((A |a| (kleene |b|) |c|)
+;;;  (A |a| (kleene |b|) |d|))
+;;;
+
 ;;;;;;;;;;;;;;;
 ;; ATN states
 ;;;;;;;;;;;;;;;
 
-;;; An atn-state is encoded in a values like this:
-;;;
-;;;   (values string-desc corresponding-nonterminal maybe-prod-id type)
-;;;
-;;; where type is (or 'start 'mid 'final)
-;;;
-;;; This is kinda redundant because maybe-prod-id != nil implies type = 'mid
-;;;
-;;; TODO Define exactly what a prod-id refers to
-
-(defstruct (atn-state (:type list))
+(defstruct (atn-state (:type list)) ;; TODO: Make vector. Requires refactoring where I've assumed list
   name  ;; String description AND unique identifier
   nonterminal ;; The nonterminal the state is within
   type ;; (or 'start 'mid 'final)
   prod-id ;; (or fixnum nil), When type is 'mid, then a fixnum for prodution id, nil otherwise
+          ;; More precisely, the prod-id refers to the index in the original "list" of productions
   )
 
 (defun init-atn-state (name nonterminal type pid)
-  (let ((as (make-atn-state))
-        )
-
-    )
-  ;;; TODO not only for lists
-  (list name nonterminal type pid)
-  )
+  (make-atn-state
+     :name name
+     :nonterminal nonterminal
+     :type type
+     :prod-id pid))
 
 (defun atn-start-name (head)
   (init-atn-state (format nil "p_~A" head) head 'start nil))
@@ -75,28 +91,61 @@
   (init-atn-state (format nil "p_~A" int) head 'mid prod-id))
 
 (defun atn-state-compare (a b)
+  "Compare two atn states"
   (string-compare (atn-state-name a) (atn-state-name b)))
+
+(defun atn-state-equal (a b)
+  (zerop (atn-state-compare a b)))
 
 (defun atn-state-final-p (p)
   (equal 'final (atn-state-type p)))
 
-; TODO, Logical bug!! Fix case with empty productions
+;;;;;;;;;;;;;;;
+;; ATN states
+;;;;;;;;;;;;;;;
+
+;; An atn should ideally be just a finite automata (or something quite similar
+;; to it at least), here however we add stuff to it for efficiency reasons only
+(defstruct atn
+  "The reasons for the names dge/ee/edg is because they look like edge but
+   without one of it's components. Its a nice human mnemonic"
+  fa ;; The actual finite automata
+  mem-dge ;; lambda (q0) => (list (list z q1)... )
+  mem-ee ;; lambda (z) => (list (list q0 q1)... )
+  )
+
+(defun fa->atn (fa)
+  "Create the atn that looks like the fa"
+  (make-atn
+    :fa fa
+    :mem-dge (fa-index-custom fa (compose #'atn-state-name #'first) #'cdr)
+    ;:mem-dge (let ((f (fa-successors fa)) (lambda (q0) (funcall f (atn-state-name q0))))) ;; This is the same but ugly
+    :mem-ee (fa-bridges fa)))
+
+(defun atn-dge (atn atn-state)
+  "Convience. See mem-dge"
+  (funcall (atn-mem-dge atn) (atn-state-name atn-state)))
+
+(defun atn-ee (atn symbol)
+  "Convience. See mem-ee"
+  (funcall (atn-mem-ee atn) symbol))
+
 (defun grammar->ATN (grammar)
-  "Return the ATN of the grammar in fa format. The ATN strictly speaking isn't
-   a finite automata, but it's a natural way to encode it"
-  (let ((counter 0)
-        )
-    ;TODO fix the code duplication in ATN-numeric-name calls
-    ;TODO prettify by having something like "grammar-map-grouped (lambda (head bodys))"
-      (make-fa (apply #'append (grammar-map 'list (lambda (head body)
+  "Return the ATN of the grammar. "
+  (let ((state-counter 0)
+        (prod-counter -1))
+      (fa->atn (make-fa (apply #'append (grammar-map 'list (lambda (head body)
+                                    (incf prod-counter)
                                     (labels ((chain (xs)
                                                (if xs
-                                                 (cons (list (ATN-numeric-name counter head 123) (car xs) (ATN-numeric-name (incf counter) head 123)) (chain (cdr xs)))
-                                                 nil)))
-                                    (let* ((beg (list (ATN-START-NAME head) :epsilon (ATN-NUMERIC-NAME (incf counter) head 123)))
+                                                 (cons (list (numeric state-counter) (car xs) (numeric (incf state-counter))) (chain (cdr xs)))
+                                                 nil))
+                                             (numeric (id) (atn-numeric-name id head prod-counter))
+                                             )
+                                    (let* ((beg (list (ATN-START-NAME head) :epsilon (numeric (incf state-counter))))
                                            (mids (chain body))
-                                           (end (list (ATN-NUMERIC-NAME counter head 123) :epsilon (ATN-FINAL-NAME head)))
+                                           (end (list (numeric state-counter) :epsilon (ATN-FINAL-NAME head)))
                                            )
                                       `(,beg ,@mids ,end)
                                       ))
-                                    ) grammar)) nil nil)) )
+                                    ) grammar)) nil nil))))
