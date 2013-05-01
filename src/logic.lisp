@@ -46,45 +46,68 @@
 ;;;    | (implies E)
 ;;;    | (iff E E)
 
-(defun prop-simplify (e)
-  (pattern-case e
-    ;; ;; simple equivalence
-    ((:pattern (or 'and 'or) a a)
-     (prop-simplify a))
-    ;; operator removal
-    ((or (:pattern 'and a (eq t))
-         (:pattern 'and (eq t) a)
-         (:pattern 'or nil a)
-         (:pattern 'or a nil))
-     (prop-simplify a))
-    ((or (:pattern 'and t nil)
-         (:pattern 'and nil t))
-     nil)
-    ((or (:pattern 'or t (eq t))
-         (:pattern 'or (eq t) t))
-     t)
-    ;; double negation
-    ((:pattern 'not (:pattern 'not a))
-     (prop-simplify a))
-    ;; implication elimination
-    ((:pattern 'implies a b)
-     (prop-simplify `(or (not ,a) ,b)))
-    ;; biconditional elimination
-    ((:pattern 'iff a b)
-     (prop-simplify `(and (implies ,a ,b) (implies ,b ,a))))
-    ;; basic formula, recurse
-    ((atom) e)
-    ((:pattern (or 'and 'or 'implies 'iff)
-               a b)
-     (list (car e) (prop-simplify a) (prop-simplify b)))
-    ((:pattern 'not a)
-     (list (car e) (prop-simplify a)))
-    (t (error "Invalid proposition: ~A" e))))
+(defun prop-simplify (e &optional (use-minisat nil))
+  (labels ((recurse (e) (prop-simplify e use-minisat))
+           (same-as (e1 e2) (when use-minisat (propositions-equivalent e1 e2)))
+           (never-as (e1 e2) (same-as e1 (list 'not e2)))
+           (help-simplify (e)
+             (pattern-case e
+               ;; ;; simple equivalence
+               ((:pattern (or 'and 'or) a a)
+                (recurse a))
+               ;; operator removal
+               ((or (:pattern 'and a (eq t))
+                    (:pattern 'and (eq t) a)
+                    (:pattern 'or nil a)
+                    (:pattern 'or a nil)
+                    (:pattern 'and a (:predicate same-as a))
+                    (:pattern 'or a (:predicate same-as a))
+                    )
+                (recurse a))
+               ((or (:pattern 'and t nil)
+                    (:pattern 'and nil t)
+                    )
+                nil)
+               ((:pattern 'and a (:predicate never-as a))
+                nil)
+
+               ((or (:pattern 'or t (eq t))
+                    (:pattern 'or (eq t) t)
+                    )
+                t)
+               ((:pattern 'or a (:predicate never-as a))
+                t)
+               ;; de morgan (and --> or)
+               ((:pattern 'not (:pattern 'and (:pattern 'not a) (:pattern 'not b)))
+                (list 'or a b))
+               ;; de morgan (or --> and)
+               ((:pattern 'not (:pattern 'or (:pattern 'not a) (:pattern 'not b)))
+                (list 'and a b))
+               ;; double negation
+               ((:pattern 'not (:pattern 'not a))
+                (recurse a))
+               ;; implication elimination
+               ((:pattern 'implies a b)
+                (recurse `(or (not ,a) ,b)))
+               ;; biconditional elimination
+               ((:pattern 'iff a b)
+                (recurse `(and (implies ,a ,b) (implies ,b ,a))))
+               ;; basic formula, recurse
+               ((atom) e)
+               ((:pattern (or 'and 'or 'implies 'iff) a b)
+                 (list (car e) (recurse a) (recurse b)))
+               ((:pattern 'not a)
+                (list (car e) (recurse a)))
+               (t (error "Invalid proposition: ~A" e)))))
+    (let ((e-new (help-simplify e)))
+      (if (gsymbol-equal e e-new)
+        e
+        (recurse e-new)))))
 
 (defun logic-variables (e)
   (labels ((helper (v e)
              (pattern-case e
-               ((:pattern (or 'and 'or :iff :implies) &rest args)
+               ((:pattern (or 'and 'or 'iff 'implies) &rest args)
                 (fold #'helper v args))
                ((:pattern 'not a)
                 (helper v a))
@@ -180,11 +203,11 @@ A conjunction of disjunctions of literals."
                     (:pattern 'or (eq t) t))
                 (rewrite t))
                ;; implication elimination
-               ((:pattern :implies a b)
+               ((:pattern 'implies a b)
                 (rewrite 'or `(not ,a) b))
                ;; biconditional elimination
-               ((:pattern :iff a b)
-                (rewrite 'and `(:implies ,a ,b) `(:implies ,b ,a)))
+               ((:pattern 'iff a b)
+                (rewrite 'and `(implies ,a ,b) `(implies ,b ,a)))
                ;; move not inwards
                ((:pattern 'not (:pattern 'and a b))
                 (rewrite 'or `(not ,a) `(not ,b)))
@@ -212,9 +235,11 @@ A conjunction of disjunctions of literals."
                 (fixup `(or ,e)))
                ((eq (car e) 'or)
                 `(and ,e))
-               (t (destructuring-bind (and a b) e
-                    (assert (eq and 'and))
-                    (list 'and (wrap 'or a) (wrap 'or b)))))))
+               (t (fixup-ands e))))
+           (fixup-ands (e)
+             (if-pattern (:pattern 'and a b) e
+                         (list 'and (fixup-ands a) (fixup-ands b))
+                         (wrap 'or e))))
     (fixup (visit e))))
 
 (defun prop->dimacs (e &optional (stream *standard-output*))
@@ -247,6 +272,7 @@ A conjunction of disjunctions of literals."
                 (dimacs-pathname (format nil "/tmp/dimacs.~D" (sb-posix:getuid)))
                 (minisat-result-pathname (format nil "/tmp/minisat.~D" (sb-posix:getuid)))
                 (keep-files t))
+  (unless e (return-from minisat (values nil nil)))
   (unwind-protect
        (let ((vars ;; write dimacs
               (with-open-file (s dimacs-pathname :direction :output :if-exists :supersede)
@@ -281,6 +307,20 @@ A conjunction of disjunctions of literals."
       (when (probe-file minisat-result-pathname)
         (delete-file minisat-result-pathname)))))
 
+(defun prop-sat-p (e)
+  "Is E satisfiable?"
+  (minisat e))
+
+(defun prop-tautology-p (e)
+  "Is E always true?
+  Note, kinda expensive since it calls minisat."
+  (not (prop-sat-p (list 'not e))))
+
+(defun prop-equivalent-p (e1 e2)
+  "Is ('iff E1 E2) a tautology?
+  Note, kinda expensive since it calls minisat."
+  (prop-tautology-p (list 'iff e1 e2)))
+
 (defun print-logic-vars (integer vars)
   (when integer
     (loop
@@ -298,7 +338,7 @@ A conjunction of disjunctions of literals."
        for i from 0
        collect
          (if (zerop (ldb (byte 1 i) integer))
-             (cons not v)
+             (cons 'not v)
              v))))
 
 (defun horn-clause (body &optional head)

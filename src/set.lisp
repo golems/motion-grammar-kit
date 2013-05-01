@@ -60,7 +60,12 @@ MUTABLE: Should this be a mutable set?
     (t nil)))
 
 (defun finite-set (&rest items)
-  (fold #'finite-set-add (make-finite-set) items))
+  "Make a set"
+  (finite-set-union (make-finite-set) items))
+
+(defun finite-tree-set (compare &rest items)
+  "Make a tree-set"
+  (apply #'tree-set compare items))
 
 (defun map-finite-set (result-type function set)
   "Apply FUNCTION to all members of SET."
@@ -95,17 +100,6 @@ MUTABLE: Should this be a mutable set?
   (etypecase set
     (tree-set set)
     (list (gsymbol-sort set))))
-
-(defun finite-set-map-cross (function set-1 &rest sets)
-  (cond
-    ((null sets) (finite-set-map nil function set-1))
-    (t
-     (finite-set-map nil
-                     (lambda (s-1)
-                       (apply #'finite-set-map-cross
-                              (curry function s-1)
-                              sets))
-                     set-1))))
 
 (defmacro do-finite-set ((var set &optional result-form) &body body)
   "Iterate over members of the set."
@@ -179,13 +173,36 @@ RESULT: a finite set"
     (t
      (error "Can't operate on ~A and ~B" a b))))
 
+(defun finite-set-relation-subset (relation set-a set-b)
+  "For every elemenent of SET-A, does there exist an element of SET-B satisfying RELATION?"
+  (block outer
+    (do-finite-set (ea set-a) ;; iterate over set-a
+      (block inner
+        (do-finite-set (eb set-b) ;; iterate over set-b
+          (when (funcall relation ea eb) ;; if equivalent, short-circuit the inner loop
+            (return-from inner)))
+        ;; nothing equivalent, sets are not equal
+        (return-from outer nil)))
+    ;; all passed, equal
+    t))
+
+(defun finite-set-equivalent (relation set-a set-b)
+  "Are the sets equivalent, that is, does every element in set-aa exist in set-bb and vice verse?
+   Note that this function is *much* slower than to just check if the sets are equal.
+   RELATION: lambda (e1 e2) ==> (or t nil). Must be an equivalence relation"
+  ;; TODO We can't escape worst case O(n^2). But we could occasionally get O(1) if we would use more lazyness
+  (and (finite-set-relation-subset relation set-a set-b)
+       (finite-set-relation-subset relation set-b set-a)))
+
 (defun finite-set-list (set)
+  "Return SET as a list"
   (etypecase set
     (list set)
     (tree-set (map-tree-set 'list #'identity set))
     (hash-table (loop for k being the hash-keys of set collect k))))
 
 (defun finite-set-tree (set)
+  "Return SET as a tree"
   (etypecase set
     (list (fold #'tree-set-insert (make-tree-set #'gsymbol-compare) set))
     (tree-set set)
@@ -237,15 +254,34 @@ RESULT: a finite set"
 
 (defun finite-set-union (set-1 set-2)
   "Return the union of set-1 and set-2."
-  (cond
-    ((null set-1) set-2)
-    ((null set-2) set-1)
-    ((and (listp set-1) (listp set-2))
-     (union set-1 set-2 :test #'equal))
-    ((and (tree-set-p set-1)
-          (tree-set-p set-2))
-     (tree-set-union set-1 set-2))
-    (t (error "Can't union on ~A and ~B" set-1 set-2))))
+  (labels ((add-to-tree (set items)
+             (declare (type tree-set set))
+             (fold-finite-set #'tree-set-insert set items))
+           (add-to-hash (set items)
+             (let ((f (lambda (h k)
+                        (setf (gethash k h) t)
+                        h)))
+               (fold-finite-set f
+                                (fold-finite-set f (make-finite-set :mutable t) set)
+                                items))))
+    (etypecase set-1
+      (null set-2)
+      (list (etypecase set-2
+              (null set-1)
+              (list (union set-1 set-2 :test #'equal))
+              (tree-set (add-to-tree set-2 set-1))
+              (hash-table (union set-1 (finite-set-list set-2)
+                                 :test #'equal))))
+      (tree-set (etypecase set-2
+                  (null set-1)
+                  (list (add-to-tree set-1 set-2))
+                  (tree-set (tree-set-union set-1 set-2))
+                  (hash-table (add-to-tree set-1 set-2))))
+      (hash-table (etypecase set-2
+                    (null set-1)
+                    (list (add-to-hash set-1 set-2))
+                    (tree-set (tree-set-union set-2 set-1))
+                    (hash-table (add-to-hash set-1 set-2)))))))
 
 (defun finite-set-intersection (set-1 set-2)
   (cond
@@ -361,3 +397,15 @@ RESULT: (values (lambda (key)) => (values (list set-values...) (or t nil))
                     value)))
       (values (lambda (key) (gethash key hash))
               hash))))
+
+(defun partition-finite-set (set relation)
+  "Partition the set. Note that this function must be slow, if you can, use index-finite-set instead.
+RELATION: lambda (a b) => boolean. Must be an equivalence relation
+RESULT: Function always returns a list of non-empty lists of set-elements. If all
+elements are related, it will return a singleton list with n elements."
+  (let ((partitions nil))
+    (do-finite-set (a set partitions)
+      (if-let ((match-partition (find-if (lambda (partition-b) (funcall relation a (car partition-b)))
+                                         partitions)))
+        (rplacd match-partition (cons a (cdr match-partition)))
+        (push (list a) partitions)))))

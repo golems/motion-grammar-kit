@@ -70,6 +70,10 @@ FUNCTION: (lambda (q-0 z q-1))"
        (fa-edges fa)))
 
 (defun fold-fa-edges (function initial-value fa)
+  "Fold FUNCTION over edges of FA.
+FUNCTION: (lambda (accumulator q-0 z q-1))
+INITIAL-VALUE: initial value of accumulator
+FA: the finite-automaton"
   (fold (lambda (v e) (apply function v e))
         initial-value (fa-edges fa)))
 
@@ -154,6 +158,18 @@ RESULT: (lambda (state)) => (finite-set terminals)"
   "Map from original-state to (list (list terminal resultant-state)...)."
   (index-finite-set (fa-edges fa)
                     #'first #'cdr
+                    :duplicate-type 'list))
+
+(defun fa-bridges (fa)
+  "Map from terminal to (list (list original resultant-state)...)."
+  (index-finite-set (fa-edges fa)
+                    #'second (lambda (edge) (cons (car edge) (cddr edge)))
+                    :duplicate-type 'list))
+
+(defun fa-index-custom (fa key-function value-function)
+  "Map from (key-function edge) to (value-function edge)"
+  (index-finite-set (fa-edges fa)
+                    key-function value-function
                     :duplicate-type 'list))
 
 ;;;;;;;;;;;;;;;;;
@@ -539,27 +555,40 @@ MOVER: fuction from (state-0 token) => (list state-1-0 state-1-1...)"
                start
                vertices)))
 
+(defun fa-rewrite-states (fun fa)
+  "Convert each state label by applying fun. The fa will only remain equivalent
+   if the function fun is injective"
+  (labels ((f (q) (funcall fun q))
+           (helper (q0 z q1) (list (f q0) z (f q1))))
+    (make-fa (fa-map-edges 'list #'helper fa) (f (fa-start fa)) (finite-set-map 'list fun (fa-accept fa)))))
+
+(defun fa-rewrite-edges (fun fa)
+  "Convert each edge label by applying fun. The fa will only remain equivalent
+   if the function fun is injective"
+  (labels ((f (q) (funcall fun q))
+           (helper (q0 z q1) (list q0 (f z) q1)))
+    (make-fa (fa-map-edges 'list #'helper fa) (fa-start fa) (fa-accept fa))))
 
 ;;;;;;;;;;;;;;;;;;;;
 ;; SET OPERATIONS ;;
 ;;;;;;;;;;;;;;;;;;;;
 
 
-(defun dfa-eq (a b)
-  "Check equivalence up to state names of DFAs"
+(defun dfa-eq (a b &optional (edge-test #'equal))
+  "Check that DFAs are identical."
   (and (finite-set-equal (fa-states a) (fa-states b))
        (finite-set-equal (fa-terminals a) (fa-terminals b))
        (finite-set-equal (fa-accept a) (fa-accept b))
-       (equal (fa-edges a) (fa-edges b))
+       (funcall edge-test  (fa-edges a) (fa-edges b))
        (equal (fa-start a) (fa-start b))))
 
-(defun dfa-equal (a b)
-  "Check equivalence up to state names of DFAs"
+(defun dfa-equal (a b &optional (edge-test #'equal))
+  "Check equivalence up to state names of DFAs."
   (assert (dfa-p a))
   (assert (dfa-p b))
   (let ((a (dfa-renumber a))
         (b (dfa-renumber b)))
-    (dfa-eq a b)))
+    (dfa-eq a b edge-test)))
 
 (defun fa-equiv (a b)
   "Check if two FAs recognize the same language."

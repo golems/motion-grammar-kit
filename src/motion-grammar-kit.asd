@@ -63,7 +63,11 @@
                                      (:file "codegen" :depends-on ("fa" "grammar" "matcher"))
                                      (:file "threadpool" :depends-on ("package"))
                                      (:file "compiler" :depends-on ("fa" "regex"))
-                                     (:file "bnf" :depends-on ("compiler"))))
+                                     (:file "bnf" :depends-on ("compiler"))
+                                     (:file "atn" :depends-on ("set" "fa" "grammar"))
+                                     (:file "ll-star" :depends-on ("atn" "logic"))
+                                     (:file "ll-star-codegen" :depends-on ("ll-star"))
+                                     (:file "logic" :depends-on ("meta-pattern"))))
                (:module "python"
                         :depends-on ("base")
                         :components ((:file "package")
