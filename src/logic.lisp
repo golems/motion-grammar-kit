@@ -349,3 +349,16 @@ A conjunction of disjunctions of literals."
     (if head
         (fold #'helper head body)
         (fold #'helper (list 'not (car body)) (cdr body)))))
+
+
+
+(defun prop-print-op-function (op)
+  (apply #'values
+         (cdr (assoc op '((not     :prefix 3  " ! ")
+                          (and     :infix 13 " && ") ;; C precedence
+                          (or      :infix 14 " || ") ;; C precedence
+                          (implies :infix 20 " -> ")
+                          (iff     :infix 21 " <-> "))))))
+
+(defun prop-print (e &key (output *standard-output*))
+  (infix-print e #'prop-print-op-function :output output))

@@ -494,3 +494,46 @@ LANG: language output for dot, (or pdf ps eps png)"
            (not (string= lang "dot")))
       (output-dot-file program output function lang)
       (output-function function output)))
+
+
+(defun infix-print (e op-function &key
+                    (output *standard-output*)
+                    (parent-precedence most-positive-fixnum))
+  "Print S-Expression in infix notation.
+OP-FUNCTION: (lambda (operator)) => (values (or :infix :prefix :postfix) precedence printable-string)
+
+Lower precedence operators are applied first."
+  (if (consp e)
+      ;; s-expression
+      (destructuring-bind (op &rest args) e
+        (multiple-value-bind (fix precedence op-string) (funcall op-function op)
+          (if fix
+              ;; print an operator
+              (labels ((cont (e)
+                         (infix-print e op-function :output output :parent-precedence precedence))
+                       (helper ()
+                         (ecase fix
+                           (:prefix
+                            (assert (null (cdr args)))
+                            (princ op-string output)
+                            (cont (car args)))
+                           (:suffix
+                            (assert (null (cdr args)))
+                            (cont (car args))
+                            (princ op-string output))
+                           (:infix
+                            (cont (first args))
+                            (princ op-string output)
+                            (if (cddr args)
+                                (cont (cons op (cdr args)))
+                                (cont (second args)))))))
+                (if (> precedence parent-precedence)
+                    (progn (princ "(")
+                           (helper)
+                           (princ ")")
+                           nil)
+                    (helper)))
+              ;; print a symbol
+              (progn (princ e output) nil))))
+      ;; atom
+      (progn (princ e output) nil)))
