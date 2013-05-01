@@ -26,6 +26,7 @@
     ((nonterminalp sym) (csymbol sym "nonterminal_"))
     ((mutatorp sym) (csymbol (second sym) "mutator_"))
     ((predicatep sym) (csymbol (second sym) "predicate_"))
+    ((kleenep sym) (csymbol (second sym) "predicate_"))
     (t (error (format nil "Unknown symbol type ~A" sym)))))
 
 (defun symbol-c-pvalue (sym)
@@ -36,6 +37,7 @@
     ((nonterminalp sym) "NONTERMINAL")
     ((mutatorp sym) "MUTATOR")
     ((predicatep sym) "PREDICATE")
+    ((kleenep sym) "KLEENE")
     (t (error (format nil "Unknown symbol type ~A" sym)))))
 
 (defun c-list (elements)
@@ -49,7 +51,7 @@
 
 (defun extract-predicates (grammar dfas)
   (let ((all-symbols (remove-duplicates (apply #'append `(,@grammar ,@(mapcar (compose #'finite-set-list #'fa-terminals) dfas))) :test #'gsymbol-equal)))
-    (mapcar #'terminal-get-prop (remove-if-not #'predicatep all-symbols))))
+    (mapcar #'terminal-get-prop (remove-if-not #'has-proposition-p all-symbols))))
 
 (defun emit-observation-type (predicates)
   (let ((variables (fold #'finite-set-union (make-finite-set) (finite-set-map 'list #'logic-variables predicates))))
@@ -122,7 +124,9 @@
                                            collecting acc)))
                      (c-list-map (addstring "(untyped_t)" (compose #'symbol-c-pvalue #'first)) edges)
                      (c-list-map (compose #'symbol-c-type #'first) edges)
-                     (c-list-map (compose (rcurry #'gethash state-ids) #'second) edges))))
+                     (c-list-map (compose (rcurry #'position state-sequence :test #'string=) #'second) edges)
+                     ;(c-list-map (compose (rcurry #'gethash state-ids) #'second) edges) ;; TODO this is also buggy ...
+                     )))
 
 (defun emit-nonterminal (head bodys)
   (declare (ignore bodys))

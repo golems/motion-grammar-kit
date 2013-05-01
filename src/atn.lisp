@@ -130,6 +130,12 @@
   "Convience. See mem-ee"
   (funcall (atn-mem-ee atn) symbol))
 
+(defun kleenep (terminal) ;; TODO find place to put
+  (and (not (nonterminalp terminal)) (gsymbol-equal 'KLEENE (terminal-give-type terminal))))
+
+(defun has-proposition-p (symbol) ;; TODO find place to put
+  (or (kleenep symbol) (predicatep symbol)))
+
 (defun grammar->ATN (grammar)
   "Return the ATN of the grammar. "
   (let ((state-counter 0)
@@ -137,9 +143,19 @@
       (fa->atn (make-fa (apply #'append (grammar-map 'list (lambda (head body)
                                     (incf prod-counter)
                                     (labels ((chain (xs)
-                                               (if xs
-                                                 (cons (list (numeric state-counter) (car xs) (numeric (incf state-counter))) (chain (cdr xs)))
-                                                 nil))
+                                               (pattern-case xs
+                                                 ((:pattern (:pattern 'kleene prop) &rest xs)
+                                                  (unless (and (equal 'pred (caar xs)) (not (minisat (list 'and prop (cadar xs)))))
+                                                    (error "Sorry, restriction of kleene star to have disjoint follow pred
+Not because of atn but because you later don't know which terminal to take when you're NOT predicting.")
+                                                    )
+                                                  (cons (list (numeric state-counter) (list 'pred prop) (numeric state-counter))
+                                                        (cons (list (numeric state-counter) :epsilon (numeric (incf state-counter))) (chain xs))
+                                                        )
+                                                  )
+                                                 ((:pattern x &rest xs) (cons (list (numeric state-counter) x (numeric (incf state-counter))) (chain xs)))
+                                                 (t nil)
+                                                 ))
                                              (numeric (id) (atn-numeric-name id head prod-counter))
                                              )
                                     (let* ((beg (list (ATN-START-NAME head) :epsilon (numeric (incf state-counter))))

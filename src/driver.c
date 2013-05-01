@@ -14,7 +14,8 @@ typedef void* untyped_t;
 typedef enum {
   NONTERMINAL, // Simply a nonterminal
   PREDICATE,   // A predicate, should been defined before code generation (in the lisp program)
-  MUTATOR      // A side effect, you're expected to write one c function for each type of mutator
+  MUTATOR,     // A side effect, you're expected to write one c function for each type of mutator
+  KLEENE       // Like predicate, but "stay where you are" if true
 } symbol_type_t ;
 
 #define MAX_PRODUCTION_LENGTH 50
@@ -136,6 +137,15 @@ beginning:
         else {
           run_nonterminal((nonterminal_t*) prod->data[i]);
         }
+        break;
+      case KLEENE: {
+        predicate_t pred = (predicate_t) prod->data[i];
+        observation_t obs = get_observation(curr_beg, NULL);
+        if(pred(obs)) {
+          i--;
+        }
+        curr_beg = (curr_beg+1)%STORE_SIZE;
+                   }
         break;
       case PREDICATE: {
         predicate_t pred = (predicate_t) prod->data[i];

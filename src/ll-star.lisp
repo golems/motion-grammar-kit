@@ -227,7 +227,7 @@
   (and (not (nonterminalp terminal)) (gsymbol-equal 'PRED (terminal-give-type terminal))))
 
 (defun terminal-get-prop (terminal)
-  (assert (predicatep terminal))
+  (assert (or (predicatep terminal) (kleenep terminal)))
   (second terminal))
 
 (defun terminal-get-effect (terminal)
