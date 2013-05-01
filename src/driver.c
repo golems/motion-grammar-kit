@@ -57,20 +57,20 @@ observation_t fetch_observation() {
   return ret;
 }
 
-observation_t get_observation(int pos, bool_t *is_first_observation) {
+observation_t get_observation(int pos, bool_t *is_fetched_observation) {
   if (pos == curr_end) {
-    *is_first_observation = 1;
+    if (is_fetched_observation != NULL) *is_fetched_observation = 1;
     return fetch_observation();
   } else {
     // assuming it's in range here, namely "pos < curr_end" (but in modulo and such)
-    *is_first_observation = 0;
+    if (is_fetched_observation != NULL) *is_fetched_observation = 0;
     return store[pos];
   }
 }
 
 /// handle_mutator: Perform the action if it's the first time we observe it
-void handle_mutator(mutator_t mutator, bool_t is_first_observation) {
-  if(is_first_observation) {
+void handle_mutator(mutator_t mutator, bool_t is_fetched_observation) {
+  if(is_fetched_observation) {
     mutator();
   }
 }
@@ -92,15 +92,15 @@ production_t *run_dfa(dfa_t *automata) {
     if(automata->final[curr_node]) {
       return automata->final[curr_node];
     }
-    bool_t is_first_observation;
-    observation_t obs = get_observation(pred_pos, &is_first_observation);
+    bool_t is_fetched_observation;
+    observation_t obs = get_observation(pred_pos, &is_fetched_observation);
     int beg = automata->range[curr_node], end = automata->range[curr_node+1];
     int happened = 0; // Just for sanity check
     for(int i = beg; i < end; i++) {
       switch( automata->types[i] ) {
         case MUTATOR: {
           mutator_t mutator = (mutator_t) automata->edges[i];
-          handle_mutator(mutator, is_first_observation);
+          handle_mutator(mutator, is_fetched_observation);
           assert((beg+1 == end) && "We only expect one edge if there's a mutator");
           happened = 1;
                       }
@@ -123,8 +123,9 @@ production_t *run_dfa(dfa_t *automata) {
 }
 
 void run_nonterminal(nonterminal_t *nt) {
+  production_t *prod;
 beginning:
-  production_t *prod = run_dfa(nt->automata);
+  prod = run_dfa(nt->automata);
   for(int i = 0; i < prod->num_symbols; i++ ) {
     switch( prod->types[i] ) {
       case NONTERMINAL:
@@ -136,21 +137,20 @@ beginning:
           run_nonterminal((nonterminal_t*) prod->data[i]);
         }
         break;
-      case PREDICATE:
-        if(queue_is_empty()) {
-          observation_t obs = fetch_observation();
-          predicate_t pred = (predicate_t) prod->data[i];
-          assert(pred(obs) && "Syntax error OR bug in dfa/prediction");
-        }
+      case PREDICATE: {
+        predicate_t pred = (predicate_t) prod->data[i];
+        observation_t obs = get_observation(curr_beg, NULL);
+        assert(pred(obs) && "Syntax error OR bug in dfa/prediction");
         curr_beg = (curr_beg+1)%STORE_SIZE;
+                      }
         break;
-      case MUTATOR:
-        if(queue_is_empty()) {
-          fetch_observation();
-          mutator_t mutator = (mutator_t) prod->data[i];
-          handle_mutator(mutator, 1);
-        }
+      case MUTATOR: {
+        mutator_t mutator = (mutator_t) prod->data[i];
+        bool_t is_fetched_observation;
+        get_observation(curr_beg, &is_fetched_observation);
+        handle_mutator(mutator, is_fetched_observation);
         curr_beg = (curr_beg+1)%STORE_SIZE;
+                    }
         break;
     }
   }
