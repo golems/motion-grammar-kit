@@ -278,8 +278,8 @@ TERMINALS: Set of all terminal symbols in the language.
                        (assert (null (cdr rest)))
                        `(:union :epsilon ,(rec (car rest))))
                       (:not
-                       (assert (null (cdr rest)))
-                       (assert (finite-set-inp (car rest) terminals))
-                       (cons :union (finite-set-list (finite-set-remove terminals (car rest)))))
+                       ;(assert (finite-set-inp (car rest) terminals))
+                       (cons :union (finite-set-list (finite-set-difference (finite-set-list terminals)
+                                                                            rest))))
                       (otherwise regex)))))))
       (rec regex))))
