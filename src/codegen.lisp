@@ -174,7 +174,8 @@
 
 
 (defun csymbol (gsymbol &optional prefix)
-  (let ((name (string-downcase (gsymbol-name gsymbol))))
+  (let* ((*print-pretty* nil)
+         (name (string-downcase (gsymbol-name gsymbol))))
     (with-output-to-string (s)
       (when prefix (princ (csymbol prefix) s))
       (labels ((putchars (c) (princ c s)))
