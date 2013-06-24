@@ -166,6 +166,7 @@
                 nonterms))
          (term-number (finite-set-enumerate terminals))
          (pred-table (eatn-predictive-table fa-hash))
+         (count-recurse (make-hash-table :test #'equal)) ; a q => n
          (succs (make-hash-table :test #'equal))
          (case-hash (make-hash-table :test #'equal)))
     (print nonterms)
@@ -173,12 +174,27 @@
     (dolist (a nonterms)
       (setf (gethash a succs)
             (fa-successors (gethash a fa-hash))))
+    ;; index recursion targets
+    (setf (gethash (list start-symbol
+                         (fa-start (gethash start-symbol fa-hash)))
+                   count-recurse)
+          1)
+    (dolist (a nonterms)
+      (do-finite-set (q (fa-states (gethash a fa-hash)))
+        (do-finite-set (z terminals)
+          (multiple-value-bind (b qq type q1)
+              (funcall pred-table a q z)
+            (declare (ignore q1))
+            (when (eq :call type)
+              (incf (gethash (list b qq) count-recurse 0)))))))
     ;; index case numbers
     (let ((i -1))
       (do-finite-set (a nonterms)
         (do-finite-set (q (fa-states (gethash a fa-hash)))
-          (setf (gethash (list a q) case-hash)
-                (incf i)))))
+          (let ((k (list a q)))
+          (when (gethash k count-recurse)
+            (setf (gethash k case-hash)
+                  (incf i)))))))
     ;; emit
     (labels ((jmp-label (a q)
                (format nil "label_~A_~d"
@@ -200,7 +216,36 @@
                    `(:&& (:call "mg_supervisor_allow" "table"
                                 ,(funcall term-number z))
                          ,(c-parser-test z "context"))
-                   (c-parser-test z "context"))))
+                   (c-parser-test z "context")))
+             (accept-p (a q)
+               (finite-set-inp q (fa-accept (gethash a fa-hash))))
+             (state-jump (a q)
+               (if (accept-p a q)
+                   '(:goto label-ok)
+                   `(:goto ,(jmp-label a q))))
+             (state-clauses (a q)
+               (if (accept-p a q)
+                   '(:goto label-ok)
+                   ;(let ((clauses '(:return -1)))
+                   (fold-finite-set
+                    (lambda (clauses z)
+                      (multiple-value-bind (b qq type q1)
+                          (funcall pred-table a q z)
+                        (if type
+                            `(:if ,(term-test z)
+                                  (,@(set-super z)
+                                     ,(ecase
+                                       type
+                                       (:jump
+                                        (state-jump b qq))
+                                       (:call
+                                        `(:if ,(recurse-call (call-idx b qq))
+                                              ((:goto label-fail))
+                                              ((:goto ,(jmp-label a q1)))))))
+                                  (,clauses))
+                            clauses)))
+                    '(:goto label-fail)
+                    terminals))))
       (with-c-output output
         (c-indent-format "/*****************/~&")
         (c-indent-format "/* MOTION PARSER */~&")
@@ -215,28 +260,19 @@
           (with-c-nest ((c-indent-format "switch( i )"))
             (do-finite-set (a nonterms)
               (do-finite-set (q (fa-states (gethash a fa-hash)))
-                (c-gen `(:case ,(call-idx a q)))
-                (c-gen `(:label ,(jmp-label a q)))
-                (c-gen `(:comment ,(format nil "<~A:~d>" a q)))
-                (if (finite-set-inp q (fa-accept (gethash a fa-hash)))
-                    (c-gen '(:return 0))
-                    (let ((clauses '(:return -1)))
-                      (do-finite-set (z terminals)
-                        (multiple-value-bind (b qq type q1)
-                            (funcall pred-table a q z)
-                          (when type
-                            (setq clauses
-                                  `(:if ,(term-test z)
-                                        (,@(set-super z)
-                                           ,(ecase
-                                             type
-                                             (:jump
-                                              `(:goto ,(jmp-label b qq)))
-                                             (:call
-                                              `(:if ,(recurse-call (call-idx b qq))
-                                                    ((:return -1))
-                                                    ((:goto ,(jmp-label a q1)))))))
-                                        (,clauses))))))
-                    (c-gen clauses)))
-              )))
-          (c-gen '(:return -1)))))))
+                (when (gethash (list a q) count-recurse)
+                  (c-gen `(:case ,(call-idx a q)))
+                  (c-gen `(:label ,(jmp-label a q)))
+                  (c-gen `(:comment ,(format nil "<~A:~d>" a q)))
+                  (c-gen (state-clauses a q))))))
+          (do-finite-set (a nonterms)
+              (do-finite-set (q (fa-states (gethash a fa-hash)))
+                (unless (or (gethash (list a q) count-recurse)
+                            (accept-p a q))
+                  (c-gen `(:label ,(jmp-label a q)))
+                  (c-gen `(:comment ,(format nil "<~A:~d>" a q)))
+                  (c-gen (state-clauses a q)))))
+          (c-gen '(:label label-fail))
+          (c-gen '(:return -1))
+          (c-gen '(:label label-ok))
+          (c-gen '(:return 0)))))))

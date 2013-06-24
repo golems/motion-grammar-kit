@@ -72,17 +72,18 @@
   (c-format ";~%"))
 
 (defun c-format-goto (label)
-  (c-format-statement "goto ~A" label))
+  (c-format-statement "goto ~A" (csymbol label)))
 
 (defun c-format-label (label)
   (let ((*c-indent* (1- *c-indent*)))
-    (c-indent-format "~A:~%" label)))
+    (c-indent-format "~A:~%" (csymbol label))))
 
 (defun c-format-return (value)
   (c-format-statement "return ~A" value))
 
 (defun c-format-case (i)
-  (c-format-label (format nil "case ~A" i)))
+  (let ((*c-indent* (1- *c-indent*)))
+    (c-indent-format "case ~D:~%"  i)))
 
 (defmacro with-c-output (output &body body)
   (alexandria:with-gensyms (fun-sym output-sym)
