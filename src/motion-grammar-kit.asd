@@ -61,6 +61,7 @@
                                      (:file "search" :depends-on ("fa"))
                                      (:file "supervisor" :depends-on ("fa"))
                                      (:file "codegen" :depends-on ("fa" "grammar" "matcher"))
+                                     (:file "ell1" :depends-on ("codegen"))
                                      (:file "threadpool" :depends-on ("package"))
                                      (:file "compiler" :depends-on ("fa" "regex"))
                                      (:file "bnf" :depends-on ("compiler"))

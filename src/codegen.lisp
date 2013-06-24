@@ -133,7 +133,7 @@
 (defun c-gen (c)
   (spec-case c
     ((&ignore (op is (or :== :!= :call :! :-> :&& :or)) &rest rest)
-     (c-exp c))
+     (c-indent-format "~A;~%" (c-exp c)))
     ((:= lhs rhs)
      (c-indent-format "~A = ~A;~%"
                       (c-exp lhs) (c-exp rhs)))
@@ -154,19 +154,27 @@
      (with-c-block
        (map nil #'c-gen body)))
     ((:if test then-clause &optional else-clause)
-     (if (cdr then-clause)
-         (with-c-nest ((c-indent-format "if ( ~A )" (c-exp test)))
-           (map nil #'c-gen then-clause))
-         (progn
-           (c-indent-format "if ( ~A )" (c-exp test))
-           (with-c-indent (C-gen (car then-clause)))))
-     (when else-clause
-       (if (cdr else-clause)
-           (with-c-nest ((c-indent-format "else"))
-             (map nil #'c-gen else-clause))
-           (progn
-             (c-indent-format "else")
-             (with-c-indent (C-gen (car else-clause)))))))
+     (labels ((emit-clause (clause)
+                (if (cdr clause)
+                    (c-gen (cons :block clause))
+                    (with-c-indent (c-gen (car clause)))))
+              (emit-rest (then-clause &optional else-clause)
+                (emit-clause then-clause)
+                (when else-clause
+                  (if (and (eq :if (caar else-clause))
+                           (null (cdr else-clause)))
+                      ;; pretty-print else if
+                      (destructuring-bind ((iif test then-clause
+                                                &optional else-clause))
+                          else-clause
+                        (assert (eq :if iif))
+                        (c-indent-format "else if ( ~A )" (c-exp test))
+                        (emit-rest then-clause else-clause))
+                      (progn ; normal else clause
+                        (c-indent-format "else")
+                        (emit-clause else-clause))))))
+       (c-indent-format "if ( ~A )" (c-exp test))
+       (emit-rest then-clause else-clause)))
     ((:comment str)
      (c-indent-format "// ~A" str))
     (a
