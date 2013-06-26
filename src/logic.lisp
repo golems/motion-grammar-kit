@@ -48,7 +48,7 @@
 
 (defun prop-simplify (e &optional (use-minisat nil))
   (labels ((recurse (e) (prop-simplify e use-minisat))
-           (same-as (e1 e2) (when use-minisat (propositions-equivalent e1 e2)))
+           (same-as (e1 e2) (when use-minisat (prop-equivalent-p e1 e2)))
            (never-as (e1 e2) (same-as e1 (list 'not e2)))
            (help-simplify (e)
              (pattern-case e
@@ -104,7 +104,25 @@
         e
         (recurse e-new)))))
 
-(defun logic-variables (e)
+
+(defun prop-sat-simplify (e)
+  (labels ((sat-simp (e)
+             (cond
+               ((prop-tautology-p e)
+                t)
+               ((not (prop-sat-p e))
+                nil)
+               (t e)))
+           (visit (e)
+             (pattern-case e
+               ((:pattern (or 'and 'or 'iff 'implies) &rest args)
+                (sat-simp (cons (car e)
+                                (map 'list #'visit args))))
+               (t (sat-simp e)))))
+    (visit e)))
+
+
+(defun prop-variables (e)
   (labels ((helper (v e)
              (pattern-case e
                ((:pattern (or 'and 'or 'iff 'implies) &rest args)
@@ -112,7 +130,10 @@
                ((:pattern 'not a)
                 (helper v a))
                ((atom)
-                (finite-set-nadd v e))
+                (if (or (eq e t)
+                        (eq e nil))
+                    v
+                    (finite-set-nadd v e)))
                (t (error "Invalid proposition: ~A" e)))))
     (helper (make-finite-set :mutable t) e)))
 
@@ -120,24 +141,28 @@
 (defun prop->se (e)
   "Returns (values (lambda (integer)) variables).
 The lambda will evalute E, assigning each bit of INTEGER to the corresponding variables."
-  (let* ((e (prop-simplify e))
-         (v (finite-set-list (logic-variables e))))
+  (let* (;(e (prop-simplify e))
+         (v (finite-set-list (prop-variables e))))
     (values
      (with-gensyms (integer)
-       `(lambda (,integer)
-          (declare (type (unsigned-byte ,(length v)) ,integer))
-          (let ,(loop for i from 0
-                   for x in v
-                   collect `(,x (not (zerop (ldb (byte 1 ,i) ,integer)))))
-            (declare (type boolean ,@v))
-            ,e)))
+       (if (zerop (length v))
+           `(lambda (,integer)
+              (declare (ignore ,integer))
+              ,e)
+           `(lambda (,integer)
+              (declare (type (unsigned-byte ,(length v)) ,integer))
+              (let ,(loop for i from 0
+                       for x in v
+                       collect `(,x (not (zerop (ldb (byte 1 ,i) ,integer)))))
+                (declare (type boolean ,@v))
+                ,e))))
      v)))
 
 (defun prop-compile (e)
   (multiple-value-bind (se v) (prop->se e)
     (values (eval se) v)))
 
-(defun circuit-sat-brute (e)
+(defun prop-sat-brute (e)
   "Brute-force solution to circuit-sat"
   (multiple-value-bind (fun v)
       (prop-compile e)
@@ -145,19 +170,31 @@ The lambda will evalute E, assigning each bit of INTEGER to the corresponding va
        for i from 0 below max
        for sat = (funcall fun i)
        when sat
-       do (return-from circuit-sat-brute (values i v)))
-    (values 0 v)))
+       do (return-from prop-sat-brute (values i v)))
+    (values nil v)))
 
 (defun prop-join (e)
   (labels ((join (op args)
              "Returns list of joined args"
-             (loop for arg in args
-                append (if (and (consp arg) (eq op (car arg)))
-                           (join op (cdr arg))
-                           (list (prop-join arg))))))
+             (remove-duplicates
+              (loop for arg in args
+                 append (if (and (consp arg) (eq op (car arg)))
+                            (join op (cdr arg))
+                            (list (prop-join arg))))
+              :test #'equal)))
     (if (consp e)
         (cons (car e) (join (car e) (cdr e)))
         e)))
+
+(defun prop-split (e)
+  (labels ((visit (e)
+             (pattern-case e
+               ((:pattern (or 'and 'or) a b c &rest d)
+                `(,(car e)
+                   ,a
+                   ,(visit `(,(car e) ,b ,c ,@d))))
+               (t e))))
+    (visit e)))
 
 (defun prop->cnf (e)
   "Convert E to Conjuntive-Normal-Form.
@@ -245,7 +282,7 @@ A conjunction of disjunctions of literals."
 (defun prop->dimacs (e &optional (stream *standard-output*))
   "Convert E to dimacs format and return a list of the variables"
   (let* ((e (prop-join (prop->cnf e)))
-         (v (finite-set-list (logic-variables e)))
+         (v (finite-set-list (prop-variables e)))
          (hash (make-hash-table :test #'equal)))
     ;; enumaerate vars
     (loop for i from 1
@@ -307,9 +344,14 @@ A conjunction of disjunctions of literals."
       (when (probe-file minisat-result-pathname)
         (delete-file minisat-result-pathname)))))
 
+(defparameter *prop-brute-limit* 10)
+
 (defun prop-sat-p (e)
   "Is E satisfiable?"
-  (minisat e))
+  (let ((n  (hash-table-count (prop-variables e))))
+    (if (< n *prop-brute-limit*)
+        (prop-sat-brute e)
+        (minisat e))))
 
 (defun prop-tautology-p (e)
   "Is E always true?
